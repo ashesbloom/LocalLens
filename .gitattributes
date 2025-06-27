@@ -1,1 +1,2 @@
 *.jsx linguist-language=React
+# suppose to be a fix, but apparently GitHub uses https://github.com/github/linguist, which does not recognize React as a separate language -- .jsx and .tsx files are categorized as JavaScript and TypeScript only.
