@@ -1,0 +1,2109 @@
+/* 3. FILE: frontend/src/App.css (Component-specific styles) */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Base colors that don't change with theme */
+  --color-success: #16a34a;
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-warning: #ca8a04;
+  --color-info: #2563eb;
+  --color-bg: #ffffff;
+  --color-bg-light: #f9fafb;
+  --color-bg-lighter: #f3f4f6;
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
+  --color-border: #e5e7eb;
+  --shadow-xl: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,0.15);
+  --border-radius: 0.5rem;
+  --transition-speed: 0.2s;
+  --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/*
+ * THEME DEFINITIONS
+ * We use CSS variables to dynamically change the UI color scheme.
+ */
+
+/* Default Theme: Standard Sort (Blue) */
+body, .theme-standard {
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-primary-rgb: 59, 130, 246;
+  --color-secondary: #06b6d4;
+  --color-gradient: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  --color-shadow-primary: rgba(59, 130, 246, 0.4);
+}
+
+/* Theme: Hybrid Sort (Green) */
+.theme-hybrid {
+  --color-primary: #16a34a;
+  --color-primary-hover: #15803d;
+  --color-primary-rgb: 22, 163, 74;
+  --color-secondary: #4ade80;
+  --color-gradient: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  --color-shadow-primary: rgba(22, 163, 74, 0.4);
+}
+
+/* Theme: Find & Group (Red) */
+.theme-find {
+  --color-primary: #dc2626;
+  --color-primary-hover: #b91c1c;
+  --color-primary-rgb: 220, 38, 38;
+  --color-secondary: #f87171;
+  --color-gradient: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  --color-shadow-primary: rgba(220, 38, 38, 0.4);
+}
+
+/* --- NEW: Color Conflict Resolution for Themes --- */
+/* Red Theme */
+.theme-find .btn-exit:hover {
+  background-color: #fee2e2;
+  color: #991b1b; /* Darker Red */
+  border-color: #ef4444; /* Brighter Red */
+  box-shadow: 0 8px 25px rgba(220, 38, 38, 0.4);
+}
+
+.theme-find .btn-danger, 
+.theme-find .modal-btn.btn-danger {
+  /* Make danger buttons stand out from the primary red theme */
+  background: #991b1b; /* Dark solid red */
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.5); /* Inner white border */
+}
+
+.theme-find .btn-danger:hover:not(:disabled), 
+.theme-find .modal-btn.btn-danger:hover {
+  background: #7f1d1d; /* Even darker red */
+  box-shadow: inset 0 0 0 2px #fecaca, 0 6px 20px rgba(153, 27, 27, 0.5);
+}
+
+.theme-find .subfolder-item:has(input:checked) {
+  background-color: #fee2e2;
+  border-color: var(--color-secondary); /* Use the secondary theme color for the border */
+  color: #b91c1c; /* Darker red text */
+}
+
+.theme-find .subfolder-item:has(input:checked) .folder-icon {
+    color: var(--color-primary);
+}
+
+/* Green Theme */
+.theme-hybrid .btn-danger,
+.theme-hybrid .modal-btn.btn-danger {
+    background: var(--color-danger);
+}
+.theme-hybrid .btn-danger:hover:not(:disabled),
+.theme-hybrid .modal-btn.btn-danger:hover {
+    background: #b91c1c;
+}
+
+/* NEW: Connection Error Banner */
+.connection-error-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background-color: var(--color-danger);
+    color: white;
+    text-align: center;
+    padding: 0.5rem;
+    z-index: 9999;
+    font-weight: 500;
+    box-shadow: var(--shadow-lg);
+    animation: slide-down 0.5s var(--transition-smooth);
+}
+
+.connection-error-banner p {
+    margin: 0;
+    padding: 0;
+}
+
+@keyframes slide-down {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+
+/* Base Styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  margin: 0;
+  padding: 0;
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  padding: 0;
+  color: inherit;
+}
+
+p {
+  margin: 0;
+  padding: 0;
+  color: inherit;
+}
+
+/* Main Layout */
+.app-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  animation: fade-in-up 0.6s var(--transition-smooth);
+  
+  /* Add a subtle gradient background to enhance glass effect visibility */
+  background: linear-gradient(
+    180deg,
+    rgba(var(--color-primary-rgb), 0.02) 0%,
+    rgba(var(--color-secondary-rgb, 6, 182, 212), 0.02) 50%,
+    rgba(var(--color-primary-rgb), 0.02) 100%
+  );
+  border-radius: var(--border-radius);
+}
+
+.app-header {
+  text-align: center;
+  padding: 2rem 1rem 1.5rem 1rem; /* Restored original padding */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem; /* Spacing between title and new menu */
+}
+
+.app-header:hover {
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.app-header h1 {
+  font-size: 2.5rem;
+  font-weight: bold;
+  background: var(--color-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+  animation: gentle-glow 3s ease-in-out infinite; /* Restored Glow */
+}
+
+.app-header p {
+  /* This style is no longer used in the header but kept for other potential uses */
+  margin: 0.25rem 0 1.5rem 0;
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+}
+
+.app-main {
+  padding: 1.5rem;
+  background-color: var(--color-bg-light);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  transition: all var(--transition-speed) var(--transition-smooth);
+  animation: slide-in 0.5s var(--transition-smooth);
+}
+
+.app-main:hover {
+  box-shadow: 0 15px 35px rgba(0,0,0,0.12);
+  transform: translateY(-1px);
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .setup-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.setup-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* NEW: Styles for SubfolderSelector when in the right column */
+.setup-column > .subfolder-selector-section {
+  margin-top: 0; /* Reset margin when inside the column */
+  flex-grow: 1; /* Allow it to fill available space */
+  display: flex;
+  flex-direction: column;
+}
+
+.subfolder-selector-section .subfolder-list {
+  flex-grow: 1; /* Allow list to expand */
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 1.5rem 0;
+  opacity: 0.7;
+}
+
+/* Form & Input Elements */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  animation: fade-in 0.4s var(--transition-smooth);
+}
+
+.form-group label {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.form-group .description {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-group .icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--color-text-muted);
+  transition: color var(--transition-speed);
+}
+
+.input-field, .select-field {
+  width: 100%;
+  background-color: var(--color-bg-lighter);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: 0.75rem;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.input-field:focus, .select-field:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+  transform: translateY(-1px);
+}
+
+.input-field:hover, .select-field:hover {
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.input-field.with-icon {
+  padding-left: 2.5rem;
+}
+
+.select-field {
+  appearance: none;
+  background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239ca3af%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22/%3E%3C/svg%3E');
+  background-repeat: no-repeat;
+  background-position: right 0.7rem top 50%;
+  background-size: .65rem auto;
+  padding-right: 2rem;
+}
+
+/* Preset Manager */
+.preset-selector {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Enhanced Buttons with Subtle Effects */
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: var(--border-radius);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-speed) var(--transition-smooth);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.btn:hover::before {
+  left: 100%;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-browse {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: var(--color-bg-lighter);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.btn-browse:hover:not(:disabled) { 
+  background-color: var(--color-border);
+  transform: translateY(-50%) scale(1.05);
+}
+
+.btn-save {
+  background-color: var(--color-success);
+  color: white;
+  padding: 0 1rem;
+}
+.btn-save:hover:not(:disabled) { 
+  background-color: #34d399;
+  box-shadow: 0 4px 15px rgba(22, 163, 74, 0.3);
+}
+
+.btn-primary {
+  width: 100%;
+  background: var(--color-gradient);
+  color: var(--color-bg);
+  font-size: 1.1rem;
+}
+.btn-primary:hover:not(:disabled) { 
+  background: linear-gradient(135deg, var(--color-primary-hover), var(--color-primary));
+  box-shadow: 0 6px 20px var(--color-shadow-primary);
+}
+
+.btn-secondary {
+  width: 100%;
+  background-color: var(--color-bg-lighter);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+.btn-secondary:hover:not(:disabled) { 
+  background-color: var(--color-border);
+  transform: translateY(-2px);
+}
+
+.btn-danger {
+  width: 100%;
+  background: linear-gradient(135deg, var(--color-danger), var(--color-danger-hover));
+  color: white;
+}
+.btn-danger:hover:not(:disabled) { 
+  background: linear-gradient(135deg, var(--color-danger-hover), #991b1b);
+  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+}
+
+.btn-enroll {
+  width: 100%;
+  background: var(--color-gradient);
+  color: white;
+}
+.btn-enroll:hover:not(:disabled) { 
+  background: linear-gradient(135deg, var(--color-primary-hover), var(--color-primary));
+  box-shadow: 0 6px 20px var(--color-shadow-primary);
+}
+
+/* Enhanced Header Buttons with Glass Effect - FIXED TO VIEWPORT */
+.btn-reload, .btn-exit {
+  position: fixed; /* Changed from absolute to fixed */
+  top: 1.5rem;
+  cursor: pointer;
+  padding: 0.6rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000; /* High z-index to stay above all content */
+  width: 44px;
+  height: 44px;
+  border: none;
+  
+  /* === CORE GLASS EFFECT === */
+  background: rgba(255, 255, 255, 0.15);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--color-text-muted);
+  
+  /* Smooth transitions */
+  transition: all var(--transition-speed) var(--transition-smooth);
+  
+  /* Essential for containing the reflective sheen */
+  overflow: hidden;
+  
+  /* FIXED: Ensure proper box model */
+  box-sizing: border-box;
+  
+  /* FIXED: Prevent any flex shrinking/growing */
+  flex-shrink: 0;
+  flex-grow: 0;
+}
+
+/* === GLASS REFLECTION AND REFRACTION ILLUSION === */
+.btn-reload::before, .btn-exit::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.3) 0%, 
+    rgba(255, 255, 255, 0.1) 40%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  
+  box-shadow: inset 0 0 2px 1px rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  z-index: -1;
+  
+  /* FIXED: Prevent pseudo-element from affecting layout */
+  pointer-events: none;
+}
+
+/* FIXED: Calculate positioning based on viewport, accounting for app-container centering */
+.btn-reload {
+  /* Calculate: 50% (center) + (app-container max-width / 2) - button offset */
+  right: calc(50% - 400px + 1.5rem); /* 400px = half of max-width 800px */
+  margin: 0;
+}
+
+.btn-exit {
+  /* Calculate: 50% (center) + (app-container max-width / 2) - button offset */
+  right: calc(50% - 400px + 5rem); /* 400px = half of max-width 800px */
+  margin: 0;
+}
+
+/* Fallback for when container is smaller than max-width */
+@media (max-width: 800px) {
+  .btn-reload {
+    right: 1.5rem; /* Use simple right positioning on smaller screens */
+  }
+  
+  .btn-exit {
+    right: 5rem; /* Use simple right positioning on smaller screens */
+  }
+}
+
+/* Enhanced Hover States with Glass Effect - FIXED TRANSFORMS */
+.btn-reload:hover {
+  background: rgba(var(--color-primary-rgb), 0.2);
+  color: var(--color-primary);
+  transform: translateY(-3px) rotate(90deg) scale(1.1);
+  transform-origin: center center;
+  
+  box-shadow: 
+    0 12px 40px rgba(var(--color-primary-rgb), 0.25),
+    0 4px 12px rgba(var(--color-primary-rgb), 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  
+  border-color: rgba(var(--color-primary-rgb), 0.4);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+.btn-reload:hover::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.4) 0%, 
+    rgba(var(--color-primary-rgb), 0.2) 40%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  box-shadow: inset 0 0 3px 1px rgba(255, 255, 255, 0.25);
+}
+
+.btn-exit:hover {
+  background: rgba(220, 38, 38, 0.2);
+  color: var(--color-danger);
+  transform: translateY(-3px) scale(1.1);
+  transform-origin: center center;
+  
+  box-shadow: 
+    0 12px 40px rgba(220, 38, 38, 0.25),
+    0 4px 12px rgba(220, 38, 38, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  
+  border-color: rgba(220, 38, 38, 0.4);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+.btn-exit:hover::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.4) 0%, 
+    rgba(220, 38, 38, 0.2) 40%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  box-shadow: inset 0 0 3px 1px rgba(255, 255, 255, 0.25);
+}
+
+/* FIXED: Theme-specific conflict resolution with updated positioning */
+.theme-find .btn-exit:hover {
+  background: rgba(220, 38, 38, 0.2) !important;
+  color: var(--color-danger) !important;
+  border-color: rgba(220, 38, 38, 0.4) !important;
+  
+  box-shadow: 
+    0 12px 40px rgba(220, 38, 38, 0.25),
+    0 4px 12px rgba(220, 38, 38, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  
+  transform: translateY(-3px) scale(1.1) !important;
+  transform-origin: center center !important;
+}
+
+/* FIXED: Remove header padding since buttons are now fixed to viewport */
+.app-header {
+  text-align: center;
+  padding: 2rem 1rem 1.5rem 1rem; /* Restored original padding */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  
+  /* FIXED: Ensure header can contain absolutely positioned buttons */
+  min-height: 80px;
+}
+
+/* FIXED: Restore original title styling */
+.app-header h1 {
+  font-size: 2.5rem;
+  font-weight: bold;
+  background: var(--color-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+  animation: gentle-glow 3s ease-in-out infinite;
+  
+  /* FIXED: Remove width constraint since buttons don't affect layout */
+  width: auto;
+  text-align: center;
+}
+
+/* FIXED: Ensure icons stay properly aligned and visible above content */
+.btn-reload svg, .btn-exit svg {
+  width: 18px;
+  height: 18px;
+  transition: transform var(--transition-speed) var(--transition-smooth);
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
+  
+  display: block;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* FIXED: Enhanced focus states for glass buttons */
+.btn-reload:focus, .btn-exit:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: 
+    0 0 0 4px rgba(var(--color-primary-rgb), 0.1),
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  
+  transform: none !important;
+}
+
+/* FIXED: Active states */
+.btn-reload:active, .btn-exit:active {
+  transform: translateY(-1px) scale(0.98) !important;
+  transition: transform 0.1s ease-out;
+}
+
+.btn-reload:active {
+  transform: translateY(-1px) rotate(90deg) scale(0.98) !important;
+}
+
+/* ENHANCED: Add some visual interest to demonstrate the glass effect */
+.app-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  animation: fade-in-up 0.6s var(--transition-smooth);
+  
+  /* Add a subtle gradient background to enhance glass effect visibility */
+  background: linear-gradient(
+    180deg,
+    rgba(var(--color-primary-rgb), 0.02) 0%,
+    rgba(var(--color-secondary-rgb, 6, 182, 212), 0.02) 50%,
+    rgba(var(--color-primary-rgb), 0.02) 100%
+  );
+  border-radius: var(--border-radius);
+}
+
+/* Enhanced responsive adjustments for mobile with fixed positioning */
+@media (max-width: 640px) {
+  .btn-exit {
+    right: 4.2rem !important;
+    padding: 0.5rem;
+    width: 40px;
+    height: 40px;
+  }
+  
+  .btn-reload {
+    right: 1.2rem !important;
+    padding: 0.5rem;
+    width: 40px;
+    height: 40px;
+  }
+  
+  .btn-reload svg, .btn-exit svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .btn-reload:hover {
+    transform: translateY(-2px) rotate(90deg) scale(1.05) !important;
+  }
+  
+  .btn-exit:hover {
+    transform: translateY(-2px) scale(1.05) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .btn-exit {
+    right: 3.8rem !important;
+  }
+  
+  .btn-reload {
+    right: 1rem !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .btn-exit {
+    right: 3.5rem !important;
+  }
+  
+  .btn-reload {
+    right: 0.8rem !important;
+  }
+}
+
+/* ENHANCED: Add scroll-triggered backdrop blur intensity changes */
+@supports (backdrop-filter: blur()) {
+  /* Enhanced glass effect when scrolling over different content */
+  .btn-reload:hover, .btn-exit:hover {
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+    backdrop-filter: blur(24px) saturate(1.2);
+  }
+}
+
+/* ENHANCED: Add subtle animation to make glass effect more noticeable */
+@keyframes glass-pulse {
+  0%, 100% { 
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.12),
+      0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+  50% { 
+    box-shadow: 
+      0 12px 40px rgba(0, 0, 0, 0.15),
+      0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.btn-reload, .btn-exit {
+  animation: glass-pulse 4s ease-in-out infinite;
+}
+
+.btn-reload:hover, .btn-exit:hover {
+  animation: none; /* Stop pulse on hover to avoid conflict */
+}
+
+/* --- REMOVED old .sorting-mode-selector styles --- */
+
+/* --- NEW: Advanced Glassmorphism Mode Selector Bar --- */
+.mode-selector-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mode-selector-bar {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.4rem;
+  border-radius: 99px; /* Pill shape */
+  transition: all 0.3s var(--transition-smooth);
+  
+  /* === CORE GLASS EFFECT (Darker & Deeper) === */
+  background: rgba(10, 20, 35, 0.4); /* Darker, bluish glass */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); /* Deeper shadow */
+  border: 1px solid rgba(255, 255, 255, 0.1); /* Fainter border */
+  
+  position: relative;
+  overflow: hidden; /* Crucial for containing the animated sheen */
+}
+
+/* REMOVED old ::before pseudo-element */
+
+/* === NEW: Animated Reflective Sheen */
+/* Using ::after to create a moving light source illusion */
+.mode-selector-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%; /* The sheen is a portion of the width */
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15), /* Subtle white highlight */
+    transparent
+  );
+  /* Apply the animation */
+  animation: shimmer-sheen 4s ease-in-out infinite;
+  z-index: 0; /* Places the sheen behind the buttons */
+}
+
+/* NEW: Shortcut button for enrollment in specific modes */
+.btn-enroll-shortcut {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  color: white;
+  background: var(--color-gradient);
+  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.3);
+  transition: all 0.2s var(--transition-smooth);
+  /* Add pop-in animation */
+  animation: pop-in 0.3s 0.2s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+}
+
+.btn-enroll-shortcut:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 8px 20px rgba(var(--color-primary-rgb), 0.4);
+}
+
+.btn-enroll-shortcut:active {
+  transform: translateY(0) scale(1);
+}
+
+.mode-selector-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.1rem;
+  border: none;
+  background-color: transparent;
+  color: #a9c1e2; /* Lighter, desaturated blue-gray text for readability */
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 99px; /* Pill shape */
+  cursor: pointer;
+  transition: all 0.25s var(--transition-smooth);
+  white-space: nowrap;
+  position: relative;
+  z-index: 1; /* Keep buttons on top of the sheen */
+  opacity: 0.7; /* Make inactive buttons more subtle */
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2); /* Add shadow for depth */
+}
+
+.mode-selector-btn:hover:not(.active) {
+  background-color: transparent; /* No background on hover */
+  color: #ffffff; /* Brighten text on hover */
+  opacity: 1; /* Full opacity on hover */
+}
+
+.mode-selector-btn.active {
+  background: var(--color-gradient);
+  color: white;
+  box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.3), inset 0 1px 1px rgba(255,255,255,0.2);
+  transform: none; /* Remove previous scaling */
+  opacity: 1; /* Ensure it's fully opaque */
+  text-shadow: none; /* Remove text shadow when active */
+}
+
+.mode-selector-btn svg {
+  /* Icon size is set in the component */
+  transition: transform 0.2s var(--transition-smooth);
+}
+
+.mode-selector-btn.active svg {
+  transform: rotate(-5deg);
+}
+
+.mode-content-wrapper {
+  margin-top: 1.5rem;
+}
+
+.placeholder-content {
+  text-align: center;
+  padding: 2rem;
+  background-color: var(--color-bg-lighter);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--border-radius);
+  color: var(--color-text-muted);
+}
+
+.placeholder-content h3 {
+  color: var(--color-text);
+  margin-bottom: 0.5rem;
+}
+
+/* --- MODIFIED & ENHANCED: Hybrid Sort Configuration Styles --- */
+.hybrid-config-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; /* Reduced gap */
+}
+
+.config-section {
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  transition: all 0.2s var(--transition-smooth);
+}
+
+.config-section:hover {
+    border-color: var(--color-primary);
+    box-shadow: 0 4px 15px rgba(var(--color-primary-rgb), 0.1);
+}
+
+.config-section-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin: 0 0 0.25rem 0;
+}
+
+.config-section-description {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0 0 1rem 0; /* Reduced margin */
+}
+
+/* --- NEW: Compact Base Sort Styles --- */
+.config-section.compact-base-sort {
+  padding: 1rem 1.5rem; /* Reduced padding */
+}
+
+.compact-base-sort .config-section-description {
+  margin-bottom: 1rem; /* Reduced margin */
+}
+
+.compact-sorting-options {
+  display: flex;
+  gap: 0.5rem;
+  background-color: var(--color-bg-lighter);
+  border-radius: 99px;
+  padding: 0.3rem;
+  border: 1px solid var(--color-border);
+}
+
+.compact-sort-btn {
+  flex-grow: 1;
+  padding: 0.4rem 0;
+  border-radius: 99px;
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s var(--transition-smooth);
+}
+
+.compact-sort-btn:hover:not(.active):not(:disabled) {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.compact-sort-btn.active {
+  background: var(--color-gradient);
+  color: white;
+  box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.3);
+}
+
+.compact-sort-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* REMOVED: All styles for .face-mode-selector-container, .face-mode-label, .face-mode-options, and .face-mode-btn are deleted. */
+
+/* MODIFIED: Re-using the standard face mode selector for Hybrid sort */
+.face-mode-selector.hybrid-face-mode {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: var(--color-bg-lighter);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--color-border);
+  animation: slide-in-up 0.4s ease-out;
+}
+
+.hybrid-face-mode .face-mode-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.hybrid-face-mode .radio-group {
+  justify-content: center;
+}
+
+.hybrid-face-mode .radio-text {
+  font-size: 0.9rem;
+}
+
+
+.filter-type-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.filter-type-btn {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: 2px solid var(--color-border);
+  border-radius: var(--border-radius);
+  background-color: var(--color-bg-light);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s var(--transition-smooth);
+}
+
+.filter-type-btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background-color: rgba(var(--color-primary-rgb), 0.05);
+}
+
+.filter-type-btn.active {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: white;
+  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.3);
+}
+
+.filter-type-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--color-bg-lighter);
+}
+
+/* --- NEW: Enhanced Special Filter UI --- */
+.special-filter-section .filter-inputs {
+  background: rgba(10, 20, 35, 0.4);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  min-height: 180px; /* Taller to accommodate pills */
+  animation: filter-bg-glow 5s ease-in-out infinite;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+@keyframes filter-bg-glow {
+  0%, 100% { box-shadow: inset 0 0 15px rgba(var(--color-primary-rgb), 0.1); }
+  50% { box-shadow: inset 0 0 25px rgba(var(--color-primary-rgb), 0.2); }
+}
+
+.enhanced-filter-container {
+  width: 100%;
+  /* REMOVED: height: 100%; This was causing the layout leak. */
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: fade-in 0.5s ease-out;
+}
+
+.filter-search-bar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.filter-search-bar .search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.filter-search-bar input {
+  width: 100%;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0.6rem 0.75rem 0.6rem 2.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.9rem;
+  transition: all 0.2s var(--transition-smooth);
+}
+
+.filter-search-bar input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.filter-search-bar input:focus {
+  background: rgba(0,0,0,0.3);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.3);
+}
+
+.filter-pills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.scrollable-pills {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 0.5rem; /* Space for scrollbar */
+  max-height: 120px; /* Set a max height for scrolling */
+}
+
+.filter-pill {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  border-radius: 99px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s var(--transition-smooth);
+  animation: pop-in 0.3s ease-out backwards;
+  word-break: break-word; /* FIX: Prevents long text from overflowing */
+}
+
+/* MODIFIED: This style now ignores pills that are already selected */
+.filter-pill:hover:not(:disabled):not(.selected) {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.filter-pill.selected {
+  background: var(--color-gradient);
+  color: white;
+  text-shadow: none;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.3);
+  transform: scale(1.05);
+}
+
+.month-pills-container {
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 1rem;
+  animation: slide-in-up 0.4s ease-out;
+}
+
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.pills-subtitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.75rem;
+}
+
+.no-results-text {
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  width: 100%;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+/* --- Remove old date filter styles --- */
+.filter-inputs .date-filter-group, .filter-inputs .date-column {
+  display: none;
+}
+
+.filter-input-group {
+  width: 100%;
+}
+
+.filter-input-group label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--color-text-muted);
+}
+
+.filter-input-group .select-field[multiple] {
+    min-height: 120px;
+    padding: 0.5rem;
+}
+
+.metadata-loader, .metadata-loader-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--color-text-muted);
+    background-color: var(--color-bg-lighter);
+    border-radius: var(--border-radius);
+    width: 100%;
+}
+
+.metadata-loader-error {
+    color: var(--color-warning);
+}
+
+
+/* Enhanced Animations */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gentle-glow {
+  0% { filter: drop-shadow(0 0 4px rgba(var(--color-primary-rgb), 0.2)); }
+  50% { filter: drop-shadow(0 0 12px rgba(var(--color-primary-rgb), 0.4)); }
+  100% { filter: drop-shadow(0 0 4px rgba(var(--color-primary-rgb), 0.2)); }
+}
+
+@keyframes modal-fade-in {
+  from { 
+    opacity: 0;
+  }
+  to { 
+    opacity: 1;
+  }
+}
+
+@keyframes modal-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+/* --- NEW: Animations for Component Transitions --- */
+@keyframes shrink-out {
+  from {
+    transform: scale(1);
+    opacity: 1;
+    max-height: 500px;
+    background-color: var(--color-bg-light);
+    border-width: 1px;
+  }
+  to {
+    transform: scale(0.7);
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    background-color: rgba(var(--color-primary-rgb), 0.2);
+    border-width: 0px;
+  }
+}
+
+@keyframes grow-in {
+  from {
+    transform: scale(0.7);
+    opacity: 0;
+    max-height: 0;
+    background-color: rgba(var(--color-primary-rgb), 0.2);
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0px;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+    max-height: 500px;
+    background-color: var(--color-bg-light);
+    border-width: 1px;
+  }
+}
+
+@keyframes pop-in {
+    from {
+        transform: scale(0.5);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Face Enrollment */
+/* NEW: Wrapper for smooth transitions */
+.face-enrollment-wrapper {
+    overflow: hidden;
+    /* Animate towards the top-right where the shortcut button appears */
+    transform-origin: 85% -15%;
+    /* Styles moved from .enrollment-section for animation control */
+    background-color: var(--color-bg-light);
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-border);
+    transition: box-shadow var(--transition-speed) var(--transition-smooth);
+}
+
+.face-enrollment-wrapper:hover {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+.face-enrollment-wrapper.entering {
+    animation: grow-in 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.face-enrollment-wrapper.exiting {
+    animation: shrink-out 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.enrollment-section {
+  /* This is now just a layout container, styling is on the wrapper */
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  background-color: transparent;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  transition: none;
+}
+
+.enrollment-section:hover {
+  box-shadow: none;
+}
+
+/* NEW: Styles for when enrollment is inside a modal */
+.enrollment-section.modal-mode {
+  background-color: transparent;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+}
+
+.enrollment-section.modal-mode:hover {
+  box-shadow: none;
+}
+
+.enrollment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.enrollment-details {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: fade-in-up 0.4s ease-out;
+}
+
+/* Enrollment Queue Styles */
+.enrollment-queue {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1rem;
+  animation: fade-in-up 0.4s ease-out;
+}
+
+.queue-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.queue-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.queue-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background-color: var(--color-bg-lighter);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.queue-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.queue-person-name {
+  font-weight: 500;
+  flex-grow: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-image-count {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  background-color: var(--color-bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 99px;
+  flex-shrink: 0;
+}
+
+.btn-remove-queue {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.btn-remove-queue:hover:not(:disabled) {
+  color: var(--color-danger);
+  background-color: #fee2e2;
+  transform: scale(1.1);
+}
+
+.btn-remove-queue:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.enrollment-action {
+    margin-top: 1rem;
+}
+
+/* NEW styles for the button wrapper */
+.enrollment-actions {
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+}
+
+.enrollment-actions .btn {
+    flex-grow: 1; /* Makes buttons share the space equally */
+    width: 50%;
+}
+
+/* NEW: Enrollment Performance Warning */
+.enrollment-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem; /* Space between warning and the list */
+    border-radius: var(--border-radius);
+    background-color: rgba(202, 138, 4, 0.1); /* --color-warning with alpha */
+    border: 1px solid rgba(202, 138, 4, 0.3);
+    color: #a16207; /* Darker warning text color */
+    animation: fade-in-up 0.4s ease-out;
+}
+
+.enrollment-warning .warning-icon {
+  flex-shrink: 0;
+  color: var(--color-warning);
+  margin-top: 2px; /* Align icon better with text */
+}
+
+.enrollment-warning .warning-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.enrollment-warning p {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.enrollment-warning strong {
+  font-weight: 600;
+  color: #854d0e; /* Even darker for the "Heads-up" */
+}
+
+/* Radio Options */
+.radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.radio-label:hover {
+  transform: scale(1.02);
+}
+
+.radio-label[data-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.radio-input { display: none; }
+
+.radio-custom {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.radio-custom-dot {
+  width: 10px;
+  height: 10px;
+  background-color: var(--color-primary);
+  border-radius: 50%;
+  transform: scale(0);
+  transition: transform var(--transition-speed) var(--transition-smooth);
+}
+
+.radio-input:checked + .radio-custom { 
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1);
+}
+.radio-input:checked + .radio-custom .radio-custom-dot { transform: scale(1); }
+
+/* Footer & Progress */
+.app-footer {
+  margin-top: 2rem;
+  background-color: var(--color-bg-light);
+  padding: 2rem;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.app-footer:hover {
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.progress-bar-container {
+  width: 100%;
+  background-color: var(--color-bg-lighter);
+  border-radius: 99px;
+  height: 10px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--color-gradient);
+  border-radius: 99px;
+  transition: width 0.5s var(--transition-smooth);
+  animation: progress-shimmer 2s ease-in-out infinite;
+}
+
+@keyframes progress-shimmer {
+  0%, 100% { box-shadow: 0 0 5px rgba(var(--color-primary-rgb), 0.3); }
+  50% { box-shadow: 0 0 15px rgba(var(--color-primary-rgb), 0.6); }
+}
+
+.log-console {
+  background-color: #00000033;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  height: 200px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.8rem;
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.log-console:hover {
+  border-color: var(--color-primary);
+}
+
+.log-console p { margin: 0 0 0.5rem 0; white-space: pre-wrap; }
+.log-time { color: var(--color-text-muted); margin-right: 0.5rem; }
+.log-info { color: var(--color-text-muted); }
+.log-success { color: var(--color-success); }
+.log-error { color: var(--color-danger); }
+.log-warning { color: var(--color-warning); }
+
+.footer-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+/* Stunning Sorting Options */
+.sorting-card-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.sorting-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  border: 2px solid var(--color-border);
+  border-radius: 12px;
+  background-color: var(--color-bg);
+  cursor: pointer;
+  transition: all var(--transition-speed) var(--transition-smooth);
+  position: relative;
+  overflow: hidden;
+}
+
+.sorting-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.1), transparent);
+  transition: left 0.6s;
+}
+
+.sorting-card:hover::before {
+  left: 100%;
+}
+
+.sorting-card:not(.disabled):hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 25px rgba(var(--color-primary-rgb), 0.15);
+  border-color: var(--color-primary);
+}
+
+.sorting-card.selected {
+  border-color: var(--color-primary);
+  background-color: rgba(var(--color-primary-rgb), 0.05);
+  box-shadow: 0 4px 15px rgba(var(--color-primary-rgb), 0.2);
+}
+
+.sorting-card.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  background-color: var(--color-bg-lighter);
+}
+
+.sorting-card.disabled:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--color-border);
+}
+
+.sorting-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.sorting-card-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 1;
+  transition: transform var(--transition-speed) var(--transition-smooth);
+}
+
+.sorting-card:hover .sorting-card-icon {
+  transform: scale(1.1);
+}
+
+.sorting-card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 0.25rem;
+}
+
+.sorting-card-description {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+/* Face Mode Selector */
+.face-mode-selector {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: var(--color-bg-lighter);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.face-mode-selector:hover {
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+/* Subfolder Selector */
+.subfolder-selector-section {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background-color: var(--color-bg-lighter);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--color-border);
+  /* animation: fade-in-up 0.5s ease-out; */ /* MODIFIED: Animation is now class-based */
+  transition: all var(--transition-speed) var(--transition-smooth);
+  /* NEW: Properties for smooth animation */
+  overflow: hidden;
+  transform-origin: 85% -15%;
+}
+
+.subfolder-selector-section:hover {
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+/* NEW: Animation classes for SubfolderSelector */
+.subfolder-selector-section.entering {
+    animation: grow-in 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.15s forwards;
+}
+
+.subfolder-selector-section.exiting {
+    animation: shrink-out 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.subfolder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.folder-stats {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: 0.5rem 1rem;
+  display: flex;
+  gap: 1.5rem;
+  text-align: center;
+  flex-shrink: 0;
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.folder-stats:hover {
+  transform: scale(1.02);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.folder-stats > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-stats strong {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  line-height: 1.2;
+}
+
+.folder-stats span {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.subfolder-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.subfolder-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: all var(--transition-speed) var(--transition-smooth);
+  overflow: hidden;
+}
+
+.subfolder-item:has(input:checked) {
+  background-color: #fee2e2;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  transform: scale(1.02);
+}
+
+.subfolder-item:hover:not(:has(input:checked)) {
+  border-color: var(--color-primary);
+  background-color: rgba(var(--color-primary-rgb), 0.1);
+  transform: translateX(4px);
+}
+
+.subfolder-item input[type="checkbox"] {
+  accent-color: var(--color-danger);
+  flex-shrink: 0;
+}
+
+.folder-icon {
+  color: var(--color-text-muted);
+  transition: color var(--transition-speed) var(--transition-smooth);
+}
+
+.subfolder-item:has(input:checked) .folder-icon {
+  color: var(--color-danger);
+}
+
+.folder-name {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hierarchy Toggle */
+.hierarchy-toggle-section {
+  margin-top: 1.5rem;
+}
+
+.hierarchy-control {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.hierarchy-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  width: 60px;
+  height: 32px;
+  border-radius: 16px;
+  background-color: var(--color-bg-lighter);
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.hierarchy-toggle:not(.disabled):hover {
+  border-color: var(--color-text-muted);
+  transform: scale(1.05);
+}
+
+.hierarchy-toggle.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.toggle-track {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.toggle-icon-container {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition-speed) var(--transition-smooth);
+  overflow: hidden;
+}
+
+.hierarchy-toggle.toggled {
+  border-color: var(--color-primary);
+  background: var(--color-gradient);
+  box-shadow: 0 0 10px rgba(var(--color-primary-rgb), 0.3);
+}
+
+.hierarchy-toggle.toggled .toggle-icon-container {
+  transform: translateX(28px);
+}
+
+.toggle-icon-container svg {
+  position: absolute;
+  transition: all var(--transition-speed) var(--transition-smooth);
+  color: var(--color-text-muted);
+}
+
+.icon-tree {
+  opacity: 0;
+  transform: scale(0.5) rotate(-30deg);
+}
+.icon-flat {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+}
+
+.hierarchy-toggle.toggled .icon-tree {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+  color: var(--color-primary);
+}
+.hierarchy-toggle.toggled .icon-flat {
+  opacity: 0;
+  transform: scale(0.5) rotate(30deg);
+}
+
+.toggle-label {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.toggle-label.active {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* Responsive adjustments for mobile */
+@media (max-width: 640px) {
+  .btn-exit {
+    right: 3.8rem;
+    padding: 0.5rem;
+  }
+  
+  .modal-content {
+    margin: 1rem;
+    width: calc(100% - 2rem);
+    max-width: none;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+  }
+  
+  .modal-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .modal-header,
+  .modal-body,
+  .modal-actions {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .footer-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 640px) {
+  .footer-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Scrollbar styling - UPDATED FOR MACOS-LIKE FEEL */
+/* For Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent; /* Track is invisible */
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.3s ease-in-out;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+}
+
+
+/* Focus styles for accessibility */
+.modal-btn:focus, .btn:focus, .btn-exit:focus, .btn-reload:focus, .mode-selector-btn:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* NEW: Animation for the glass sheen effect */
+@keyframes shimmer-sheen {
+  0% {
+    transform: translateX(-100%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(200%) skewX(-20deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}

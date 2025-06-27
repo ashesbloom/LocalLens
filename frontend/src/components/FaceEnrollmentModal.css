@@ -1,0 +1,134 @@
+/* Base styles copied from EnrolledFacesModal.css for consistency */
+.glass-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(17, 24, 39, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: modal-fade-in 0.3s ease-out;
+}
+
+.glass-modal-content.enrollment-modal {
+    position: relative;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 1rem;
+    overflow: hidden;
+    
+    background: rgba(255, 255, 255, 0.1);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+
+    animation: modal-slide-in 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-modal-close-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    width: 40px;
+    height: 40px;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease-in-out;
+}
+
+.glass-modal-close-btn:hover {
+    background: rgba(220, 38, 38, 0.5);
+    color: white;
+    transform: scale(1.1) rotate(90deg);
+}
+
+.glass-modal-header {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    flex-shrink: 0;
+}
+
+.glass-modal-header h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.glass-modal-header p {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.glass-modal-body {
+    padding: 1.5rem 2rem;
+    overflow-y: auto;
+    color: white;
+    flex-grow: 1;
+}
+
+/* Override default FaceEnrollment component styles to fit the dark glass theme */
+.glass-modal-body .section-title,
+.glass-modal-body .queue-title,
+.glass-modal-body .queue-person-name {
+    color: white;
+}
+
+.glass-modal-body .description {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.glass-modal-body .queue-item {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.glass-modal-body .queue-image-count {
+    color: rgba(255, 255, 255, 0.8);
+    background-color: rgba(0,0,0,0.2);
+}
+
+.glass-modal-body .btn-remove-queue {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.glass-modal-body .btn-remove-queue:hover:not(:disabled) {
+    color: #ff8a8a;
+    background-color: rgba(220, 38, 38, 0.5);
+}
+
+.glass-modal-body .enrollment-warning {
+    background-color: rgba(251, 191, 36, 0.15);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    color: #fefce8;
+}
+
+.glass-modal-body .enrollment-warning strong {
+    color: #fef08a;
+}
+
+.glass-modal-body .enrollment-warning .warning-icon {
+    color: #facc15;
+}
+
+/* Scrollbar for the modal body */
+.glass-modal-body::-webkit-scrollbar { width: 8px; }
+.glass-modal-body::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+.glass-modal-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
+.glass-modal-body::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }

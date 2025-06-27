@@ -1,0 +1,6 @@
+numpy
+Pillow
+pillow-heif
+face_recognition
+reverse_geocoder
+tqdm
