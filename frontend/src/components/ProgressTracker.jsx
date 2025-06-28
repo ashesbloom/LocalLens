@@ -5,7 +5,7 @@ const ProgressTracker = ({ progress, progressLabel }) => {
         <div>
              <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem'}}>
                 <span>{progressLabel}</span>
-                <span>{Math.round(progress)}%</span>
+                {/* <span>{Math.round(progress)}%</span> */}
             </div>
             <div className="progress-bar-container">
                 <div className="progress-bar" style={{ width: `${progress}%` }}></div>

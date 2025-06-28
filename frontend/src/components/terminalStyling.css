@@ -1,0 +1,383 @@
+/* === Enhanced Footer with Subtle iOS-like Glassy Metallic Theme === */
+.app-footer {
+    margin-top: 2rem;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px) saturate(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
+    padding: 2rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+    box-shadow: 
+        0 8px 24px rgba(0, 0, 0, 0.1),
+        0 2px 6px rgba(0, 0, 0, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    animation: footer-appear 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Remove shining effect - replaced with subtle gradient */
+.app-footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.15),
+        transparent
+    );
+    pointer-events: none;
+}
+
+.app-footer:hover {
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.12),
+        0 3px 8px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    /* Remove translateY effect to keep subtle */
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* === Enhanced Progress Tracker === */
+.progress-tracker-container {
+    position: relative;
+    z-index: 2;
+}
+
+.progress-tracker-container > div:first-child {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+.progress-bar-container {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 99px;
+    height: 10px; /* Slightly smaller */
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        inset 0 1px 3px rgba(0, 0, 0, 0.15),
+        0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(135deg, 
+        var(--color-primary), 
+        var(--color-secondary)
+    );
+    border-radius: 99px;
+    transition: width 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Remove progress shine animation */
+
+/* === Enhanced Log Console === */
+.log-console {
+    /* Keep existing background - don't change terminal background */
+    background-color: #00000033;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 1.25rem;
+    height: 200px; /* Keep original size */
+    overflow-y: auto;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 0.85rem;
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    box-shadow: 
+        inset 0 1px 5px rgba(0, 0, 0, 0.08),
+        0 1px 2px rgba(255, 255, 255, 0.06);
+    position: relative;
+    z-index: 2;
+    animation: console-appear 0.6s cubic-bezier(0.23, 1, 0.32, 1) 0.2s backwards;
+}
+
+.log-console:hover {
+    border-color: rgba(var(--color-primary-rgb), 0.4);
+    box-shadow: 
+        inset 0 1px 5px rgba(0, 0, 0, 0.08),
+        0 0 10px rgba(var(--color-primary-rgb), 0.15),
+        0 1px 2px rgba(255, 255, 255, 0.06);
+    /* Remove scale effect */
+}
+
+.log-console p {
+    margin: 0 0 0.5rem 0;
+    white-space: pre-wrap;
+    animation: log-entry-appear 0.3s ease-out;
+    padding: 0.25rem 0;
+    border-radius: 2px;
+    transition: background-color 0.2s ease;
+}
+
+.log-console p:hover {
+    background-color: rgba(255, 255, 255, 0.03); /* More subtle */
+    border-left: 2px solid rgba(255, 255, 255, 0.1);
+    padding-left: 4px;
+}
+
+.log-time {
+    color: rgba(255, 255, 255, 0.6);
+    margin-right: 0.5rem;
+    font-weight: 500;
+}
+
+.log-info { color: rgba(255, 255, 255, 0.8); }
+.log-success { 
+    color: var(--color-success);
+    text-shadow: 0 0 4px rgba(22, 163, 74, 0.15); /* More subtle */
+}
+.log-error { 
+    color: var(--color-danger);
+    text-shadow: 0 0 4px rgba(220, 38, 38, 0.15);
+}
+.log-warning { 
+    color: var(--color-warning);
+    text-shadow: 0 0 4px rgba(202, 138, 4, 0.15);
+}
+
+/* === Enhanced Footer Actions === */
+.footer-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    position: relative;
+    z-index: 2;
+    animation: actions-appear 0.6s cubic-bezier(0.23, 1, 0.32, 1) 0.4s backwards;
+}
+
+.footer-actions .btn {
+    flex-grow: 1;
+    padding: 0.75rem 1.25rem; /* Slightly smaller */
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+    box-shadow: 
+        0 2px 6px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Remove button shimmer effect */
+
+.footer-actions .btn:hover:not(:disabled) {
+    box-shadow: 
+        0 4px 12px rgba(0, 0, 0, 0.1),
+        0 2px 4px rgba(0, 0, 0, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.25);
+    /* Remove translateY and scale effects */
+}
+
+.footer-actions .btn:active:not(:disabled) {
+    transform: translateY(1px); /* Subtle press effect */
+    transition: all 0.1s ease;
+}
+
+/* === Danger Button (Start Over) === */
+.footer-actions .btn-danger {
+    background: linear-gradient(135deg, 
+        rgba(220, 38, 38, 0.8), 
+        rgba(185, 28, 28, 0.8)
+    );
+    color: white;
+    border-color: rgba(220, 38, 38, 0.3);
+}
+
+.footer-actions .btn-danger:hover:not(:disabled) {
+    background: linear-gradient(135deg, 
+        rgba(220, 38, 38, 0.9), 
+        rgba(153, 27, 27, 0.9)
+    );
+    box-shadow: 
+        0 4px 12px rgba(220, 38, 38, 0.15),
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    border-color: rgba(220, 38, 38, 0.4);
+}
+
+/* === Secondary Button (Open Destination) === */
+.footer-actions .btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.9);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.footer-actions .btn-secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 
+        0 4px 12px rgba(0, 0, 0, 0.08),
+        0 2px 4px rgba(0, 0, 0, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* === Button Content === */
+.footer-actions .btn span {
+    position: relative;
+    z-index: 2;
+}
+
+/* === Disabled State === */
+.footer-actions .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* === Enhanced Scrollbar for Log Console === */
+.log-console::-webkit-scrollbar {
+    width: 6px; /* Smaller */
+}
+
+.log-console::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.03); /* More subtle */
+    border-radius: 3px;
+}
+
+.log-console::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15); /* More subtle */
+    border-radius: 3px;
+    transition: background-color 0.2s ease;
+}
+
+.log-console::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* === Keyframe Animations (More Subtle) === */
+@keyframes footer-appear {
+    from {
+        opacity: 0;
+        transform: translateY(15px); /* More subtle */
+        -webkit-backdrop-filter: blur(5px);
+        backdrop-filter: blur(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        -webkit-backdrop-filter: blur(20px) saturate(1.1);
+        backdrop-filter: blur(20px) saturate(1.1);
+    }
+}
+
+@keyframes console-appear {
+    from {
+        opacity: 0;
+        transform: translateY(10px); /* More subtle */
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes actions-appear {
+    from {
+        opacity: 0;
+        transform: translateY(8px); /* More subtle */
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes log-entry-appear {
+    from {
+        opacity: 0;
+        transform: translateX(-5px); /* More subtle */
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* === Responsive Adjustments === */
+@media (max-width: 640px) {
+    .footer-actions {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .app-footer {
+        padding: 1.5rem;
+        margin-top: 1.5rem;
+    }
+    
+    .log-console {
+        height: 180px;
+    }
+}
+
+/* === Enhanced Focus States for Accessibility (Subtle) === */
+.footer-actions .btn:focus {
+    outline: 2px solid rgba(var(--color-primary-rgb), 0.4);
+    outline-offset: 2px;
+    box-shadow: 
+        0 0 0 3px rgba(var(--color-primary-rgb), 0.08),
+        0 2px 6px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* === Theme-Specific Subtle Effects === */
+.theme-hybrid .app-footer {
+    border-color: rgba(22, 163, 74, 0.15);
+}
+
+.theme-hybrid .app-footer:hover {
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.12),
+        0 3px 8px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(22, 163, 74, 0.05);
+}
+
+.theme-find .app-footer {
+    border-color: rgba(220, 38, 38, 0.15);
+}
+
+.theme-find .app-footer:hover {
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.12),
+        0 3px 8px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(220, 38, 38, 0.05);
+}
+
+/* Replace floating particles with subtle noise texture */
+.app-footer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.015'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.3;
+}

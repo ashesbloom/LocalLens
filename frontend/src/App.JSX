@@ -31,7 +31,7 @@ function App() {
     const [maintainHierarchy, setMaintainHierarchy] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState(0);
-    const [progressLabel, setProgressLabel] = useState('Processing...');
+    const [progressLabel, setProgressLabel] = useState('Ready for a new task !');
     const [logs, setLogs] = useState([]);
     const [showSaveButton, setShowSaveButton] = useState(false);
     const logConsoleRef = useRef(null);
@@ -55,7 +55,7 @@ function App() {
     const [hybridConfig, setHybridConfig] = useState({
         baseSort: 'Date',
         filterType: 'Location',
-        filterValues:{},
+        filterValues: {},
         folderName: 'Special Folder'
     });
 
@@ -92,7 +92,14 @@ function App() {
             logConsoleRef.current.scrollTop = logConsoleRef.current.scrollHeight;
         }
     }, [logs]);
-
+    // Update progress label based on processing state
+    useEffect(() => {
+        if (isProcessing) {
+            setProgressLabel(isEnrolling ? 'Enrolling...' : 'Processing...');
+        } else {
+            setProgressLabel('Ready for a new task !');
+        }
+    }, [isProcessing, isEnrolling]);
     // NEW: Effect to manage the enter/exit animation for swapping components
     useEffect(() => {
         if (operationMode === 'standard') {
@@ -134,7 +141,7 @@ function App() {
             try {
                 const data = await apiCall('/api/metadata-overview', {
                     method: 'POST',
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         source_folder: sourceFolder,
                         ignore_list: ignoredSubfolders
                     }),
@@ -183,7 +190,7 @@ function App() {
         // Debounce to avoid rapid API calls while typing/pasting a path
         const debounceTimer = setTimeout(() => {
             fetchSubfolders();
-        }, 500); 
+        }, 500);
 
         return () => clearTimeout(debounceTimer);
     }, [sourceFolder]);
@@ -216,7 +223,7 @@ function App() {
             loadLastConfig();
             startupRan.current = true;
         }
-        
+
         return () => {
             if (eventSourceRef.current) {
                 eventSourceRef.current.close();
@@ -248,7 +255,7 @@ function App() {
                         retryTimeoutRef.current = setTimeout(attemptReconnect, 5000);
                     });
             };
-            
+
             // Start the first attempt after 5 seconds
             retryTimeoutRef.current = setTimeout(attemptReconnect, 5000);
         } else {
@@ -575,7 +582,7 @@ function App() {
         }
 
         await saveLastConfig();
-        
+
         setLogs([]);
         setIsProcessing(true);
         logToConsole("Establishing connection to backend for real-time logging...");
@@ -630,6 +637,11 @@ function App() {
             });
     };
 
+    const handleFaceDeleted = () => {
+        logToConsole("Enrolled faces list refreshed after deletion.", "info");
+        checkEnrollmentStatus(); // This function already fetches enrolled faces count and status
+    };
+
     const handleOpenEnrolledFolder = async (personName) => {
         try {
             // This API endpoint needs to be created in your backend
@@ -672,7 +684,7 @@ function App() {
     const handleExit = async () => {
         // Check if any operation is ongoing
         const isOperationRunning = isProcessing || isEnrolling;
-        
+
         if (isOperationRunning) {
             // Show custom modal for ongoing operations
             setShowExitModal(true);
@@ -712,7 +724,7 @@ function App() {
             eventSourceRef.current.close();
             eventSourceRef.current = null;
         }
-        
+
         // Save current configuration before exit
         try {
             await saveLastConfig();
@@ -735,7 +747,7 @@ function App() {
     const handleReload = async () => {
         // Check if any operation is ongoing
         const isOperationRunning = isProcessing || isEnrolling;
-        
+
         if (isOperationRunning) {
             // Show custom modal for ongoing operations
             setShowReloadModal(true);
@@ -755,14 +767,14 @@ function App() {
                         eventSourceRef.current.close();
                         eventSourceRef.current = null;
                     }
-                    
+
                     // Save current configuration before reload
                     try {
                         await saveLastConfig();
                     } catch (error) {
                         console.log('Could not save config before reload:', error);
                     }
-                    
+
                     window.location.reload();
                 }
             } catch (error) {
@@ -780,14 +792,14 @@ function App() {
             eventSourceRef.current.close();
             eventSourceRef.current = null;
         }
-        
+
         // Save current configuration before reload
         try {
             await saveLastConfig();
         } catch (error) {
             console.log('Could not save config before reload:', error);
         }
-        
+
         window.location.reload();
     };
 
@@ -824,19 +836,19 @@ function App() {
                     setOperationMode={setOperationMode}
                     onEnrollClick={() => setShowFaceEnrollmentModal(true)}
                 />
-                
+
                 {/* Exit Button */}
                 <button onClick={handleExit} className="btn-exit" aria-label="Exit Application" title="Exit Application">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                        <polyline points="16,17 21,12 16,7"/>
-                        <line x1="21" y1="12" x2="9" y2="12"/>
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16,17 21,12 16,7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
                     </svg>
                 </button>
 
                 {/* Reload Button */}
-                <button 
-                    className="btn-reload" 
+                <button
+                    className="btn-reload"
                     onClick={handleReload}
                     title="Reload Application"
                 >
@@ -857,9 +869,9 @@ function App() {
                         <div className="modal-body">
                             <div className="modal-icon">
                                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <line x1="12" y1="8" x2="12" y2="12"/>
-                                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="12" y1="8" x2="12" y2="12" />
+                                    <line x1="12" y1="16" x2="12.01" y2="16" />
                                 </svg>
                             </div>
                             <p>
@@ -881,14 +893,14 @@ function App() {
                             </p>
                         </div>
                         <div className="modal-actions">
-                            <button 
-                                className="btn btn-secondary modal-btn" 
+                            <button
+                                className="btn btn-secondary modal-btn"
                                 onClick={handleCancelExit}
                             >
                                 Cancel
                             </button>
-                            <button 
-                                className="btn btn-danger modal-btn" 
+                            <button
+                                className="btn btn-danger modal-btn"
                                 onClick={handleConfirmExit}
                             >
                                 Confirm Exit
@@ -908,9 +920,9 @@ function App() {
                         <div className="modal-body">
                             <div className="modal-icon">
                                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <line x1="12" y1="8" x2="12" y2="12"/>
-                                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="12" y1="8" x2="12" y2="12" />
+                                    <line x1="12" y1="16" x2="12.01" y2="16" />
                                 </svg>
                             </div>
                             <p>
@@ -932,14 +944,14 @@ function App() {
                             </p>
                         </div>
                         <div className="modal-actions">
-                            <button 
-                                className="btn btn-secondary modal-btn" 
+                            <button
+                                className="btn btn-secondary modal-btn"
                                 onClick={handleCancelReload}
                             >
                                 Cancel
                             </button>
-                            <button 
-                                className="btn btn-danger modal-btn" 
+                            <button
+                                className="btn btn-danger modal-btn"
                                 onClick={handleConfirmReload}
                             >
                                 Confirm Reload
@@ -952,17 +964,17 @@ function App() {
             <main className="app-main">
                 <div className="setup-grid">
                     <div className="setup-column">
-                        <PathSelector 
-                            label="Source Folder" 
-                            path={sourceFolder} 
-                            handleSelectFolder={() => handleBrowseFolder('source')} 
+                        <PathSelector
+                            label="Source Folder"
+                            path={sourceFolder}
+                            handleSelectFolder={() => handleBrowseFolder('source')}
                         />
-                        <PathSelector 
-                            label="Destination Folder" 
-                            path={destinationFolder} 
-                            handleSelectFolder={() => handleBrowseFolder('destination')} 
+                        <PathSelector
+                            label="Destination Folder"
+                            path={destinationFolder}
+                            handleSelectFolder={() => handleBrowseFolder('destination')}
                         />
-                        <PresetManager 
+                        <PresetManager
                             presets={presets}
                             selectedPreset={selectedPreset}
                             handleSelectPreset={handlePresetChange}
@@ -980,7 +992,7 @@ function App() {
                                     if (faceEnrollmentDisplay === 'entering') setFaceEnrollmentDisplay('visible');
                                 }}
                             >
-                                <FaceEnrollment 
+                                <FaceEnrollment
                                     isEnrolling={isEnrolling}
                                     isProcessing={isProcessing}
                                     selectedImages={selectedImages}
@@ -997,12 +1009,12 @@ function App() {
                         )}
 
                         {operationMode === 'standard' && faceEnrollmentDisplay !== 'hidden' && (
-                            <EnrollmentProgress 
+                            <EnrollmentProgress
                                 enrollmentProgress={enrollmentProgress}
                                 enrollmentMessage={enrollmentMessage}
                             />
                         )}
-                        
+
                         {/* For hybrid/find modes, SubfolderSelector is rendered inside the grid */}
                         {operationMode !== 'standard' && subfolderSelectorDisplay !== 'hidden' && (
                             <SubfolderSelector
@@ -1037,7 +1049,7 @@ function App() {
                     />
                 )}
 
-                <HierarchyToggle 
+                <HierarchyToggle
                     maintainHierarchy={maintainHierarchy}
                     setMaintainHierarchy={setMaintainHierarchy}
                     isProcessing={isProcessing || isEnrolling}
@@ -1049,7 +1061,7 @@ function App() {
                 <div className="mode-content-wrapper">
                     {operationMode === 'standard' && (
                         <div className="mode-content">
-                            <SortingOptions 
+                            <SortingOptions
                                 sortMethod={sortMethod}
                                 setSortMethod={setSortMethod}
                                 isProcessing={isProcessing || isEnrolling}
@@ -1084,7 +1096,7 @@ function App() {
                 </div>
 
 
-                <div style={{marginTop: '1.5rem'}}>
+                <div style={{ marginTop: '1.5rem' }}>
                     <button onClick={handleStartSorting} disabled={isProcessing || isEnrolling} className="btn btn-primary">
                         {isProcessing ? (isEnrolling ? 'Enrolling...' : 'Processing...') : getOperationName()}
                     </button>
@@ -1105,14 +1117,15 @@ function App() {
             )}
 
             {/* NEW: Enrolled Faces Modal */}
-            <EnrolledFacesModal 
+            <EnrolledFacesModal
                 isVisible={showEnrolledFacesModal}
                 onClose={() => setShowEnrolledFacesModal(false)}
                 onOpenFolder={handleOpenEnrolledFolder}
                 apiCall={apiCall}
+                logToConsole={logToConsole}
+                onFaceDeleted={handleFaceDeleted}
             />
 
-            {/* NEW: Face Enrollment Modal for Hybrid/Find modes */}
             <FaceEnrollmentModal
                 isVisible={showFaceEnrollmentModal}
                 onClose={() => setShowFaceEnrollmentModal(false)}

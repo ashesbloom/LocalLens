@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import './EnrolledFacesModal.css';
+import ConfirmationModal from './ConfirmationModal'; // Import the new component
 
-const EnrolledFacesModal = ({ isVisible, onClose, onOpenFolder, apiCall }) => {
+const EnrolledFacesModal = ({ isVisible, onClose, onOpenFolder, apiCall, logToConsole, onFaceDeleted }) => {
     const [enrolledFaces, setEnrolledFaces] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [personToDelete, setPersonToDelete] = useState(null); // State to manage which person to delete
 
     useEffect(() => {
         if (isVisible) {
             setIsLoading(true);
             const fetchEnrolledFaces = async () => {
                 try {
-                    // This API endpoint needs to be created in your backend
                     const data = await apiCall('/api/enrolled-faces');
                     setEnrolledFaces(data.enrolled_faces || []);
                 } catch (error) {
                     console.error("Failed to fetch enrolled faces:", error);
-                    setEnrolledFaces([]); // Clear on error
+                    setEnrolledFaces([]);
                 } finally {
                     setIsLoading(false);
                 }
@@ -23,6 +24,40 @@ const EnrolledFacesModal = ({ isVisible, onClose, onOpenFolder, apiCall }) => {
             fetchEnrolledFaces();
         }
     }, [isVisible, apiCall]);
+
+    const initiateDelete = (personName) => {
+        setPersonToDelete(personName); // Set the person to be deleted, which shows the modal
+    };
+
+    const executeDelete = async () => {
+        if (!personToDelete) return;
+
+        try {
+            const response = await apiCall('/api/delete-enrolled-face', {
+                method: 'POST',
+                body: JSON.stringify({ person_name: personToDelete }),
+            });
+            if (logToConsole) {
+                logToConsole(response.message, 'success');
+            }
+            setEnrolledFaces(enrolledFaces.filter(face => face.name !== personToDelete));
+            if (onFaceDeleted) {
+                onFaceDeleted(); // Trigger the refresh in App.jsx
+            }
+        } catch (error) {
+            const errorMsg = error.detail || `An error occurred while trying to delete '${personToDelete}'.`;
+            console.error(`Failed to delete '${personToDelete}':`, error);
+            if (logToConsole) {
+                logToConsole(errorMsg, 'error');
+            }
+        } finally {
+            setPersonToDelete(null); // Hide the confirmation modal
+        }
+    };
+
+    const cancelDelete = () => {
+        setPersonToDelete(null); // Hide the confirmation modal
+    };
 
     if (!isVisible) {
         return null;
@@ -71,13 +106,22 @@ const EnrolledFacesModal = ({ isVisible, onClose, onOpenFolder, apiCall }) => {
                                             <span className="face-name">{face.name}</span>
                                             <span className="face-count">{face.count} image(s)</span>
                                         </div>
-                                        <button
-                                            className="btn-open-location"
-                                            onClick={() => onOpenFolder(face.name)}
-                                            title={`Open folder for ${face.name}`}
-                                        >
-                                            Open Location
-                                        </button>
+                                        <div className="face-actions">
+                                            <button
+                                                className="btn-open-location"
+                                                onClick={() => onOpenFolder(face.name)}
+                                                title={`Open folder for ${face.name}`}
+                                            >
+                                                Open Location
+                                            </button>
+                                            <button
+                                                className="btn-delete-face"
+                                                onClick={() => initiateDelete(face.name)}
+                                                title={`Delete '${face.name}'`}
+                                            >
+                                                Delete Face
+                                            </button>
+                                        </div>
                                     </li>
                                 ))
                             ) : (
@@ -89,6 +133,13 @@ const EnrolledFacesModal = ({ isVisible, onClose, onOpenFolder, apiCall }) => {
                     )}
                 </div>
             </div>
+            <ConfirmationModal
+                isVisible={!!personToDelete}
+                title="Confirm Deletion"
+                message={`Are you sure you want to delete '${personToDelete}'? This action cannot be undone.`}
+                onConfirm={executeDelete}
+                onCancel={cancelDelete}
+            />
         </div>
     );
 };

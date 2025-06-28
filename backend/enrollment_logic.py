@@ -86,7 +86,11 @@ def update_encodings(dataset_path, encodings_file, status_callback=None):
     else:
         status_callback(0, "No existing encoding file found. Creating a new one.", "info")
 
-    # --- 2. Find New Images to Process ---
+    # --- 2. Validate Processed Paths ---
+    # Ensure there are no duplicates in the processed_paths list
+    processed_paths = list(set(processed_paths))
+
+    # --- 3. Find New Images to Process ---
     status_callback(10, "Scanning for new people and images...")
     all_image_paths = []
     for person_name in os.listdir(dataset_path):
@@ -96,6 +100,7 @@ def update_encodings(dataset_path, encodings_file, status_callback=None):
                 if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
                     all_image_paths.append((os.path.join(person_dir, filename), person_name))
 
+    # Filter out images that have already been processed
     new_images_to_process = [
         (path, name) for path, name in all_image_paths if path not in processed_paths
     ]
@@ -104,14 +109,14 @@ def update_encodings(dataset_path, encodings_file, status_callback=None):
         status_callback(100, "No new images to enroll. AI model is up to date.", "complete")
         return
 
-    # --- 3. Process New Images in Parallel ---
+    # --- 4. Process New Images in Parallel ---
     status_callback(25, f"Found {len(new_images_to_process)} new images. Starting AI enrollment...")
     
     # Use a pool of worker processes for CPU-bound encoding task
     with Pool(processes=max(1, cpu_count() - 1)) as pool:
         results = pool.map(process_image, new_images_to_process)
 
-    # --- 4. Consolidate and Save Results ---
+    # --- 5. Consolidate and Save Results ---
     newly_processed_count = 0
     for result in results:
         if result:
@@ -125,9 +130,6 @@ def update_encodings(dataset_path, encodings_file, status_callback=None):
     
     if newly_processed_count > 0:
         # --- Atomic Save Operation ---
-        # By writing to a temporary file first and then moving it, we prevent
-        # the main encodings file from becoming corrupted if the process is
-        # interrupted during the save.
         temp_encodings_file = encodings_file + ".tmp"
         try:
             with open(temp_encodings_file, "wb") as f:
@@ -143,7 +145,6 @@ def update_encodings(dataset_path, encodings_file, status_callback=None):
             status_callback(100, f"Successfully enrolled {newly_processed_count} new face(s).", "complete")
         except (IOError, pickle.PicklingError) as e:
             status_callback(100, f"Error saving encodings file: {e}", "error")
-            # Clean up the temporary file if it exists on failure
             if os.path.exists(temp_encodings_file):
                 os.remove(temp_encodings_file)
     else:

@@ -379,8 +379,9 @@ def _get_hybrid_sort_paths(dest_dir, sort_options, exif_data, date_obj, names, m
             # Both must be true to be a custom match
             is_custom_match = year_match and month_match
 
+    dest_paths = []
     if is_custom_match:
-        dest_paths = []
+        # Add the special folder path
         base_path = os.path.join(dest_dir, sort_options.get("specific_folder_name", "Filtered"))
 
         if filter_type == 'People':
@@ -393,23 +394,23 @@ def _get_hybrid_sort_paths(dest_dir, sort_options, exif_data, date_obj, names, m
         elif filter_type == 'Location':
             # The UI doesn't have a "sub-sort by date" for the custom filter, so we place it in the root of the special folder.
             # This matches the original script's logic when that option is false.
-            dest_paths = [base_path]
+            dest_paths.append(base_path)
 
         else: # Date
             # For a date filter, it's logical to sub-sort by date within the special folder.
-            dest_paths = [os.path.join(base_path, get_date_path(date_obj) if date_obj else UNKNOWN_DATE_FOLDER_NAME)]
-        
-        return dest_paths
-    else:
-        # Fallback: If it doesn't match the custom filter, use the base sorting method.
-        base_sort_method = sort_options.get('base_sort', 'Date')
-        photo_location = get_location(exif_data)
-        return _get_standard_sort_paths(dest_dir, base_sort_method, date_obj, photo_location, names, multiple_countries_found, sort_options)
+            dest_paths.append(os.path.join(base_path, get_date_path(date_obj) if date_obj else UNKNOWN_DATE_FOLDER_NAME))
+
+    # Always add the base sort destination path
+    base_sort_method = sort_options.get('base_sort', 'Date')
+    photo_location = get_location(exif_data)
+    base_sort_paths = _get_standard_sort_paths(dest_dir, base_sort_method, date_obj, photo_location, names, multiple_countries_found, sort_options)
+    dest_paths.extend(base_sort_paths)
+
+    return dest_paths
 
 
 def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, encodings_path):
     """
-
     REFACTORED: This function is now a high-level orchestrator that calls dedicated
     functions for each sorting mode, preventing logic conflicts.
     """
@@ -434,7 +435,8 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
             return 0
 
     multiple_countries_found = False
-    if sort_method == 'Location' or (sort_method == 'Hybrid' and sort_options.get('base_sort') == 'Location'):
+    locations = []
+    if sort_method == 'Location' or (sort_method == 'Hybrid' and (sort_options.get('base_sort') == 'Location' or sort_options.get('custom_filter', {}).get('filter_type') == 'Location')):
         update_callback(7, "Scanning for location metadata...", "running")
         locations, _, _ = get_metadata_overview(work_dir)
         # CORRECTED: This now properly determines if photos span multiple countries.
@@ -468,12 +470,26 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
             dest_paths = _get_standard_sort_paths(dest_dir, sort_method, date_obj, location_path, names, multiple_countries_found, sort_options)
 
         # --- File Operation Execution ---
+        special_folder_path = None
         for j, dest_path in enumerate(dest_paths):
-            op = 'copy' if j < len(dest_paths) - 1 else 'move'
+            if sort_method == 'Hybrid' and j == 0:
+                # Copy to the special folder
+                special_folder_path = dest_path
+                op = 'copy'
+            else:
+                # Move to the base sort destination
+                op = 'move'
+            
             final_target = os.path.join(dest_path, original_subfolder) if sort_options.get('maintain_hierarchy') else dest_path
             if handle_file_op(op, source_path, final_target, new_filename, date_obj) and op == 'move':
                 moved_count += 1
-                
+
+        # Ensure the photo is moved to the base sort destination even if it was copied to the special folder
+        if special_folder_path and len(dest_paths) > 1:
+            base_sort_path = dest_paths[1]
+            final_target = os.path.join(base_sort_path, original_subfolder) if sort_options.get('maintain_hierarchy') else base_sort_path
+            handle_file_op('move', source_path, final_target, new_filename, date_obj)
+
     return moved_count
 
 def process_photos(config, update_callback):

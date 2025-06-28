@@ -14,6 +14,7 @@ import json
 import sys
 import subprocess
 import shutil
+import pickle
 import logging
 from fastapi import FastAPI, HTTPException, Body, Request, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
@@ -422,6 +423,52 @@ async def open_folder(request: OpenFolderRequest):
     except Exception as e:
         print(f"Error opening folder: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to open folder via OS command: {str(e)}")
+
+@app.post("/api/delete-enrolled-face")
+async def delete_enrolled_face(request: OpenEnrolledFolderRequest):
+    """
+    Deletes the encoding and folder for a specific enrolled person.
+    """
+    person_name = request.person_name
+
+    # Security check to prevent path traversal attacks
+    target_dir = os.path.join(ENROLLMENT_FOLDER, person_name)
+    if not os.path.abspath(target_dir).startswith(os.path.abspath(ENROLLMENT_FOLDER)):
+        raise HTTPException(status_code=403, detail="Access to this folder is forbidden.")
+
+    if not os.path.isdir(target_dir):
+        raise HTTPException(status_code=404, detail=f"Directory for '{person_name}' not found.")
+
+    try:
+        # Remove the person's folder
+        shutil.rmtree(target_dir)
+
+        # Update the encodings file
+        if os.path.exists(ENCODINGS_FILE):
+            with open(ENCODINGS_FILE, "rb") as f:
+                data = pickle.load(f)
+
+            encodings = data.get("encodings", [])
+            names = data.get("names", [])
+            paths = data.get("paths", [])
+
+            # Filter out the person's data
+            updated_encodings = [e for e, n in zip(encodings, names) if n != person_name]
+            updated_names = [n for n in names if n != person_name]
+            updated_paths = [p for p, n in zip(paths, names) if n != person_name]
+
+            # Save the updated encodings file
+            with open(ENCODINGS_FILE, "wb") as f:
+                pickle.dump({
+                    "encodings": updated_encodings,
+                    "names": updated_names,
+                    "paths": updated_paths
+                }, f)
+
+        return {"status": "success", "message": f"Successfully deleted '{person_name}'."}
+    except Exception as e:
+        print(f"Error deleting enrolled face: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete '{person_name}': {str(e)}")
 
 # --- Static File Serving ---
 # This should point to the build output of your frontend
