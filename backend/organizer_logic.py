@@ -280,8 +280,9 @@ def recognize_faces(image_path, known_encodings, known_names, mode='balanced'):
         # This logic directly mirrors the original script's user choice.
         face_locations = []
         if mode == 'fast':
-            # Fast, but might miss smaller or less clear faces.
-            face_locations = face_recognition.face_locations(image, model='hog')
+            # ENHANCEMENT: Upsample once to improve detection of smaller faces
+            # without a major performance hit of the 'balanced' mode.
+            face_locations = face_recognition.face_locations(image, model='hog', number_of_times_to_upsample=1)
         elif mode == 'accurate':
             # Slower but more accurate, using a deep learning model.
             face_locations = face_recognition.face_locations(image, model='cnn')
@@ -300,7 +301,10 @@ def recognize_faces(image_path, known_encodings, known_names, mode='balanced'):
             if True in matches:
                 face_distances = face_recognition.face_distance(known_encodings, face_encoding)
                 best_match_index = np.argmin(face_distances)
-                if matches[best_match_index]: name = known_names[best_match_index]
+                # ENHANCEMENT: Add a sanity check. If the best match is still a weak one, ignore it.
+                # This prevents false positives where the closest match is still outside the tolerance.
+                if matches[best_match_index] and face_distances[best_match_index] <= FACE_RECOGNITION_TOLERANCE:
+                    name = known_names[best_match_index]
             found_names.add(name)
         return list(found_names)
     except Exception as e:
@@ -316,6 +320,9 @@ def get_date_path(date_obj):
     return os.path.join(date_obj.strftime('%Y'), f"{date_obj.strftime('%m')}-{date_obj.strftime('%B')}")
 
 def get_people_dest_paths(base_dir, names):
+    """
+    Determines the correct destination folder(s) when sorting by people.
+    """
     dest_paths, known_in_photo = [], sorted([n for n in names if n != "Unknown"])
     if not known_in_photo:
         return [os.path.join(base_dir, UNKNOWN_PEOPLE_FOLDER_NAME)]
@@ -324,6 +331,123 @@ def get_people_dest_paths(base_dir, names):
     for person in known_in_photo:
         dest_paths.append(os.path.join(base_dir, person, "With Others"))
     return dest_paths
+
+def find_and_group_photos(config, update_callback):
+    """
+    Orchestrates the 'Find & Group' process. This function only copies 
+    files matching all specified criteria into a new folder.
+    """
+    source_dir = config["source_folder"]
+    base_dest_dir = config["destination_folder"]
+    find_config = config["find_config"]
+    encodings_path = config.get("encodings_path")
+
+    target_folder_name = find_config.get('folderName', "Find_Results")
+    target_folder = os.path.join(base_dest_dir, target_folder_name)
+    os.makedirs(target_folder, exist_ok=True)
+    
+    log_dir = os.path.join(target_folder, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_filename = os.path.join(log_dir, f"find_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+    
+    log_handler = logging.FileHandler(log_filename, mode='w', encoding='utf-8')
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    log_handler.setFormatter(formatter)
+    
+    root_logger = logging.getLogger()
+    if root_logger.hasHandlers():
+        root_logger.handlers.clear()
+    root_logger.addHandler(log_handler)
+    root_logger.setLevel(logging.INFO)
+
+    logging.info(f"Starting Find & Group Session. Target folder: '{target_folder_name}'")
+    logging.info(f"Filters applied: {json.dumps(find_config, indent=2)}")
+
+    update_callback(0, "Preparing to search for photos...", "running")
+
+    files_to_process = [os.path.join(dp, f) for dp, _, fn in os.walk(source_dir) for f in fn if f.lower().endswith(SUPPORTED_EXTENSIONS)]
+    total_files = len(files_to_process)
+    if total_files == 0:
+        update_callback(100, "No supported image files found in the source directory.", "complete")
+        return
+
+    found_count = 0
+    known_encodings, known_names = None, None
+    
+    # Load face models only if a people filter is active
+    if find_config.get('people'):
+        update_callback(5, "Initializing face recognition engine...", "running")
+        if not encodings_path or not os.path.exists(encodings_path):
+            update_callback(100, "Cannot use People filter: Face encodings file not found.", "error")
+            return
+        try:
+            known_encodings, known_names = load_face_encodings(encodings_path)
+            if not known_encodings:
+                update_callback(100, "Cannot use People filter: No faces are enrolled.", "error")
+                return
+        except Exception as e:
+            update_callback(100, f"Fatal Error loading face data: {e}", "error")
+            return
+
+    for i, source_path in enumerate(files_to_process):
+        progress = 10 + int(((i + 1) / total_files) * 85)
+        update_callback(progress, f"Searching: {os.path.basename(source_path)}", "running")
+        
+        exif_data = get_exif_data(source_path)
+        match = True # Assume it's a match until a filter fails
+
+        # --- Date Filter ---
+        if match and (find_config.get('years') or find_config.get('months')):
+            date_obj = get_date_taken(exif_data)
+            if not date_obj:
+                match = False
+            else:
+                filter_years = find_config.get('years', [])
+                filter_months = find_config.get('months', [])
+                # Note: The CLI version used int for years, but the UI sends strings.
+                if filter_years and str(date_obj.year) not in filter_years:
+                    match = False
+                # The month format from strftime is '01', '02', etc.
+                if match and filter_months and date_obj.strftime('%m') not in filter_months:
+                    match = False
+
+        # --- Location Filter ---
+        if match and find_config.get('locations'):
+            loc = get_location(exif_data)
+            # ENHANCEMENT 2.0: Implement robust, "fuzzy" matching for locations.
+            # This normalizes strings by removing all spaces and making them lowercase,
+            # ensuring that minor variations from the geocoder don't cause a mismatch.
+            # e.g., 'IN/Uttar-Pradesh/City Name' matches 'IN/UttarPradesh/CityName'
+            filter_locations_normalized = [l.replace(' ', '').lower() for l in find_config['locations']]
+            
+            if not loc or loc.replace(' ', '').lower() not in filter_locations_normalized:
+                match = False
+        
+        # --- People Filter ---
+        if match and find_config.get('people') and known_encodings:
+            # Using 'fast' model as requested, which maps to 'hog'
+            names = recognize_faces(source_path, known_encodings, known_names, mode='fast')
+            if not names or not any(p in names for p in find_config['people']):
+                match = False
+
+        if match:
+            date_obj = get_date_taken(exif_data)
+            new_filename = f"{date_obj.strftime('%Y-%m-%d_%H%M%S')}_{os.path.basename(source_path)}" if date_obj else os.path.basename(source_path)
+            if handle_file_op('copy', source_path, target_folder, new_filename, date_obj):
+                found_count += 1
+                logging.info(f"Found match: Copied '{os.path.basename(source_path)}' to '{target_folder_name}'")
+
+    completion_message = f"Search complete. Found and copied {found_count} matching photos to '{target_folder_name}'."
+    if found_count == 0:
+        completion_message = "Search complete. No photos matched the specified criteria."
+        
+    logging.info(completion_message)
+    update_callback(100, completion_message, "complete")
+
+    if log_handler:
+        root_logger.removeHandler(log_handler)
+        log_handler.close()
+
 
 def _get_standard_sort_paths(base_dir, sort_method, date_obj, location_path, names, multiple_countries_found, sort_options):
     """

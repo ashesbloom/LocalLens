@@ -12,6 +12,7 @@ import SubfolderSelector from './components/SubfolderSelector';
 import HierarchyToggle from './components/HierarchyToggle';
 import SortingModeSelector from './components/SortingModeSelector';
 import HybridSortConfig from './components/HybridSortConfig'; // ADD THIS IMPORT
+import FindGroupConfig from './components/FindGroupConfig'; // NEW
 import EnrolledFacesModal from './components/EnrolledFacesModal';
 import FaceEnrollmentModal from './components/FaceEnrollmentModal';
 import './App.css';
@@ -57,6 +58,15 @@ function App() {
         filterType: 'Location',
         filterValues: {},
         folderName: 'Special Folder'
+    });
+
+    // --- NEW State for Find & Group ---
+    const [findConfig, setFindConfig] = useState({
+        folderName: 'Found Photos',
+        years: [],
+        months: [],
+        locations: [],
+        people: []
     });
 
     // --- NEW State for Enrollment ---
@@ -589,13 +599,20 @@ function App() {
 
         setupLogStream();
 
-        let sortingOptions = {};
+        let endpoint = '/api/start-sorting';
+        let payload = {};
 
         if (operationMode === 'standard') {
-            sortingOptions = {
+            const sortingOptions = {
                 primary_sort: sortMethod,
                 face_mode: faceMode,
                 maintain_hierarchy: maintainHierarchy,
+            };
+            payload = {
+                source_folder: sourceFolder,
+                destination_folder: destinationFolder,
+                sorting_options: sortingOptions,
+                ignore_list: ignoredSubfolders,
             };
         } else if (operationMode === 'hybrid') {
             if (!hybridConfig.folderName) {
@@ -604,7 +621,7 @@ function App() {
                 logToConsole('Operation cancelled: Missing special folder name.', 'error');
                 return;
             }
-            sortingOptions = {
+            const sortingOptions = {
                 primary_sort: 'Hybrid',
                 base_sort: hybridConfig.baseSort,
                 face_mode: faceMode,
@@ -615,22 +632,39 @@ function App() {
                     ...hybridConfig.filterValues,
                 }
             };
-        } else if (operationMode === 'find') {
-            await message("'Find & Group' mode is not yet implemented.", { title: 'Coming Soon', kind: 'info' });
-            setIsProcessing(false);
-            return;
-        }
-
-        apiCall('/api/start-sorting', {
-            method: 'POST',
-            body: JSON.stringify({
+            payload = {
                 source_folder: sourceFolder,
                 destination_folder: destinationFolder,
                 sorting_options: sortingOptions,
                 ignore_list: ignoredSubfolders,
-            }),
+            };
+        } else if (operationMode === 'find') {
+            if (!findConfig.folderName) {
+                await message('Please provide a name for the destination folder.', { title: 'Missing Information', kind: 'warning' });
+                setIsProcessing(false);
+                logToConsole('Operation cancelled: Missing destination folder name.', 'error');
+                return;
+            }
+            if (findConfig.years.length === 0 && findConfig.months.length === 0 && findConfig.locations.length === 0 && findConfig.people.length === 0) {
+                await message('Please enable and select at least one filter criterion.', { title: 'No Filters Selected', kind: 'warning' });
+                setIsProcessing(false);
+                logToConsole('Operation cancelled: No filters were selected for the search.', 'error');
+                return;
+            }
+            endpoint = '/api/start-find-group';
+            payload = {
+                source_folder: sourceFolder,
+                destination_folder: destinationFolder,
+                find_config: findConfig,
+                ignore_list: ignoredSubfolders,
+            };
+        }
+
+        apiCall(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(payload),
         })
-            .then(() => logToConsole("Sorting job accepted by backend. Awaiting process start..."))
+            .then(() => logToConsole("Job accepted by backend. Awaiting process start..."))
             .catch(() => {
                 setIsProcessing(false);
                 if (eventSourceRef.current) eventSourceRef.current.close();
@@ -1088,9 +1122,15 @@ function App() {
                         </div>
                     )}
                     {operationMode === 'find' && (
-                        <div className="mode-content placeholder-content">
-                            <h3>Find & Group Configuration</h3>
-                            <p>Select multiple criteria (e.g., Person, Location, Date) to find and copy matching photos to a new folder. (UI coming soon)</p>
+                        <div className="mode-content">
+                           <FindGroupConfig
+                                metadata={metadata}
+                                isScanningMetadata={isScanningMetadata}
+                                findConfig={findConfig}
+                                setFindConfig={setFindConfig}
+                                isEnrolled={isEnrolled}
+                                isProcessing={isProcessing || isEnrolling}
+                           />
                         </div>
                     )}
                 </div>

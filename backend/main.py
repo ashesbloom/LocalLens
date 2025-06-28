@@ -37,7 +37,7 @@ ENCODINGS_FILE = os.path.join(BACKEND_DIR, "encodings.pickle")
 LAST_CONFIG_FILE = os.path.join(PRESETS_DIR, "last_config.json")
 
 # --- Backend Logic Imports ---
-from organizer_logic import process_photos, load_presets, save_presets, face_recognition, SUPPORTED_EXTENSIONS, load_face_encodings
+from organizer_logic import process_photos, load_presets, save_presets, face_recognition, SUPPORTED_EXTENSIONS, load_face_encodings, find_and_group_photos, get_metadata_overview
 from enrollment_logic import update_encodings
 
 # --- Application State ---
@@ -79,6 +79,21 @@ class SortRequest(BaseModel):
     source_folder: str
     destination_folder: str
     sorting_options: SortOptions
+    ignore_list: Optional[List[str]] = []
+
+# NEW: Model for the 'Find & Group' feature configuration
+class FindGroupConfig(BaseModel):
+    folderName: str
+    years: Optional[List[str]] = []
+    months: Optional[List[str]] = []
+    locations: Optional[List[str]] = []
+    people: Optional[List[str]] = []
+
+# NEW: Model for the 'Find & Group' request
+class FindGroupRequest(BaseModel):
+    source_folder: str
+    destination_folder: str
+    find_config: FindGroupConfig
     ignore_list: Optional[List[str]] = []
 
 class LastConfig(BaseModel):
@@ -128,9 +143,10 @@ def update_status_callback(update_data: dict):
 def run_organization_task(config: Dict):
     """The main processing task, wrapped to be run in the background."""
     try:
-        # Pass the correct path to the encodings file for the organizer logic
+        # Pass the centralized encodings file path to the logic function
         config["encodings_path"] = ENCODINGS_FILE
         
+        # Create an adapter for the callback to match the expected signature
         def callback_adapter(progress: int, message: str, status: str = "running"):
             update_data = {"progress": progress, "message": message, "status": status}
             update_status_callback(update_data)
@@ -140,6 +156,23 @@ def run_organization_task(config: Dict):
         error_update = {"progress": 100, "message": f"An error occurred: {e}", "status": "error"}
         update_status_callback(error_update)
         print(f"BACKGROUND TASK ERROR: {e}")
+
+# NEW: Background task runner for the find and group process.
+def run_find_group_task(config: Dict):
+    """The find & group task, wrapped to be run in the background."""
+    try:
+        config["encodings_path"] = ENCODINGS_FILE
+        
+        def callback_adapter(progress: int, message: str, status: str = "running"):
+            update_data = {"progress": progress, "message": message, "status": status}
+            update_status_callback(update_data)
+
+        find_and_group_photos(config, callback_adapter)
+    except Exception as e:
+        error_update = {"progress": 100, "message": f"An error occurred: {e}", "status": "error"}
+        update_status_callback(error_update)
+        print(f"BACKGROUND TASK ERROR: {e}")
+
 
 # NEW: Background task runner for the enrollment process.
 def run_enrollment_task():
@@ -214,7 +247,6 @@ async def list_subfolders(request: SubfolderRequest):
 @app.post("/api/start-sorting")
 async def start_sorting_endpoint(request: SortRequest, background_tasks: BackgroundTasks):
     """Starts the photo organization process in the background."""
-    # The request body is converted to a dict, which now correctly includes the nested sorting_options.
     config = {
         "source_folder": request.source_folder,
         "destination_folder": request.destination_folder,
@@ -223,6 +255,20 @@ async def start_sorting_endpoint(request: SortRequest, background_tasks: Backgro
     }
     background_tasks.add_task(run_organization_task, config)
     return {"message": "Organization process started successfully."}
+
+
+# NEW: Endpoint to start the 'Find & Group' process
+@app.post("/api/start-find-group")
+async def start_find_group_endpoint(request: FindGroupRequest, background_tasks: BackgroundTasks):
+    """Starts the 'Find & Group' process in the background."""
+    config = {
+        "source_folder": request.source_folder,
+        "destination_folder": request.destination_folder,
+        "find_config": request.find_config.dict(),
+        "ignore_list": request.ignore_list or []
+    }
+    background_tasks.add_task(run_find_group_task, config)
+    return {"message": "Find & Group process started successfully."}
 
 
 @app.post("/api/metadata-overview")

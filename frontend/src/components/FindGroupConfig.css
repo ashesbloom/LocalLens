@@ -1,0 +1,105 @@
+.find-config-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    /* Removed background and border to let the parent .mode-content handle it */
+}
+
+.find-config-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    background-color: var(--color-bg-light);
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--color-border);
+    padding: 1.25rem;
+    transition: all 0.3s ease;
+}
+
+.find-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.find-section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.find-section-title .icon {
+    color: var(--color-primary);
+}
+
+.find-section-description {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    margin: -0.5rem 0 0.5rem 0;
+}
+
+.filter-toggle-btn {
+    padding: 0.5rem 1rem;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-border-dark);
+    background-color: var(--color-bg);
+    color: var(--color-text-muted);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filter-toggle-btn.active {
+    background-color: var(--color-success-muted);
+    color: var(--color-success);
+    border-color: var(--color-success);
+}
+
+.filter-toggle-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.filter-content {
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+    animation: slide-down 0.3s ease-out;
+}
+
+@keyframes slide-down {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Re-use styles from HybridSortConfig for consistency */
+.enhanced-filter-container,
+.filter-pills-list,
+.filter-pill,
+.filter-search-bar,
+.pills-subtitle,
+.metadata-loader,
+.metadata-loader-error {
+    /* These will inherit from App.css where HybridSortConfig styles are defined */
+}
+
+.find-folder-name .input-group {
+    max-width: 100%;
+}
+
+/* Ensure consistent search bar styling */
+.filter-search-bar {
+    margin-bottom: 1rem;
+}
