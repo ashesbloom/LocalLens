@@ -11,23 +11,37 @@ import LogConsole from './components/LogConsole';
 import SubfolderSelector from './components/SubfolderSelector';
 import HierarchyToggle from './components/HierarchyToggle';
 import SortingModeSelector from './components/SortingModeSelector';
-import HybridSortConfig from './components/HybridSortConfig'; // ADD THIS IMPORT
-import FindGroupConfig from './components/FindGroupConfig'; // NEW
+import HybridSortConfig from './components/HybridSortConfig'; 
+import FindGroupConfig from './components/FindGroupConfig'; 
 import EnrolledFacesModal from './components/EnrolledFacesModal';
 import FaceEnrollmentModal from './components/FaceEnrollmentModal';
+import FindGroupResultModal from './components/FindGroupResultModal';
+// import './components/FindGroupResultModal.css';
 import './App.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 function App() {
     // --- State Management ---
+    // Use localStorage to avoid UI flash on reload
+    const getInitialOperationMode = () => {
+        return localStorage.getItem('operation_mode') || 'standard';
+    };
+    const [operationMode, setOperationModeRaw] = useState(getInitialOperationMode());
+
+    // Helper to always persist mode to localStorage
+    const setOperationMode = (mode) => {
+        setOperationModeRaw(mode);
+        localStorage.setItem('operation_mode', mode);
+    };
+
     const [sourceFolder, setSourceFolder] = useState('');
     const [destinationFolder, setDestinationFolder] = useState('');
     const [presets, setPresets] = useState({});
     const [selectedPreset, setSelectedPreset] = useState('');
     const [sortMethod, setSortMethod] = useState('Date');
     const [faceMode, setFaceMode] = useState('balanced');
-    const [operationMode, setOperationMode] = useState('standard'); // NEW: To control the overall mode
+    // const [operationMode, setOperationModeRaw] = useState(getInitialOperationMode()); 
     // FIX: Default state for hierarchy is now 'false' (Flat Output).
     const [maintainHierarchy, setMaintainHierarchy] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -95,6 +109,13 @@ function App() {
     const [faceEnrollmentDisplay, setFaceEnrollmentDisplay] = useState(operationMode === 'standard' ? 'visible' : 'hidden');
     // NEW: State to manage the animation lifecycle of the SubfolderSelector component
     const [subfolderSelectorDisplay, setSubfolderSelectorDisplay] = useState(operationMode !== 'standard' ? 'visible' : 'hidden');
+
+    // --- NEW State for Find Group Modal ---
+    const [findGroupModal, setFindGroupModal] = useState({
+        isOpen: false,
+        foundCount: 0,
+        folderName: '',
+    });
 
     // --- Effects ---
     useEffect(() => {
@@ -240,6 +261,8 @@ function App() {
             }
         };
     }, []);
+
+    
 
     // NEW: Effect to handle automatic reconnection attempts
     useEffect(() => {
@@ -478,6 +501,20 @@ function App() {
                 es.close();
                 eventSourceRef.current = null;
             }
+
+            // NEW: Handle Find & Group completion
+            if (operationMode === 'find' && data.status === 'complete') {
+                // Try to extract found count and folder name from the message
+                let foundCount = 0;
+                let folderName = findConfig.folderName || '';
+                const match = data.message.match(/Found and copied (\d+) matching photo/);
+                if (match) foundCount = parseInt(match[1], 10);
+                setFindGroupModal({
+                    isOpen: true,
+                    foundCount,
+                    folderName,
+                });
+            }
         };
 
         es.onerror = (err) => {
@@ -500,6 +537,7 @@ function App() {
         }
     };
 
+    // UPDATE: loadLastConfig now uses setOperationMode
     const loadLastConfig = async () => {
         try {
             const config = await apiCall('/api/config/load');
@@ -510,6 +548,7 @@ function App() {
                 if (config.face_mode) setFaceMode(config.face_mode);
                 if (typeof config.maintain_hierarchy === 'boolean') setMaintainHierarchy(config.maintain_hierarchy);
                 if (config.ignored_subfolders) setIgnoredSubfolders(config.ignored_subfolders);
+                if (config.operation_mode) setOperationMode(config.operation_mode); // Use helper
                 logToConsole("Loaded previous session settings.", "success");
             }
         } catch (error) {
@@ -533,6 +572,7 @@ function App() {
             face_mode: faceMode,
             maintain_hierarchy: maintainHierarchy,
             ignored_subfolders: ignoredSubfolders,
+            operation_mode: operationMode, 
         };
         try {
             await apiCall('/api/config/save', {
@@ -1183,6 +1223,14 @@ function App() {
                     setShowFaceEnrollmentModal(false);
                     setShowEnrolledFacesModal(true);
                 }}
+            />
+
+            <FindGroupResultModal
+                isOpen={findGroupModal.isOpen}
+                foundCount={findGroupModal.foundCount}
+                folderName={findGroupModal.folderName}
+                onClose={() => setFindGroupModal(m => ({ ...m, isOpen: false }))}
+                onGoToDestination={handleOpenDestination}
             />
         </div>
     );
