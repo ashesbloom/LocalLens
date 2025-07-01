@@ -52,6 +52,17 @@
     z-index: 2;
 }
 
+.progress-header { /* This is a new class */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
 .progress-tracker-container > div:first-child {
     display: flex;
     justify-content: space-between;

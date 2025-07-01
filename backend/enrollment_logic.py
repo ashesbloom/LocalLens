@@ -16,6 +16,9 @@ from PIL import Image
 import face_recognition
 from multiprocessing import Pool, cpu_count
 
+# --- Custom Exception Import ---
+from exceptions import OperationAbortedError
+
 # --- Constants ---
 RESIZE_WIDTH_FOR_ENROLLMENT = 600
 
@@ -61,7 +64,7 @@ def process_image(image_path_and_name):
         print(f"\nError processing {os.path.basename(image_path)}: {e}")
     return None
 
-def update_encodings(dataset_path, encodings_file, status_callback=None):
+def update_encodings(dataset_path, encodings_file, cancellation_event, status_callback=None):
     """
     Scans a dataset directory, incrementally encodes new faces using multiprocessing,
     and saves the combined encodings to a file.
@@ -109,23 +112,48 @@ def update_encodings(dataset_path, encodings_file, status_callback=None):
         status_callback(100, "No new images to enroll. AI model is up to date.", "complete")
         return
 
-    # --- 4. Process New Images in Parallel ---
+    # --- 4. Process New Images in Parallel (Corrected for Responsive Abort) ---
     status_callback(25, f"Found {len(new_images_to_process)} new images. Starting AI enrollment...")
     
-    # Use a pool of worker processes for CPU-bound encoding task
-    with Pool(processes=max(1, cpu_count() - 1)) as pool:
-        results = pool.map(process_image, new_images_to_process)
-
-    # --- 5. Consolidate and Save Results ---
     newly_processed_count = 0
-    for result in results:
-        if result:
-            image_path, person_name, encoding = result
-            known_encodings.append(encoding)
-            known_names.append(person_name)
-            processed_paths.append(image_path)
-            newly_processed_count += 1
-    
+    # Manually manage the pool to allow for immediate termination
+    pool = Pool(processes=max(1, cpu_count() - 1))
+    try:
+        # Use imap_unordered. This creates an iterator that yields results as they complete,
+        # allowing us to check for cancellation between each completed task.
+        results_iterator = pool.imap_unordered(process_image, new_images_to_process)
+
+        # --- 5. Consolidate Results as they complete ---
+        total_to_process = len(new_images_to_process)
+        processed_count = 0
+
+        for result in results_iterator:
+            # CHECK 1: Check for cancellation signal *before* processing the result.
+            if cancellation_event and cancellation_event.is_set():
+                pool.terminate() # Immediately stop all worker processes
+                break # Exit the loop
+            
+            processed_count += 1
+            if result:
+                image_path, person_name, encoding = result
+                known_encodings.append(encoding)
+                known_names.append(person_name)
+                processed_paths.append(image_path)
+                newly_processed_count += 1
+            
+            # Update progress more frequently
+            progress = 25 + int((processed_count / total_to_process) * 65)
+            status_callback(progress, f"Analyzing image {processed_count} of {total_to_process}...", "running")
+
+    finally:
+        # Ensure the pool is always closed properly
+        pool.close()
+        pool.join()
+        # CHECK 2: Final check after the loop finishes or breaks.
+        # This is the correct place to raise the exception after cleanup.
+        if cancellation_event and cancellation_event.is_set():
+            raise OperationAbortedError("Enrollment cancelled by user.")
+
     status_callback(90, "Consolidating and saving new AI model data...")
     
     if newly_processed_count > 0:

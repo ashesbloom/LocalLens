@@ -1,11 +1,12 @@
 import React from 'react';
+import AbortButton from './AbortButton'; // Import the new component
 
-const ProgressTracker = ({ progress, progressLabel }) => {
+const ProgressTracker = ({ progress, progressLabel, isProcessing, onAbort }) => {
     return (
-        <div>
-             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem'}}>
+        <div className="progress-tracker-container">
+            <div className="progress-header">
                 <span>{progressLabel}</span>
-                {/* <span>{Math.round(progress)}%</span> */}
+                <AbortButton isVisible={isProcessing} onAbort={onAbort} />
             </div>
             <div className="progress-bar-container">
                 <div className="progress-bar" style={{ width: `${progress}%` }}></div>

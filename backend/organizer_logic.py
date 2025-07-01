@@ -20,6 +20,12 @@ import numpy as np
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 
+# --- Custom Exception for Abort ---
+# To be imported from main.py, but defined here for clarity if run standalone
+class OperationAbortedError(Exception):
+    """Custom exception to signal a user-initiated abort."""
+    pass
+
 # --- Optional Imports with Graceful Fallbacks ---
 try:
     from pillow_heif import register_heif_opener
@@ -341,6 +347,7 @@ def find_and_group_photos(config, update_callback):
     base_dest_dir = config["destination_folder"]
     find_config = config["find_config"]
     encodings_path = config.get("encodings_path")
+    cancellation_event = config.get("cancellation_event")
 
     target_folder_name = find_config.get('folderName', "Find_Results")
     target_folder = os.path.join(base_dest_dir, target_folder_name)
@@ -393,6 +400,9 @@ def find_and_group_photos(config, update_callback):
         progress = 10 + int(((i + 1) / total_files) * 85)
         update_callback(progress, f"Searching: {os.path.basename(source_path)}", "running")
         
+        if cancellation_event and cancellation_event.is_set():
+            raise OperationAbortedError("Find & Group operation cancelled by user.")
+
         exif_data = get_exif_data(source_path)
         match = True # Assume it's a match until a filter fails
 
@@ -533,7 +543,7 @@ def _get_hybrid_sort_paths(dest_dir, sort_options, exif_data, date_obj, names, m
     return dest_paths
 
 
-def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, encodings_path):
+def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, encodings_path, cancellation_event=None):
     """
     REFACTORED: This function is now a high-level orchestrator that calls dedicated
     functions for each sorting mode, preventing logic conflicts.
@@ -574,6 +584,9 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
         progress = 10 + int(((i + 1) / total_files) * 85)
         update_callback(progress, f"Analyzing: {os.path.basename(source_path)}", "running")
         
+        if cancellation_event and cancellation_event.is_set():
+            raise OperationAbortedError("Sorting operation cancelled by user.")
+
         original_subfolder = os.path.relpath(os.path.dirname(source_path), work_dir) if work_dir != os.path.dirname(source_path) else ''
         exif_data = get_exif_data(source_path)
         date_obj = get_date_taken(exif_data)
@@ -624,6 +637,7 @@ def process_photos(config, update_callback):
     ignore_list = config.get("ignore_list", [])
     # CONFLICT FIXED: Get the correct encodings path from the config dictionary
     encodings_path = config.get("encodings_path")
+    cancellation_event = config.get("cancellation_event")
 
     log_dir = os.path.join(dest_dir, "logs")
     os.makedirs(log_dir, exist_ok=True)
@@ -653,7 +667,7 @@ def process_photos(config, update_callback):
         update_callback(5, "Workspace secured. Commencing file processing...", "running")
         
         # CONFLICT FIXED: Pass the correct path to the core processing loop
-        moved_count = _core_processing_loop(temp_source_path, dest_dir, sort_options, update_callback, encodings_path)
+        moved_count = _core_processing_loop(temp_source_path, dest_dir, sort_options, update_callback, encodings_path, cancellation_event)
 
         completion_message = f"Process complete. {moved_count} files successfully organized."
         logging.info(completion_message)

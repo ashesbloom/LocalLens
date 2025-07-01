@@ -16,12 +16,23 @@ import subprocess
 import shutil
 import pickle
 import logging
+import threading
+import multiprocessing # Import the multiprocessing library
 from fastapi import FastAPI, HTTPException, Body, Request, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 from starlette.responses import StreamingResponse
+import asyncio
+import os
+import shutil
+import json
+import multiprocessing
+from asyncio import Queue, CancelledError # FIX: Import the asyncio Queue and CancelledError
+
+# --- Custom Exception Import ---
+from exceptions import OperationAbortedError
 
 # --- Path Configuration ---
 # Use absolute paths to prevent issues when the script is run from different directories
@@ -42,7 +53,14 @@ from enrollment_logic import update_encodings
 
 # --- Application State ---
 # A thread-safe queue for sending real-time status updates to the frontend.
-log_queue = asyncio.Queue()
+log_queue: "Queue[str]" = Queue()
+
+# --- Cancellation Events for Aborting Tasks ---
+# Use multiprocessing.Event, which can be safely passed to other processes.
+cancellation_events = {
+    "sorting": multiprocessing.Event(),
+    "enrollment": multiprocessing.Event()
+}
 
 # --- FastAPI App Initialization ---
 app = FastAPI(
@@ -133,18 +151,21 @@ class MetadataOverviewRequest(BaseModel):
 
 # --- Background Task & SSE Logic ---
 
-def update_status_callback(update_data: dict):
-    """Puts a status update dictionary into the log queue."""
+def update_status_callback(update_data: Dict):
+    """Puts a log message into the queue for the client."""
     try:
+        # Use put_nowait for thread-safe adding from background tasks
         log_queue.put_nowait(json.dumps(update_data))
-    except asyncio.QueueFull:
-        print("Log queue is full, a message was dropped.")
+    except Exception as e:
+        print(f"Error adding log to queue: {e}")
 
 def run_organization_task(config: Dict):
     """The main processing task, wrapped to be run in the background."""
+    cancellation_events["sorting"].clear() # Reset event at start
     try:
         # Pass the centralized encodings file path to the logic function
         config["encodings_path"] = ENCODINGS_FILE
+        config["cancellation_event"] = cancellation_events["sorting"]
         
         # Create an adapter for the callback to match the expected signature
         def callback_adapter(progress: int, message: str, status: str = "running"):
@@ -152,6 +173,11 @@ def run_organization_task(config: Dict):
             update_status_callback(update_data)
 
         process_photos(config, callback_adapter)
+    except OperationAbortedError:
+        abort_message = "Operation aborted by user. Cleaning up..."
+        print(f"BACKGROUND TASK: {abort_message}")
+        error_update = {"progress": 100, "message": abort_message, "status": "aborted"}
+        update_status_callback(error_update)
     except Exception as e:
         error_update = {"progress": 100, "message": f"An error occurred: {e}", "status": "error"}
         update_status_callback(error_update)
@@ -160,14 +186,29 @@ def run_organization_task(config: Dict):
 # NEW: Background task runner for the find and group process.
 def run_find_group_task(config: Dict):
     """The find & group task, wrapped to be run in the background."""
+    cancellation_events["find_group"].clear()
+    target_folder = None
     try:
         config["encodings_path"] = ENCODINGS_FILE
+        config["cancellation_event"] = cancellation_events["find_group"]
         
+        # Determine the target folder path for potential cleanup
+        target_folder_name = config.get("find_config", {}).get('folderName', "Find_Results")
+        target_folder = os.path.join(config["destination_folder"], target_folder_name)
+
         def callback_adapter(progress: int, message: str, status: str = "running"):
             update_data = {"progress": progress, "message": message, "status": status}
             update_status_callback(update_data)
 
         find_and_group_photos(config, callback_adapter)
+    except OperationAbortedError:
+        abort_message = "Find & Group aborted by user. Cleaning up..."
+        print(f"BACKGROUND TASK: {abort_message}")
+        if target_folder and os.path.exists(target_folder):
+            shutil.rmtree(target_folder)
+            print(f"Cleaned up partially created folder: {target_folder}")
+        error_update = {"progress": 100, "message": abort_message, "status": "aborted"}
+        update_status_callback(error_update)
     except Exception as e:
         error_update = {"progress": 100, "message": f"An error occurred: {e}", "status": "error"}
         update_status_callback(error_update)
@@ -175,32 +216,74 @@ def run_find_group_task(config: Dict):
 
 
 # NEW: Background task runner for the enrollment process.
-def run_enrollment_task():
+def run_enrollment_task(newly_created_dirs: List[str]):
     """Wrapper to run the face enrollment process and send real-time updates."""
+    cancellation_events["enrollment"].clear()
     try:
         def callback_adapter(progress: int, message: str, status: str = "running"):
-            update_data = {"progress": progress, "message": message, "status": status}
+            # Add a 'source' key to distinguish from sorting logs
+            update_data = {"progress": progress, "message": message, "status": status, "source": "enrollment"}
             update_status_callback(update_data)
         
         # The logic function handles finding new images in the enrollment folder itself.
-        update_encodings(ENROLLMENT_FOLDER, ENCODINGS_FILE, callback_adapter)
+        update_encodings(ENROLLMENT_FOLDER, ENCODINGS_FILE, cancellation_events["enrollment"], callback_adapter)
+    except OperationAbortedError:
+        abort_message = "Enrollment aborted by user. Reverting changes..."
+        print(f"ENROLLMENT TASK: {abort_message}")
+        # Clean up folders created in this session
+        for person_dir in newly_created_dirs:
+            if os.path.isdir(person_dir):
+                try:
+                    shutil.rmtree(person_dir)
+                    print(f"Successfully removed aborted enrollment folder: {person_dir}")
+                except Exception as e:
+                    print(f"Error removing directory {person_dir}: {e}")
+        
+        # FIX: The original `error_update` was not being passed to the callback.
+        # This ensures the final "aborted" status is sent to the UI.
+        final_update = {"progress": 100, "message": abort_message, "status": "aborted", "source": "enrollment"}
+        update_status_callback(final_update)
+
     except Exception as e:
-        error_update = {"progress": 100, "message": f"An error occurred during enrollment: {e}", "status": "error"}
+        error_update = {"progress": 100, "message": f"An error occurred during enrollment: {e}", "status": "error", "source": "enrollment"}
         update_status_callback(error_update)
         print(f"ENROLLMENT TASK ERROR: {e}")
 
 async def log_streamer(request: Request):
-    """Yields server-sent events from the log queue."""
+    """Yields server-sent events to the client."""
+    # Use a local queue to buffer messages for this specific client
+    # This prevents race conditions if multiple clients connect.
+    client_queue: "Queue[str]" = Queue()
+
+    # Function to copy messages from the global queue to the local one
+    async def queue_copier():
+        while True:
+            message = await log_queue.get()
+            await client_queue.put(message)
+            log_queue.task_done()
+
+    copier_task = asyncio.create_task(queue_copier())
+
     try:
         while True:
+            # Check if the client has disconnected
             if await request.is_disconnected():
                 print("Client disconnected, closing log stream.")
                 break
-            log_message = await log_queue.get()
-            yield f"data: {log_message}\n\n"
-            log_queue.task_done()
-    except asyncio.CancelledError:
+            
+            try:
+                # Wait for a message from the local queue
+                log_message = await asyncio.wait_for(client_queue.get(), timeout=1.0)
+                yield f"data: {log_message}\n\n"
+                client_queue.task_done()
+            except asyncio.TimeoutError:
+                # No message, just loop and check for disconnect again
+                continue
+    except CancelledError:
         print("Log stream cancelled.")
+    finally:
+        copier_task.cancel()
+
 
 # ==============================================================================
 #  API Endpoints
@@ -300,37 +383,57 @@ async def get_metadata_overview_endpoint(request: MetadataOverviewRequest):
 @app.post("/api/add-person")
 async def add_person_endpoint(request: BatchEnrollmentRequest, background_tasks: BackgroundTasks):
     """
-    Handles batch enrollment.
-    1. Iterates through each person in the request.
-    2. Creates a directory for them in the Enrollment folder.
-    3. Copies their images into it.
-    4. Starts a single background task to update the encodings model for all new people.
+    Accepts a batch of people and their images, copies them to the
+    enrollment directory, and then triggers the background enrollment task.
     """
-    if not request.people_to_enroll:
-        raise HTTPException(status_code=400, detail="No people provided for enrollment.")
+    newly_created_dirs = []
+    try:
+        for person_data in request.people_to_enroll:
+            person_name = person_data.person_name
+            # Sanitize person_name to create a valid directory name
+            sanitized_name = "".join(c for c in person_name if c.isalnum() or c in (' ', '_', '-')).rstrip()
+            if not sanitized_name:
+                raise HTTPException(status_code=400, detail=f"Invalid person name provided: {person_name}")
 
-    for person_data in request.people_to_enroll:
-        person_name = person_data.person_name.strip()
-        if not person_name or not person_data.image_paths:
-            raise HTTPException(status_code=400, detail=f"Invalid data provided. Person name and images are required. Problem with entry for '{person_name}'.")
+            person_dir = os.path.join(ENROLLMENT_FOLDER, sanitized_name)
+            os.makedirs(person_dir, exist_ok=True)
+            newly_created_dirs.append(person_dir)
 
-        person_dir = os.path.join(ENROLLMENT_FOLDER, person_name)
-        os.makedirs(person_dir, exist_ok=True)
+            for image_path in person_data.image_paths:
+                if os.path.exists(image_path):
+                    shutil.copy(image_path, person_dir)
+                else:
+                    # Log a warning but don't stop the whole batch
+                    print(f"Warning: Image path not found, skipping: {image_path}")
 
-        # Copy the selected files into the person's dataset directory
-        for src_path in person_data.image_paths:
-            if os.path.exists(src_path):
-                try:
-                    shutil.copy(src_path, person_dir)
-                except Exception as e:
-                    raise HTTPException(status_code=500, detail=f"Failed to copy file '{os.path.basename(src_path)}' for person '{person_name}': {e}")
-            else:
-                raise HTTPException(status_code=404, detail=f"Source image not found: {src_path}")
+        # Start the background task, passing the list of directories to be cleaned up on abort.
+        background_tasks.add_task(run_enrollment_task, newly_created_dirs)
 
-    # Start the enrollment process in the background *after* all files are copied
-    background_tasks.add_task(run_enrollment_task)
+        return {"message": "Batch enrollment process started successfully."}
+    except Exception as e:
+        # If setup fails, clean up any directories that were created
+        for d in newly_created_dirs:
+            if os.path.isdir(d):
+                shutil.rmtree(d)
+        raise HTTPException(status_code=500, detail=f"Failed to prepare for enrollment: {e}")
+
+
+@app.post("/api/abort-process")
+async def abort_process():
+    """Sets all cancellation events and sends an immediate confirmation to the UI."""
+    print("ABORT REQUEST RECEIVED: Setting cancellation events.")
+    for event in cancellation_events.values():
+        event.set()
     
-    return {"message": f"Enrollment process started for {len(request.people_to_enroll)} people."}
+    # Immediately send a confirmation back to the UI via the log stream
+    # This provides instant feedback that the signal was received.
+    update_status_callback({
+        "progress": 100, 
+        "message": "Abort signal received by backend. Awaiting task termination...", 
+        "status": "warning",
+        "source": "system" # Use a neutral source
+    })
+    return {"status": "success", "message": "Abort signal sent to all running tasks."}
 
 @app.get("/api/check-dependencies")
 async def check_dependencies():
@@ -511,7 +614,7 @@ async def delete_enrolled_face(request: OpenEnrolledFolderRequest):
                     "paths": updated_paths
                 }, f)
 
-        return {"status": "success", "message": f"Successfully deleted '{person_name}'."}
+        return {"status": "success", "message": f"Successfully deleted '{person_name}'."}  
     except Exception as e:
         print(f"Error deleting enrolled face: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete '{person_name}': {str(e)}")

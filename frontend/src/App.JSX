@@ -16,6 +16,7 @@ import FindGroupConfig from './components/FindGroupConfig';
 import EnrolledFacesModal from './components/EnrolledFacesModal';
 import FaceEnrollmentModal from './components/FaceEnrollmentModal';
 import FindGroupResultModal from './components/FindGroupResultModal';
+import AbortButton from './components/AbortButton'; // Import AbortButton
 // import './components/FindGroupResultModal.css';
 import './App.css';
 
@@ -470,50 +471,61 @@ function App() {
 
         es.onmessage = (event) => {
             const data = JSON.parse(event.data);
+            
+            // Always allow final status messages to be fully processed to reset the UI.
+            const isFinalStatus = data.status === 'complete' || data.status === 'aborted' || data.status === 'error';
+
+            // Determine if the log is for the current operation
+            const isEnrollmentLog = isEnrolling && data.source === 'enrollment';
+            const isSortingLog = !isEnrolling && data.source !== 'enrollment'; 
+            
+            // If it's not a final status message and it doesn't match the current operation, log it as a system message and ignore for progress.
+            if (!isFinalStatus && !isEnrollmentLog && !isSortingLog) {
+                logToConsole(`[System]: ${data.message}`, data.status || 'info');
+                return;
+            }
+
             logToConsole(data.message, data.status || 'info');
 
             if (data.progress !== undefined) {
                 setProgress(data.progress);
-                const currentTask = isEnrolling ? 'Enrolling' : 'Organizing';
-                setProgressLabel(data.progress < 100 ? `${currentTask}: ${data.progress}%` : "Finalizing...");
             }
 
-            if (data.status === 'complete') {
+            // Handle completion or abortion
+            if (isFinalStatus) {
                 setProgress(100);
-                const completionMsg = isEnrolling ? "Enrollment Complete" : "Organization Complete";
-                setProgressLabel(completionMsg);
-                logToConsole(isEnrolling ? "Face enrollment finished successfully." : "Photo organization finished.", "success");
-
-                setIsEnrolling(false);
-                setIsProcessing(false);
-                if (isEnrolling) {
-                    setPersonName("");
-                    setSelectedImages([]);
-                    checkEnrollmentStatus();
+                let completionMsg = "Operation Finished";
+                if (data.status === 'aborted') {
+                    completionMsg = "Operation Aborted";
+                } else if (data.status === 'complete') {
+                    completionMsg = isEnrolling ? "Enrollment Complete" : "Organization Complete";
+                } else if (data.status === 'error') {
+                    completionMsg = "Operation Failed";
                 }
+                setProgressLabel(completionMsg);
 
-                es.close();
-                eventSourceRef.current = null;
-            } else if (data.status === 'error') {
-                logToConsole(`FATAL: ${data.message}`, 'error');
+                // Reset processing states
                 setIsEnrolling(false);
                 setIsProcessing(false);
+
+                // Close the connection
                 es.close();
                 eventSourceRef.current = null;
-            }
 
-            // NEW: Handle Find & Group completion
-            if (operationMode === 'find' && data.status === 'complete') {
-                // Try to extract found count and folder name from the message
-                let foundCount = 0;
-                let folderName = findConfig.folderName || '';
-                const match = data.message.match(/Found and copied (\d+) matching photo/);
-                if (match) foundCount = parseInt(match[1], 10);
-                setFindGroupModal({
-                    isOpen: true,
-                    foundCount,
-                    folderName,
-                });
+                // Handle Find & Group completion modal
+                if (operationMode === 'find' && data.status === 'complete') {
+                    let foundCount = 0;
+                    let folderName = findConfig.folderName || '';
+                    const match = data.message.match(/Found and copied (\d+) matching photo/);
+                    if (match) {
+                        foundCount = parseInt(match[1], 10);
+                    }
+                    setFindGroupModal({
+                        isOpen: true,
+                        foundCount,
+                        folderName,
+                    });
+                }
             }
         };
 
@@ -709,6 +721,16 @@ function App() {
                 setIsProcessing(false);
                 if (eventSourceRef.current) eventSourceRef.current.close();
             });
+    };
+
+    const handleAbortProcess = async () => {
+        logToConsole("Sending abort signal to backend...", 'warning');
+        try {
+            await apiCall('/api/abort-process', { method: 'POST' });
+            // The backend will send a final status update via SSE, which will handle UI state changes.
+        } catch (error) {
+            logToConsole(`Failed to send abort signal: ${error.message}`, 'error');
+        }
     };
 
     const handleFaceDeleted = () => {
@@ -1185,7 +1207,12 @@ function App() {
 
             {(isProcessing || logs.length > 1) && (
                 <footer ref={footerRef} className="app-footer">
-                    <ProgressTracker progress={progress} progressLabel={progressLabel} />
+                    <ProgressTracker 
+                        progress={progress} 
+                        progressLabel={progressLabel} 
+                        isProcessing={isProcessing}
+                        onAbort={handleAbortProcess}
+                    />
                     <LogConsole ref={logConsoleRef} logs={logs} />
                     <div className="footer-actions">
                         {!isProcessing && <button onClick={resetUi} className="btn btn-danger">Start Over</button>}

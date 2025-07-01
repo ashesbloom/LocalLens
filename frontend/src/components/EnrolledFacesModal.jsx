@@ -38,7 +38,7 @@ const EnrolledFacesModal = ({ isVisible, onClose, onOpenFolder, apiCall, logToCo
                 body: JSON.stringify({ person_name: personToDelete }),
             });
             if (logToConsole) {
-                logToConsole(response.message, 'success');
+                logToConsole(response.message, 'warning');
             }
             setEnrolledFaces(enrolledFaces.filter(face => face.name !== personToDelete));
             if (onFaceDeleted) {
