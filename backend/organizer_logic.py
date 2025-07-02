@@ -25,6 +25,33 @@ from multiprocessing import Pool, TimeoutError as MultiprocessingTimeoutError
 # --- Custom Exception Import ---
 from exceptions import OperationAbortedError
 
+# --- Optional Imports with Graceful Fallbacks ---
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    print("HEIC/HEIF format support enabled.")
+except ImportError:
+    print("Warning: 'pillow-heif' not installed. HEIC/HEIF files will be ignored.")
+
+try:
+    import face_recognition
+    print("Facial recognition library loaded.")
+except ImportError:
+    print("CRITICAL ERROR: 'face_recognition' library not installed.")
+    face_recognition = None
+
+import reverse_geocoder as rg
+
+# ADD THIS BLOCK
+try:
+    import rawpy
+    print("Raw image format support (DNG, CR2, etc.) enabled via rawpy.")
+except ImportError:
+    rawpy = None
+    print("Warning: 'rawpy' not installed. Raw files will be scanned for EXIF but not for faces.")
+
+
+
 # --- Global State for Libraries ---
 face_recognition = None
 # A flag to ensure initialization happens only once.
@@ -59,6 +86,7 @@ def initialize_libraries(is_main_process: bool = False):
             print("CRITICAL ERROR: 'face_recognition' library not installed.")
         face_recognition = None
     _libraries_initialized = True
+    
 import reverse_geocoder as rg
 
 # ==============================================================================
@@ -76,7 +104,18 @@ PATHS_FILE_NAME = os.path.join(PRESETS_FOLDER, "paths.json")
 # FACE_RECOGNITION_SUBFOLDER = os.path.join(script_dir, "facial recognition model (local)")
 # ENCODINGS_FILE = os.path.join(FACE_RECOGNITION_SUBFOLDER, "face_encodings.pkl")
 
-SUPPORTED_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.tif', '.heic', '.heif')
+SUPPORTED_EXTENSIONS = (
+    # Standard formats
+    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.tif', '.webp',
+    # Apple formats
+    '.heic', '.heif',
+    # Raw formats
+    '.dng', '.cr2', '.cr3', '.nef', '.arw', '.raf',
+    # Modern formats
+    '.avif',
+    # Professional / HDR formats
+    '.psd', '.hdr'
+)
 
 UNKNOWN_DATE_FOLDER_NAME = "Unknown_Date"
 UNKNOWN_LOCATION_FOLDER_NAME = "Unknown_Location"
@@ -166,29 +205,36 @@ def get_location(exif_data):
     """Converts GPS coordinates from EXIF into a human-readable 'Country/State/City' path."""
     if not exif_data or "GPSInfo" not in exif_data:
         return None
-        
-    gps_info = exif_data["GPSInfo"]
-    lat_dms = gps_info.get("GPSLatitude")
-    lon_dms = gps_info.get("GPSLongitude")
-    lat_ref = gps_info.get("GPSLatitudeRef")
-    lon_ref = gps_info.get("GPSLongitudeRef")
+    try:
+        gps_info = exif_data["GPSInfo"]
+        lat_dms = gps_info.get("GPSLatitude")
+        lon_dms = gps_info.get("GPSLongitude")
+        lat_ref = gps_info.get("GPSLatitudeRef")
+        lon_ref = gps_info.get("GPSLongitudeRef")
 
-    if lat_dms and lon_dms and lat_ref and lon_ref:
-        # It now correctly calls the helper function
-        lat = get_decimal_from_dms(lat_dms, lat_ref)
-        lon = get_decimal_from_dms(lon_dms, lon_ref)
-        
-        # Use the reverse geocoder
-        location = rg.search((lat, lon), mode=1)
-        if location:
-            loc_data = location[0]
-            country = loc_data.get('cc', '').replace(' ', '-')
-            state = loc_data.get('admin1', '').replace(' ', '-')
-            city = loc_data.get('name', '').replace(' ', '-')
-            path_parts = [p for p in [country, state, city] if p]
-            if path_parts:
-                return os.path.join(*path_parts)
-    return None
+        if lat_dms and lon_dms and lat_ref and lon_ref:
+            lat = get_decimal_from_dms(lat_dms, lat_ref)
+            lon = get_decimal_from_dms(lon_dms, lon_ref)
+            
+            # Check for non-finite values before they can cause a crash.
+            if not (np.isfinite(lat) and np.isfinite(lon)):
+                logging.warning(f"Invalid GPS coordinates (non-finite) found. Skipping location lookup.")
+                return None
+
+            location = rg.search((lat, lon), mode=1)
+            if location:
+                loc_data = location[0]
+                country = loc_data.get('cc', '').replace(' ', '-')
+                state = loc_data.get('admin1', '').replace(' ', '-')
+                city = loc_data.get('name', '').replace(' ', '-')
+                path_parts = [p for p in [country, state, city] if p]
+                if path_parts:
+                    return os.path.join(*path_parts)
+        return None
+    except Exception as e:
+        # Catch any other unexpected errors during GPS data processing.
+        logging.warning(f"Could not extract location due to corrupted GPS metadata: {e}")
+        return None
 
 def get_metadata_overview(source_dir, ignore_list=None, encodings_path=None):
     """
@@ -326,34 +372,86 @@ def _recognize_faces_in_process(image_path, known_encodings, known_names, mode):
         return None
 
 
-def recognize_faces(image_path, known_encodings, known_names, mode='balanced', cancellation_event=None):
+def recognize_faces(image_path, known_encodings, known_names, mode='balanced'):
     """
-    MODIFIED: The core AI function now uses a multiprocessing pool to isolate the
-    blocking dlib call, allowing for responsive cancellation.
+    The core AI function. It takes a single image and identifies all known
+    people within it, with selectable accuracy modes.
+
+    MODIFIED: Now supports a wide range of formats, including Camera Raw files
+    (DNG, CR2, NEF, etc.) by using the 'rawpy' library to decode them.
     """
     if not face_recognition: return []
     
-    # MODIFIED: Use the 'initializer' argument to ensure libraries are loaded silently in the child process.
-    with Pool(processes=1, initializer=initialize_libraries, initargs=(False,)) as pool:
-        async_result = pool.apply_async(_recognize_faces_in_process, (image_path, known_encodings, known_names, mode))
-        
-        while not async_result.ready():
-            if cancellation_event and cancellation_event.is_set():
-                pool.terminate() # Forcefully stop the subprocess
-                pool.join()
-                raise OperationAbortedError("Face recognition cancelled during processing.")
-            try:
-                # Wait for 1 second, then check for cancellation again.
-                return async_result.get(timeout=1)
-            except MultiprocessingTimeoutError:
-                continue # Loop again to check for cancellation.
-        
-        # This part is reached if the process finishes before timeout/cancellation.
-        result = async_result.get()
-        if result is None:
-            logging.warning(f"Could not process faces in {os.path.basename(image_path)}: Subprocess failed.")
-        return result
+    pil_image = None
+    file_ext = os.path.splitext(image_path)[1].lower()
+    RAW_EXTENSIONS = ('.dng', '.cr2', '.cr3', '.nef', '.arw', '.raf')
 
+    try:
+        # First, try opening with Pillow. This works for most files, including
+        # JPG, PNG, WEBP, and AVIF/HEIC if the plugins are installed.
+        pil_image = Image.open(image_path)
+    
+    except Exception as e:
+        # If Pillow fails, check if it's a Raw file we can handle with rawpy.
+        if file_ext in RAW_EXTENSIONS and rawpy:
+            try:
+                with rawpy.imread(image_path) as raw:
+                    # postprocess() creates a standard, viewable image array
+                    rgb_array = raw.postprocess()
+                pil_image = Image.fromarray(rgb_array)
+                logging.info(f"Successfully decoded Raw file '{os.path.basename(image_path)}' for face recognition.")
+            except Exception as raw_e:
+                logging.warning(f"Could not process Raw file {os.path.basename(image_path)} with rawpy: {raw_e}")
+                return None
+        else:
+            # If it's not a known Raw file or rawpy isn't installed, log the original Pillow error.
+            logging.warning(f"Pillow could not open {os.path.basename(image_path)}: {e}")
+            return None
+
+    if not pil_image:
+         return None
+
+    # --- The rest of the function remains the same, robust and reliable ---
+    try:
+        pil_image = pil_image.convert('RGB')
+        if pil_image.width > RESIZE_WIDTH_FOR_PROCESSING:
+            ratio = RESIZE_WIDTH_FOR_PROCESSING / float(pil_image.width)
+            new_height = int(float(pil_image.height) * ratio)
+            pil_image = pil_image.resize((RESIZE_WIDTH_FOR_PROCESSING, new_height), Image.Resampling.LANCZOS)
+        
+        image = np.array(pil_image)
+
+        face_locations = []
+        if mode == 'fast':
+            face_locations = face_recognition.face_locations(image, model='hog')
+        elif mode == 'accurate':
+            face_locations = face_recognition.face_locations(image, model='cnn')
+        else:
+            face_locations = face_recognition.face_locations(image, model='hog', number_of_times_to_upsample=2)
+
+        if not face_locations: return []
+        
+        face_encodings = face_recognition.face_encodings(image, face_locations)
+        found_names = set()
+        for face_encoding in face_encodings:
+            try:
+                if not np.isfinite(face_encoding).all():
+                    logging.warning(f"Skipping a non-finite face encoding in {os.path.basename(image_path)}.")
+                    continue
+                matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=FACE_RECOGNITION_TOLERANCE)
+                name = "Unknown"
+                if True in matches:
+                    face_distances = face_recognition.face_distance(known_encodings, face_encoding)
+                    best_match_index = np.argmin(face_distances)
+                    if matches[best_match_index]: name = known_names[best_match_index]
+                found_names.add(name)
+            except Exception as e_inner:
+                logging.warning(f"Could not compare a face in {os.path.basename(image_path)} due to an error: {e_inner}. Skipping this face.")
+                continue
+        return list(found_names)
+    except Exception as e:
+        logging.warning(f"Could not process faces in {os.path.basename(image_path)}: {e}")
+        return None
 
 # ==============================================================================
 #  Main Process Orchestration - Merged and Refactored
@@ -616,10 +714,18 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
 
         names = []
         if known_encodings:
-            # MODIFIED: Pass the cancellation event down to the recognition function.
-            recognized_names = recognize_faces(source_path, known_encodings, known_names, mode=face_rec_mode, cancellation_event=cancellation_event)
-            if recognized_names is not None:
-                names = recognized_names
+            try:
+                # This function call is now protected. If it fails for any reason,
+                # the except block will catch it and prevent the main loop from crashing.
+                recognized_names = recognize_faces(source_path, known_encodings, known_names, mode=face_rec_mode)
+                if recognized_names is not None:
+                    names = recognized_names
+            except Exception as e:
+                # If recognize_faces fails catastrophically on one file, log it and move on.
+                logging.error(f"CRITICAL: Face recognition failed for file '{os.path.basename(source_path)}'. Error: {e}. This file will be treated as having no faces.")
+                # We explicitly ensure 'names' is an empty list so the file can be sorted
+                # into 'No_Faces_Found' and the overall process can continue.
+                names = []
 
         # --- Destination Path Calculation ---
         dest_paths = []
@@ -627,6 +733,8 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
             dest_paths = _get_hybrid_sort_paths(dest_dir, sort_options, exif_data, date_obj, names, multiple_countries_found)
         else: # Standard Sort
             location_path = get_location(exif_data)
+            if sort_method == 'Location':
+                location_path = get_location(exif_data)
             dest_paths = _get_standard_sort_paths(dest_dir, sort_method, date_obj, location_path, names, multiple_countries_found, sort_options)
 
         # --- File Operation Execution ---
