@@ -1,53 +1,55 @@
 import React from 'react';
+import './SortingOptions.css'; 
 
 const SortingOptions = ({ sortMethod, setSortMethod, isProcessing, isEnrolled, enrolledCount, faceMode, setFaceMode }) => {
     
     const getPeopleDescription = () => {
         if (!isEnrolled || enrolledCount === 0) {
-            return 'Group photos by recognized faces you have enrolled.';
+            return 'Group photos by recognized faces';
         }
         if (enrolledCount === 1) {
-            return 'Group photos based on the 1 person you have enrolled.';
+            return `Neural network trained on 1 person`;
         }
-        return `Group photos based on the ${enrolledCount} people you have enrolled.`;
+        return `Neural network trained on ${enrolledCount} people`;
     };
     
     const options = [
         {
             id: 'Date',
-            icon: '📅', // Using emoji for simplicity, can be replaced with <i className="icon-calendar"></i>
+            icon: '📅',
             title: 'Sort by Date',
-            description: 'Group photos into folders like "2025-06-22".',
+            description: 'Organize photos by when they were taken',
             disabled: false,
         },
         {
             id: 'Location',
-            icon: '📍', // Using emoji for simplicity, can be replaced with <i className="icon-location"></i>
+            icon: '🌍',
             title: 'Sort by Location',
-            description: 'Group photos by city and country, like "Paris, France".',
+            description: 'Group photos by GPS coordinates',
             disabled: false,
         },
         {
             id: 'People',
-            icon: '👥', // Using emoji for simplicity, can be replaced with <i className="icon-people"></i>
-            title: 'Sort by People',
+            icon: '🤖',
+            title: 'Sort by Faces',
             description: getPeopleDescription(),
             disabled: !isEnrolled,
-            tooltip: !isEnrolled ? 'You must enroll at least one person first' : 'Sort by recognized faces',
+            tooltip: !isEnrolled ? 'You need to enroll faces first' : 'AI-powered face recognition',
         },
     ];
 
     return (
         <div className="sorting-options-section">
             <div className="form-group">
-                <label>Sorting Method</label>
-                <p className="description">Choose the primary method for organizing your photo library.</p>
+                <label>AI Sorting Method</label>
+                <p className="description">Choose how you want to organize your photos with AI.</p>
             </div>
             <div className="sorting-card-group">
                 {options.map(option => (
                     <label
                         key={option.id}
                         className={`sorting-card ${sortMethod === option.id ? 'selected' : ''} ${option.disabled || isProcessing ? 'disabled' : ''}`}
+                        data-type={option.id}
                         title={option.tooltip || option.title}
                     >
                         <input
@@ -58,19 +60,21 @@ const SortingOptions = ({ sortMethod, setSortMethod, isProcessing, isEnrolled, e
                             onChange={(e) => setSortMethod(e.target.value)}
                             disabled={option.disabled || isProcessing}
                         />
-                        <div className="sorting-card-icon">{option.icon}</div>
                         <div className="sorting-card-content">
-                            <div className="sorting-card-title">{option.title}</div>
-                            <p className="sorting-card-description">{option.description}</p>
+                            <div className="sorting-card-icon">{option.icon}</div>
+                            <div className="sorting-card-text">
+                                <div className="sorting-card-title">{option.title}</div>
+                                <p className="sorting-card-description">{option.description}</p>
+                            </div>
                         </div>
                     </label>
                 ))}
             </div>
 
-            {/* Conditional UI for Face Recognition Mode, shown only when 'People' is selected */}
+            {/* Neural Network Settings */}
             {sortMethod === 'People' && isEnrolled && (
                 <div className="face-mode-selector form-group">
-                    <label htmlFor="face-mode">AI Model Accuracy</label>
+                    <label htmlFor="face-mode">🧠 Neural Network Mode</label>
                     <select
                         id="face-mode"
                         value={faceMode}
@@ -78,14 +82,14 @@ const SortingOptions = ({ sortMethod, setSortMethod, isProcessing, isEnrolled, e
                         disabled={isProcessing}
                         className="input-field"
                     >
-                        <option value="fast">Fast (Good Quality Photos)</option>
-                        <option value="balanced">Balanced (Recommended)</option>
-                        <option value="accurate">Accurate (Best for Small Faces)</option>
+                        <option value="fast">Fast - Clear photos only</option>
+                        <option value="balanced">Balanced - Recommended</option>
+                        <option value="accurate">Accurate - Small faces & groups</option>
                     </select>
                     <p className="description">
-                        {faceMode === 'accurate' && "Slower, but finds small or unclear faces. Ideal for group shots."}
-                        {faceMode === 'fast' && "Fastest option, but works best on clear, front-facing photos."}
-                        {faceMode === 'balanced' && "A great mix of speed and accuracy for most photo collections."}
+                        {faceMode === 'accurate' && "Best for finding small or distant faces in group photos"}
+                        {faceMode === 'fast' && "Works great with clear, close-up face photos"}
+                        {faceMode === 'balanced' && "Perfect balance of speed and accuracy for most photos"}
                     </p>
                 </div>
             )}

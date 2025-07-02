@@ -84,7 +84,7 @@
     }
 }
 
-/* Re-use styles from HybridSortConfig for consistency */
+/* Re-use styles from HybridSortConfig for consistency
 .enhanced-filter-container,
 .filter-pills-list,
 .filter-pill,
@@ -92,8 +92,8 @@
 .pills-subtitle,
 .metadata-loader,
 .metadata-loader-error {
-    /* These will inherit from App.css where HybridSortConfig styles are defined */
-}
+    These will inherit from App.css where HybridSortConfig styles are defined
+} */
 
 .find-folder-name .input-group {
     max-width: 100%;

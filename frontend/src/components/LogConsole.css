@@ -1,0 +1,449 @@
+/* === AI Command Center Terminal Console === */
+
+.app-footer {
+    margin-top: 2rem;
+    background: rgba(255, 255, 255, 0.08);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
+    backdrop-filter: blur(20px) saturate(1.1);
+    padding: 2rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+    box-shadow: 
+        0 8px 24px rgba(0, 0, 0, 0.1),
+        0 2px 6px rgba(0, 0, 0, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    animation: footer-appear 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Terminal Header */
+.terminal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    padding: 0 0.5rem;
+}
+
+.terminal-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.terminal-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    box-shadow: 0 0 8px rgba(var(--color-primary-rgb), 0.6);
+    animation: pulse-connection 2s ease-in-out infinite;
+}
+
+.terminal-controls {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.terminal-control {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.control-close { background: #ff5f57; }
+.control-minimize { background: #ffbd2e; }
+.control-maximize { background: #28ca42; }
+
+.terminal-control:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 8px currentColor;
+}
+
+/* === Enhanced AI Terminal Console === */
+.log-console {
+    background: 
+        /* Keep the original dark terminal background */
+        linear-gradient(180deg, 
+            rgba(0, 20, 0, 0.9) 0%, 
+            rgba(0, 15, 5, 0.95) 100%
+        ),
+        /* Subtle grid pattern using theme colors as accents */
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 20px,
+            rgba(var(--color-primary-rgb), 0.02) 20px,
+            rgba(var(--color-primary-rgb), 0.02) 21px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 20px,
+            rgba(var(--color-primary-rgb), 0.02) 20px,
+            rgba(var(--color-primary-rgb), 0.02) 21px
+        );
+    
+    /* Use theme color for border accent */
+    border: 2px solid rgba(var(--color-primary-rgb), 0.3);
+    border-radius: 12px;
+    padding: 1.25rem;
+    height: 220px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    position: relative;
+    
+    /* Enhanced glass effect with theme color accents */
+    box-shadow: 
+        inset 0 2px 8px rgba(0, 0, 0, 0.4),
+        inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.1),
+        0 4px 16px rgba(0, 0, 0, 0.3),
+        0 0 20px rgba(var(--color-primary-rgb), 0.1);
+    
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    animation: terminal-boot 1s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Terminal scanning line effect with dynamic theme color */
+.log-console::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(var(--color-primary-rgb), 0.8) 50%,
+        transparent
+    );
+    animation: scan-line 3s ease-in-out infinite;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Terminal active glow with theme colors */
+.log-console:hover {
+    border-color: rgba(var(--color-primary-rgb), 0.5);
+    box-shadow: 
+        inset 0 2px 8px rgba(0, 0, 0, 0.4),
+        inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.15),
+        0 4px 20px rgba(0, 0, 0, 0.3),
+        0 0 30px rgba(var(--color-primary-rgb), 0.2);
+}
+
+/* Enhanced Log Console Container */
+.log-console-container {
+    position: relative;
+    animation: container-appear 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Enhanced Log Entry Styling */
+.log-entry {
+    margin: 0 0 0.4rem 0;
+    white-space: pre-wrap;
+    padding: 0.2rem 0;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    
+    /* Text glow for readability */
+    text-shadow: 0 0 1px currentColor;
+    
+    /* Entry animation */
+    animation: log-entry-materialize 0.4s ease-out both;
+}
+
+.log-entry:hover {
+    background: rgba(var(--color-primary-rgb), 0.05);
+    border-left: 3px solid rgba(var(--color-primary-rgb), 0.4);
+    padding-left: 6px;
+    transform: translateX(2px);
+    box-shadow: 0 0 8px rgba(var(--color-primary-rgb), 0.1);
+}
+
+/* Latest entry highlight */
+.log-entry.latest-entry {
+    background: rgba(var(--color-primary-rgb), 0.02);
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    margin: 0.2rem 0;
+    animation: latest-entry-glow 1s ease-out;
+}
+
+/* Enhanced prompt styling */
+.log-prompt {
+    color: rgba(var(--color-primary-rgb), 0.8);
+    font-weight: 600;
+    text-shadow: 0 0 4px rgba(var(--color-primary-rgb), 0.3);
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Enhanced message styling */
+.log-message {
+    flex: 1;
+    word-break: break-word;
+}
+
+/* Cursor indicator */
+.cursor-indicator {
+    color: rgba(var(--color-primary-rgb), 0.8);
+    animation: cursor-blink 1s infinite;
+    margin-left: 0.2rem;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.cursor-indicator::after {
+    content: '█';
+}
+
+.cursor-indicator.active {
+    animation: cursor-blink 0.8s infinite;
+}
+
+/* Console placeholder */
+.console-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: rgba(255, 255, 255, 0.5);
+    font-style: italic;
+    text-align: center;
+}
+
+.placeholder-text {
+    margin-right: 0.5rem;
+}
+
+/* Console active state */
+.log-console.console-active {
+    border-color: rgba(var(--color-primary-rgb), 0.6);
+    box-shadow: 
+        inset 0 2px 8px rgba(0, 0, 0, 0.4),
+        inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.2),
+        0 4px 20px rgba(0, 0, 0, 0.3),
+        0 0 35px rgba(var(--color-primary-rgb), 0.3);
+}
+
+/* Status-based console styling */
+.log-console.status-error {
+    border-color: rgba(255, 68, 68, 0.4);
+}
+
+.log-console.status-connected {
+    border-color: rgba(34, 197, 94, 0.4);
+}
+
+.log-console.status-processing {
+    border-color: rgba(var(--color-primary-rgb), 0.4);
+    animation: processing-pulse 2s ease-in-out infinite;
+}
+
+/* Console Footer */
+.console-footer {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    border: 1px solid rgba(var(--color-primary-rgb), 0.1);
+    animation: footer-slide-up 0.3s ease-out;
+}
+
+.console-metrics {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    font-size: 0.75rem;
+}
+
+.metric {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: rgba(255, 255, 255, 0.7);
+    transition: color 0.2s ease;
+}
+
+.metric:hover {
+    color: rgba(var(--color-primary-rgb), 0.9);
+}
+
+.metric.error {
+    color: rgba(255, 68, 68, 0.8);
+}
+
+.metric-icon {
+    font-size: 0.7rem;
+    opacity: 0.8;
+}
+
+.metric-value {
+    font-weight: 500;
+    font-family: inherit;
+}
+
+/* Enhanced status indicators */
+.terminal-status.status-idle {
+    background: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
+}
+
+.terminal-status.status-connected {
+    background: #22c55e;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+    animation: pulse-connection 2s ease-in-out infinite;
+}
+
+.terminal-status.status-error {
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+    animation: error-flash 1s ease-in-out infinite;
+}
+
+.terminal-status.status-processing {
+    background: var(--color-primary);
+    box-shadow: 0 0 8px rgba(var(--color-primary-rgb), 0.6);
+    animation: pulse-processing 1.5s ease-in-out infinite;
+}
+
+/* Enhanced log count */
+.log-count {
+    font-size: 0.75rem;
+    color: rgba(var(--color-primary-rgb), 0.7);
+    font-weight: 400;
+    margin-left: 0.25rem;
+}
+
+/* === Enhanced Animations === */
+@keyframes container-appear {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes latest-entry-glow {
+    0% {
+        background: rgba(var(--color-primary-rgb), 0.1);
+        box-shadow: 0 0 0 rgba(var(--color-primary-rgb), 0.3);
+    }
+    50% {
+        background: rgba(var(--color-primary-rgb), 0.05);
+        box-shadow: 0 0 8px rgba(var(--color-primary-rgb), 0.2);
+    }
+    100% {
+        background: rgba(var(--color-primary-rgb), 0.02);
+        box-shadow: 0 0 0 rgba(var(--color-primary-rgb), 0.1);
+    }
+}
+
+@keyframes footer-slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes processing-pulse {
+    0%, 100% {
+        border-color: rgba(var(--color-primary-rgb), 0.4);
+    }
+    50% {
+        border-color: rgba(var(--color-primary-rgb), 0.7);
+    }
+}
+
+@keyframes pulse-processing {
+    0%, 100% { 
+        transform: scale(1); 
+        opacity: 1; 
+    }
+    50% { 
+        transform: scale(1.1); 
+        opacity: 0.8; 
+    }
+}
+
+@keyframes error-flash {
+    0%, 100% { 
+        opacity: 1; 
+    }
+    50% { 
+        opacity: 0.6; 
+    }
+}
+
+/* === Responsive Enhancements === */
+@media (max-width: 640px) {
+    .console-metrics {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .metric {
+        font-size: 0.7rem;
+    }
+    
+    .log-entry {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .log-time {
+        align-self: flex-start;
+    }
+}
+
+/* Add subtle particle effects for the footer */
+.app-footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.15),
+        transparent
+    );
+    pointer-events: none;
+}
+
+.app-footer:hover {
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.12),
+        0 3px 8px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}

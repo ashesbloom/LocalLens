@@ -18,7 +18,8 @@ import pickle
 import logging
 import threading
 import multiprocessing # Import the multiprocessing library
-from fastapi import FastAPI, HTTPException, Body, Request, BackgroundTasks
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Body, Request, BackgroundTasks, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -51,6 +52,15 @@ LAST_CONFIG_FILE = os.path.join(PRESETS_DIR, "last_config.json")
 from organizer_logic import process_photos, load_presets, save_presets, face_recognition, SUPPORTED_EXTENSIONS, load_face_encodings, find_and_group_photos, get_metadata_overview
 from enrollment_logic import update_encodings
 
+# --- Lifespan Context Manager ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Ensure necessary directories exist on server startup."""
+    os.makedirs(PRESETS_DIR, exist_ok=True)
+    os.makedirs(ENROLLMENT_FOLDER, exist_ok=True)
+    yield
+    # Code here would run on shutdown
+
 # --- Application State ---
 # A thread-safe queue for sending real-time status updates to the frontend.
 log_queue: "Queue[str]" = Queue()
@@ -59,14 +69,16 @@ log_queue: "Queue[str]" = Queue()
 # Use multiprocessing.Event, which can be safely passed to other processes.
 cancellation_events = {
     "sorting": multiprocessing.Event(),
-    "enrollment": multiprocessing.Event()
+    "enrollment": multiprocessing.Event(),
+    "find_group": multiprocessing.Event()
 }
 
 # --- FastAPI App Initialization ---
 app = FastAPI(
     title="Photo Organizer API",
     description="Backend services for the AI Photo Organizer application with SSE.",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 # --- CORS Middleware ---
@@ -289,11 +301,9 @@ async def log_streamer(request: Request):
 #  API Endpoints
 # ==============================================================================
 
-@app.on_event("startup")
-async def on_startup():
-    """Ensure necessary directories exist on server startup."""
-    os.makedirs(PRESETS_DIR, exist_ok=True)
-    os.makedirs(ENROLLMENT_FOLDER, exist_ok=True)
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the Photo Organizer API. Please refer to the documentation for available endpoints."}
 
 @app.get("/api/stream-logs")
 async def stream_logs(request: Request):

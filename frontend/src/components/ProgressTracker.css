@@ -1,0 +1,430 @@
+/* === Ultra-Advanced Scanner Progress Indicator === */
+
+.progress-tracker-container {
+    position: relative;
+    z-index: 2;
+    padding: 15px 0;
+    transition: all 0.3s ease;
+}
+
+/* Enhanced Header with Status Indicator */
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.progress-label-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    transition: all 0.3s ease;
+    box-shadow: 0 0 8px rgba(var(--color-primary-rgb), 0.6);
+}
+
+.status-indicator.progress-idle {
+    background: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
+}
+
+.status-indicator.progress-scanning {
+    animation: pulse-status 1s ease-in-out infinite;
+}
+
+.status-indicator.progress-complete {
+    background: var(--color-secondary);
+    box-shadow: 0 0 12px rgba(var(--color-secondary-rgb), 0.8);
+}
+
+.progress-percentage {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    min-width: 35px;
+    text-align: right;
+}
+
+/* Enhanced Scanner Housing */
+.progress-bar-container {
+    width: 100%;
+    background: 
+        linear-gradient(145deg, rgba(20, 20, 20, 0.8), rgba(5, 5, 5, 0.9)),
+        radial-gradient(ellipse at center, rgba(40, 40, 40, 0.3), transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-radius: 20px;
+    height: 24px;
+    box-shadow: 
+        inset 0 3px 6px rgba(0, 0, 0, 0.6),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 2px 8px rgba(0, 0, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(60, 60, 60, 0.4);
+    transition: all 0.3s ease;
+}
+
+.progress-bar-container.progress-scanning {
+    box-shadow: 
+        inset 0 3px 6px rgba(0, 0, 0, 0.6),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 2px 8px rgba(0, 0, 0, 0.3),
+        0 0 20px rgba(var(--color-primary-rgb), 0.2);
+}
+
+/* Scanner Grid Background */
+.scanner-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 10px,
+            rgba(255, 255, 255, 0.02) 10px,
+            rgba(255, 255, 255, 0.02) 11px
+        );
+    z-index: 0;
+}
+
+/* Housing Reflections */
+.housing-reflection {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    height: 1px;
+    z-index: 0;
+}
+
+.housing-reflection.top {
+    top: 2px;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(255, 255, 255, 0.1) 20%, 
+        rgba(255, 255, 255, 0.05) 80%, 
+        transparent
+    );
+}
+
+.housing-reflection.bottom {
+    bottom: 2px;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(255, 255, 255, 0.05) 30%, 
+        rgba(255, 255, 255, 0.02) 70%, 
+        transparent
+    );
+}
+
+/* Enhanced Progress Bar */
+.progress-bar {
+    height: 100%;
+    border-radius: 20px;
+    transition: width 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    position: relative;
+    overflow: visible;
+    background: transparent;
+}
+
+/* Enhanced Data Field */
+.progress-bar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 20px;
+    z-index: 1;
+    background: 
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(255, 255, 255, 0.05) 2px,
+            rgba(255, 255, 255, 0.05) 4px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 8px,
+            rgba(255, 255, 255, 0.03) 8px,
+            rgba(255, 255, 255, 0.03) 12px
+        ),
+        linear-gradient(
+            90deg,
+            var(--color-primary),
+            color-mix(in srgb, var(--color-primary) 70%, var(--color-secondary)),
+            var(--color-secondary)
+        );
+    animation: data-flow 3s linear infinite;
+    box-shadow: 
+        inset 0 0 10px rgba(255, 255, 255, 0.1),
+        inset 0 0 20px rgba(var(--color-primary-rgb), 0.2);
+}
+
+/* Data Particles Effect */
+.data-particles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.particle {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
+    top: 50%;
+    left: var(--offset);
+    transform: translateY(-50%);
+    animation: particle-flow 2s ease-out var(--delay) infinite;
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.6);
+}
+
+/* Scanner Beams */
+.scanner-beam-main {
+    position: absolute;
+    /* FIXED: Use CSS custom property to position at the end of progress */
+    /* Ensure the beam is visible at 100% by giving it a slight offset */
+    right: calc(100% - var(--progress-width, 0%));
+    top: -100%;
+    height: 300%;
+    width: 6px;
+    border-radius: 3px;
+    z-index: 3;
+    background: linear-gradient(180deg, 
+        transparent,
+        rgba(255, 255, 255, 0.3) 20%,
+        #ffffff 40%,
+        #ffffff 60%,
+        rgba(255, 255, 255, 0.3) 80%,
+        transparent
+    );
+    box-shadow: 
+        0 0 3px #fff,
+        0 0 6px #fff,
+        0 0 12px var(--color-primary),
+        0 0 20px var(--color-primary),
+        0 0 30px var(--color-primary),
+        0 0 45px rgba(var(--color-primary-rgb), 0.6);
+    animation: scanner-pulse 1.2s ease-in-out infinite;
+    /* ADDED: Smooth transition when moving */
+    transition: right 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.scanner-beam-secondary {
+    position: absolute;
+    /* FIXED: Position secondary beam relative to progress with an offset */
+    right: calc(100% - var(--progress-width, 0%) + 5px);
+    top: -50%;
+    height: 200%;
+    width: 2px;
+    border-radius: 1px;
+    z-index: 2;
+    background: linear-gradient(180deg, 
+        transparent,
+        rgba(var(--color-secondary-rgb), 0.8) 30%,
+        rgba(var(--color-secondary-rgb), 0.4) 70%,
+        transparent
+    );
+    box-shadow: 
+        0 0 4px var(--color-secondary),
+        0 0 8px rgba(var(--color-secondary-rgb), 0.5);
+    animation: secondary-scanner 2s ease-in-out infinite;
+    /* ADDED: Smooth transition when moving */
+    transition: right 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.pre-scanner {
+    position: absolute;
+    /* FIXED: Position pre-scanner at the edge of progress with an offset */
+    right: calc(100% - var(--progress-width, 0%) - 2px);
+    top: 20%;
+    height: 60%;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.4);
+    z-index: 1;
+    animation: pre-scan-sweep 1.5s ease-in-out infinite;
+    /* ADDED: Smooth transition when moving */
+    transition: right 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ADDED: Hide scanner beams when progress is 0 */
+.progress-bar-container[style*="--progress-width: 0%"] .scanner-beam-main,
+.progress-bar-container[style*="--progress-width: 0%"] .scanner-beam-secondary,
+.progress-bar-container[style*="--progress-width: 0%"] .pre-scanner {
+    opacity: 0;
+}
+
+/* Progress Analytics */
+.progress-analytics {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(145deg, rgba(30, 35, 50, 0.5), rgba(20, 25, 40, 0.6));
+    border-radius: 12px;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    animation: fadeInUp 0.5s ease-out;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.metric {
+    text-align: center;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.metric-label {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.metric-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-primary-light);
+    text-shadow: 0 0 8px rgba(var(--color-primary-rgb), 0.4);
+}
+
+/* Animations */
+@keyframes pulse-status {
+    0%, 100% { 
+        transform: scale(1); 
+        opacity: 1; 
+    }
+    50% { 
+        transform: scale(1.2); 
+        opacity: 0.8; 
+    }
+}
+
+@keyframes particle-flow {
+    0% {
+        opacity: 0;
+        transform: translateY(-50%) translateX(-10px);
+    }
+    50% {
+        opacity: 1;
+        transform: translateY(-50%) translateX(0px);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-50%) translateX(10px);
+    }
+}
+
+@keyframes pre-scan-sweep {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 0.7; }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes data-flow {
+    0% { 
+        background-position: 0px 0px, 0px 0px, 0% 0%;
+        filter: brightness(1);
+    }
+    25% { 
+        background-position: -4px 0px, -6px 0px, 0% 0%;
+        filter: brightness(1.05);
+    }
+    50% { 
+        background-position: -8px 0px, -12px 0px, 0% 0%;
+        filter: brightness(1);
+    }
+    75% { 
+        background-position: -12px 0px, -18px 0px, 0% 0%;
+        filter: brightness(1.05);
+    }
+    100% { 
+        background-position: -16px 0px, -24px 0px, 0% 0%;
+        filter: brightness(1);
+    }
+}
+
+@keyframes scanner-pulse {
+    0% {
+        box-shadow: 
+            0 0 3px #fff,
+            0 0 6px #fff,
+            0 0 12px var(--color-primary),
+            0 0 20px var(--color-primary),
+            0 0 30px var(--color-primary),
+            0 0 45px rgba(var(--color-primary-rgb), 0.6);
+        transform: scaleY(1);
+    }
+    50% {
+        box-shadow: 
+            0 0 5px #fff,
+            0 0 10px #fff,
+            0 0 18px var(--color-primary),
+            0 0 30px var(--color-primary),
+            0 0 45px var(--color-primary),
+            0 0 70px rgba(var(--color-primary-rgb), 0.8);
+        transform: scaleY(1.1);
+    }
+    100% {
+        box-shadow: 
+            0 0 3px #fff,
+            0 0 6px #fff,
+            0 0 12px var(--color-primary),
+            0 0 20px var(--color-primary),
+            0 0 30px var(--color-primary),
+            0 0 45px rgba(var(--color-primary-rgb), 0.6);
+        transform: scaleY(1);
+    }
+}
+
+@keyframes secondary-scanner {
+    0% {
+        opacity: 0.3;
+        transform: scaleX(0.5);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scaleX(1);
+    }
+    100% {
+        opacity: 0.3;
+        transform: scaleX(0.5);
+    }
+}

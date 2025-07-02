@@ -20,13 +20,8 @@ import numpy as np
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 
-# --- Custom Exception for Abort ---
-# To be imported from main.py, but defined here for clarity if run standalone
-class OperationAbortedError(Exception):
-    """Custom exception to signal a user-initiated abort."""
-    pass
-
-# --- Optional Imports with Graceful Fallbacks ---
+# --- Custom Exception Import ---
+from exceptions import OperationAbortedError# --- Optional Imports with Graceful Fallbacks ---
 try:
     from pillow_heif import register_heif_opener
     register_heif_opener()
@@ -94,7 +89,7 @@ def get_exif_data(file_path):
     try:
         with Image.open(file_path) as image:
             # ._getexif() returns the raw EXIF data dictionary, which is more reliable.
-            raw_exif = image._getexif()
+            raw_exif = image._getexif() # type: ignore
             if not raw_exif:
                 return None
 
@@ -353,20 +348,8 @@ def find_and_group_photos(config, update_callback):
     target_folder = os.path.join(base_dest_dir, target_folder_name)
     os.makedirs(target_folder, exist_ok=True)
     
-    log_dir = os.path.join(target_folder, "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    log_filename = os.path.join(log_dir, f"find_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
-    
-    log_handler = logging.FileHandler(log_filename, mode='w', encoding='utf-8')
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    log_handler.setFormatter(formatter)
-    
-    root_logger = logging.getLogger()
-    if root_logger.hasHandlers():
-        root_logger.handlers.clear()
-    root_logger.addHandler(log_handler)
-    root_logger.setLevel(logging.INFO)
-
+    # The 'Find & Group' operation no longer requires a dedicated log file.
+    # The main application logger is sufficient if needed.
     logging.info(f"Starting Find & Group Session. Target folder: '{target_folder_name}'")
     logging.info(f"Filters applied: {json.dumps(find_config, indent=2)}")
 
@@ -453,10 +436,6 @@ def find_and_group_photos(config, update_callback):
         
     logging.info(completion_message)
     update_callback(100, completion_message, "complete")
-
-    if log_handler:
-        root_logger.removeHandler(log_handler)
-        log_handler.close()
 
 
 def _get_standard_sort_paths(base_dir, sort_method, date_obj, location_path, names, multiple_countries_found, sort_options):

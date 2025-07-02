@@ -16,7 +16,8 @@ import FindGroupConfig from './components/FindGroupConfig';
 import EnrolledFacesModal from './components/EnrolledFacesModal';
 import FaceEnrollmentModal from './components/FaceEnrollmentModal';
 import FindGroupResultModal from './components/FindGroupResultModal';
-import AbortButton from './components/AbortButton'; // Import AbortButton
+import AbortButton from './components/AbortButton';
+import ConfirmationModal from './components/ConfirmationModal'; // NEW: Import ConfirmationModal
 // import './components/FindGroupResultModal.css';
 import './App.css';
 
@@ -493,7 +494,9 @@ function App() {
 
             // Handle completion or abortion
             if (isFinalStatus) {
+                // Ensure the progress bar visually hits 100% before we reset.
                 setProgress(100);
+                
                 let completionMsg = "Operation Finished";
                 if (data.status === 'aborted') {
                     completionMsg = "Operation Aborted";
@@ -504,28 +507,31 @@ function App() {
                 }
                 setProgressLabel(completionMsg);
 
-                // Reset processing states
-                setIsEnrolling(false);
-                setIsProcessing(false);
+                // Use a timeout to allow the final progress animation to complete before resetting the UI.
+                setTimeout(() => {
+                    // Reset processing states
+                    setIsEnrolling(false);
+                    setIsProcessing(false);
+
+                    // Handle Find & Group completion modal
+                    if (operationMode === 'find' && data.status === 'complete') {
+                        let foundCount = 0;
+                        let folderName = findConfig.folderName || '';
+                        const match = data.message.match(/Found and copied (\d+) matching photo/);
+                        if (match) {
+                            foundCount = parseInt(match[1], 10);
+                        }
+                        setFindGroupModal({
+                            isOpen: true,
+                            foundCount,
+                            folderName,
+                        });
+                    }
+                }, 800); // 800ms delay for visual confirmation
 
                 // Close the connection
                 es.close();
                 eventSourceRef.current = null;
-
-                // Handle Find & Group completion modal
-                if (operationMode === 'find' && data.status === 'complete') {
-                    let foundCount = 0;
-                    let folderName = findConfig.folderName || '';
-                    const match = data.message.match(/Found and copied (\d+) matching photo/);
-                    if (match) {
-                        foundCount = parseInt(match[1], 10);
-                    }
-                    setFindGroupModal({
-                        isOpen: true,
-                        foundCount,
-                        folderName,
-                    });
-                }
             }
         };
 
@@ -956,106 +962,48 @@ function App() {
             </div>
 
             {/* Exit Confirmation Modal */}
-            {showExitModal && (
-                <div className="modal-overlay" onClick={handleCancelExit}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3>Confirm Exit</h3>
-                        </div>
-                        <div className="modal-body">
-                            <div className="modal-icon">
-                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <line x1="12" y1="8" x2="12" y2="12" />
-                                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                                </svg>
-                            </div>
-                            <p>
-                                <strong>An operation is currently in progress.</strong>
-                                <br /><br />
-                                Exiting now will:
-                                <br />
-                                <span className="consequence-list">
-                                    • Stop the current {isEnrolling ? 'enrollment' : 'organization'} process
-                                    <br />
-                                    • Release all system resources
-                                    <br />
-                                    • Save your current configuration
-                                    <br />
-                                    • Any incomplete work will be lost
-                                </span>
-                                <br /><br />
-                                Are you sure you want to exit?
-                            </p>
-                        </div>
-                        <div className="modal-actions">
-                            <button
-                                className="btn btn-secondary modal-btn"
-                                onClick={handleCancelExit}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="btn btn-danger modal-btn"
-                                onClick={handleConfirmExit}
-                            >
-                                Confirm Exit
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmationModal
+                isVisible={showExitModal}
+                title="Confirm Exit"
+                onCancel={handleCancelExit}
+                onConfirm={handleConfirmExit}
+                confirmText="Confirm Exit"
+            >
+                <p>
+                    <strong>An operation is currently in progress.</strong>
+                    <br />
+                    Exiting now will:
+                    <span className="consequence-list">
+                        <li>Stop the current {getOperationName()} process</li>
+                        <li>Release all system resources</li>
+                        <li>Save your current configuration</li>
+                        <li>Any incomplete work will be lost</li>
+                    </span>
+                    Are you sure you want to exit?
+                </p>
+            </ConfirmationModal>
 
             {/* Reload Confirmation Modal */}
-            {showReloadModal && (
-                <div className="modal-overlay" onClick={handleCancelReload}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3>Confirm Reload</h3>
-                        </div>
-                        <div className="modal-body">
-                            <div className="modal-icon">
-                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <line x1="12" y1="8" x2="12" y2="12" />
-                                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                                </svg>
-                            </div>
-                            <p>
-                                <strong>An operation is currently in progress.</strong>
-                                <br /><br />
-                                Reloading now will:
-                                <br />
-                                <span className="consequence-list">
-                                    • Stop the current {isEnrolling ? 'enrollment' : 'organization'} process
-                                    <br />
-                                    • Reset the application to its initial state
-                                    <br />
-                                    • Save your current configuration
-                                    <br />
-                                    • Any incomplete work will be lost
-                                </span>
-                                <br /><br />
-                                Are you sure you want to reload?
-                            </p>
-                        </div>
-                        <div className="modal-actions">
-                            <button
-                                className="btn btn-secondary modal-btn"
-                                onClick={handleCancelReload}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="btn btn-danger modal-btn"
-                                onClick={handleConfirmReload}
-                            >
-                                Confirm Reload
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmationModal
+                isVisible={showReloadModal}
+                title="Confirm Reload"
+                onCancel={handleCancelReload}
+                onConfirm={handleConfirmReload}
+                confirmText="Confirm Reload"
+            >
+                <p>
+                    <strong>An operation is currently in progress.</strong>
+                    <br />
+                    Reloading now will:
+                    <span className="consequence-list">
+                        <li>Stop the current {getOperationName()} process</li>
+                        <li>Reset the application</li>
+                        <li>Save your current configuration</li>
+                        <li>Any incomplete work will be lost</li>
+                    </span>
+                    Are you sure you want to reload?
+                </p>
+            </ConfirmationModal>
 
             <main className="app-main">
                 <div className="setup-grid">
@@ -1145,11 +1093,13 @@ function App() {
                     />
                 )}
 
-                <HierarchyToggle
-                    maintainHierarchy={maintainHierarchy}
-                    setMaintainHierarchy={setMaintainHierarchy}
-                    isProcessing={isProcessing || isEnrolling}
-                />
+                {operationMode !== 'find' && (
+                    <HierarchyToggle
+                        maintainHierarchy={maintainHierarchy}
+                        setMaintainHierarchy={setMaintainHierarchy}
+                        isProcessing={isProcessing || isEnrolling}
+                    />
+                )}
 
                 <hr className="divider" />
 
