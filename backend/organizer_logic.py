@@ -19,23 +19,46 @@ import pickle
 import numpy as np
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
+import tempfile
+from multiprocessing import Pool, TimeoutError as MultiprocessingTimeoutError
 
 # --- Custom Exception Import ---
-from exceptions import OperationAbortedError# --- Optional Imports with Graceful Fallbacks ---
-try:
-    from pillow_heif import register_heif_opener
-    register_heif_opener()
-    print("HEIC/HEIF format support enabled.")
-except ImportError:
-    print("Warning: 'pillow-heif' not installed. HEIC/HEIF files will be ignored.")
+from exceptions import OperationAbortedError
 
-try:
-    import face_recognition
-    print("Facial recognition library loaded.")
-except ImportError:
-    print("CRITICAL ERROR: 'face_recognition' library not installed.")
-    face_recognition = None
+# --- Global State for Libraries ---
+face_recognition = None
+# A flag to ensure initialization happens only once.
+_libraries_initialized = False
 
+def initialize_libraries(is_main_process: bool = False):
+    """
+    MODIFIED: One-time initialization for heavy libraries.
+    Now accepts a flag to control verbose output, preventing log spam from child processes.
+    """
+    global face_recognition, _libraries_initialized
+    if _libraries_initialized:
+        return
+
+    # --- Optional Imports with Graceful Fallbacks ---
+    try:
+        from pillow_heif import register_heif_opener
+        register_heif_opener()
+        if is_main_process:
+            print("HEIC/HEIF format support enabled.")
+    except ImportError:
+        if is_main_process:
+            print("Warning: 'pillow-heif' not installed. HEIC/HEIF files will be ignored.")
+
+    try:
+        import face_recognition as fr
+        face_recognition = fr
+        if is_main_process:
+            print("Facial recognition library loaded.")
+    except ImportError:
+        if is_main_process:
+            print("CRITICAL ERROR: 'face_recognition' library not installed.")
+        face_recognition = None
+    _libraries_initialized = True
 import reverse_geocoder as rg
 
 # ==============================================================================
@@ -262,10 +285,10 @@ def load_face_encodings(encodings_file):
     except Exception as e:
         raise IOError(f"Could not load or parse encodings file: {e}")
 
-def recognize_faces(image_path, known_encodings, known_names, mode='balanced'):
+def _recognize_faces_in_process(image_path, known_encodings, known_names, mode):
     """
-    The core AI function. It takes a single image and identifies all known
-    people within it, with selectable accuracy modes.
+    NEW: This function is designed to be run in a separate process.
+    It contains the blocking face_recognition call.
     """
     if not face_recognition: return []
     try:
@@ -277,19 +300,10 @@ def recognize_faces(image_path, known_encodings, known_names, mode='balanced'):
         
         image = np.array(pil_image)
 
-        # The 'model' parameter determines the face detection algorithm.
-        # This logic directly mirrors the original script's user choice.
-        face_locations = []
-        if mode == 'fast':
-            # ENHANCEMENT: Upsample once to improve detection of smaller faces
-            # without a major performance hit of the 'balanced' mode.
-            face_locations = face_recognition.face_locations(image, model='hog', number_of_times_to_upsample=1)
-        elif mode == 'accurate':
-            # Slower but more accurate, using a deep learning model.
-            face_locations = face_recognition.face_locations(image, model='cnn')
-        else: # 'balanced' is the default
-            # A good compromise, upsampling the image to find more faces with the fast 'hog' model.
-            face_locations = face_recognition.face_locations(image, model='hog', number_of_times_to_upsample=2)
+        model_to_use = 'cnn' if mode == 'accurate' else 'hog'
+        upsamples = 2 if mode == 'balanced' else 1
+
+        face_locations = face_recognition.face_locations(image, model=model_to_use, number_of_times_to_upsample=upsamples)
 
         if not face_locations: return []
         
@@ -302,15 +316,44 @@ def recognize_faces(image_path, known_encodings, known_names, mode='balanced'):
             if True in matches:
                 face_distances = face_recognition.face_distance(known_encodings, face_encoding)
                 best_match_index = np.argmin(face_distances)
-                # ENHANCEMENT: Add a sanity check. If the best match is still a weak one, ignore it.
-                # This prevents false positives where the closest match is still outside the tolerance.
                 if matches[best_match_index] and face_distances[best_match_index] <= FACE_RECOGNITION_TOLERANCE:
                     name = known_names[best_match_index]
             found_names.add(name)
         return list(found_names)
-    except Exception as e:
-        logging.warning(f"Could not process faces in {os.path.basename(image_path)}: {e}")
+    except Exception:
+        # Don't log here, as it can cause issues with multiprocessing.
+        # The parent process will handle the logging of the failure.
         return None
+
+
+def recognize_faces(image_path, known_encodings, known_names, mode='balanced', cancellation_event=None):
+    """
+    MODIFIED: The core AI function now uses a multiprocessing pool to isolate the
+    blocking dlib call, allowing for responsive cancellation.
+    """
+    if not face_recognition: return []
+    
+    # MODIFIED: Use the 'initializer' argument to ensure libraries are loaded silently in the child process.
+    with Pool(processes=1, initializer=initialize_libraries, initargs=(False,)) as pool:
+        async_result = pool.apply_async(_recognize_faces_in_process, (image_path, known_encodings, known_names, mode))
+        
+        while not async_result.ready():
+            if cancellation_event and cancellation_event.is_set():
+                pool.terminate() # Forcefully stop the subprocess
+                pool.join()
+                raise OperationAbortedError("Face recognition cancelled during processing.")
+            try:
+                # Wait for 1 second, then check for cancellation again.
+                return async_result.get(timeout=1)
+            except MultiprocessingTimeoutError:
+                continue # Loop again to check for cancellation.
+        
+        # This part is reached if the process finishes before timeout/cancellation.
+        result = async_result.get()
+        if result is None:
+            logging.warning(f"Could not process faces in {os.path.basename(image_path)}: Subprocess failed.")
+        return result
+
 
 # ==============================================================================
 #  Main Process Orchestration - Merged and Refactored
@@ -573,7 +616,8 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
 
         names = []
         if known_encodings:
-            recognized_names = recognize_faces(source_path, known_encodings, known_names, mode=face_rec_mode)
+            # MODIFIED: Pass the cancellation event down to the recognition function.
+            recognized_names = recognize_faces(source_path, known_encodings, known_names, mode=face_rec_mode, cancellation_event=cancellation_event)
             if recognized_names is not None:
                 names = recognized_names
 
@@ -618,11 +662,12 @@ def process_photos(config, update_callback):
     encodings_path = config.get("encodings_path")
     cancellation_event = config.get("cancellation_event")
 
-    log_dir = os.path.join(dest_dir, "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    log_filename = os.path.join(log_dir, f"organization_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
-    
-    log_handler = logging.FileHandler(log_filename, mode='w', encoding='utf-8')
+    # --- MODIFIED: Decoupled Logging ---
+    # Create a temporary file for logging in a fast, local directory to prevent blocking I/O.
+    log_file_handle, temp_log_path = tempfile.mkstemp(suffix=".log", text=True)
+    os.close(log_file_handle) # Close the handle, we just need the path.
+
+    log_handler = logging.FileHandler(temp_log_path, mode='w', encoding='utf-8')
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     log_handler.setFormatter(formatter)
     
@@ -661,3 +706,17 @@ def process_photos(config, update_callback):
         if log_handler:
             root_logger.removeHandler(log_handler)
             log_handler.close()
+            
+            # --- MODIFIED: Move log file to final destination ---
+            try:
+                final_log_dir = os.path.join(dest_dir, "logs")
+                os.makedirs(final_log_dir, exist_ok=True)
+                final_log_name = f"organization_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+                final_log_path = os.path.join(final_log_dir, final_log_name)
+                shutil.move(temp_log_path, final_log_path)
+                print(f"Log file moved to {final_log_path}")
+            except Exception as e:
+                print(f"Error moving log file to destination: {e}")
+                # Clean up the temp file if move fails
+                if os.path.exists(temp_log_path):
+                    os.remove(temp_log_path)

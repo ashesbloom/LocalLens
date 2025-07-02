@@ -49,13 +49,22 @@ ENCODINGS_FILE = os.path.join(BACKEND_DIR, "encodings.pickle")
 LAST_CONFIG_FILE = os.path.join(PRESETS_DIR, "last_config.json")
 
 # --- Backend Logic Imports ---
-from organizer_logic import process_photos, load_presets, save_presets, face_recognition, SUPPORTED_EXTENSIONS, load_face_encodings, find_and_group_photos, get_metadata_overview
+# MODIFIED: Import the module itself to access its variables dynamically.
+from organizer_logic import (
+    process_photos, load_presets, save_presets, SUPPORTED_EXTENSIONS, 
+    load_face_encodings, find_and_group_photos, get_metadata_overview, 
+    initialize_libraries
+)
+import organizer_logic
 from enrollment_logic import update_encodings
 
 # --- Lifespan Context Manager ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Ensure necessary directories exist on server startup."""
+    """Ensure necessary directories exist and libraries are initialized on server startup."""
+    # One-time initialization of heavy libraries with verbose output.
+    initialize_libraries(is_main_process=True)
+    
     os.makedirs(PRESETS_DIR, exist_ok=True)
     os.makedirs(ENROLLMENT_FOLDER, exist_ok=True)
     yield
@@ -171,7 +180,7 @@ def update_status_callback(update_data: Dict):
     except Exception as e:
         print(f"Error adding log to queue: {e}")
 
-def run_organization_task(config: Dict):
+async def run_organization_task(config: Dict):
     """The main processing task, wrapped to be run in the background."""
     cancellation_events["sorting"].clear() # Reset event at start
     try:
@@ -184,7 +193,8 @@ def run_organization_task(config: Dict):
             update_data = {"progress": progress, "message": message, "status": status}
             update_status_callback(update_data)
 
-        process_photos(config, callback_adapter)
+        # Run the entire blocking function in a separate thread
+        await asyncio.to_thread(process_photos, config, callback_adapter)
     except OperationAbortedError:
         abort_message = "Operation aborted by user. Cleaning up..."
         print(f"BACKGROUND TASK: {abort_message}")
@@ -196,7 +206,7 @@ def run_organization_task(config: Dict):
         print(f"BACKGROUND TASK ERROR: {e}")
 
 # NEW: Background task runner for the find and group process.
-def run_find_group_task(config: Dict):
+async def run_find_group_task(config: Dict):
     """The find & group task, wrapped to be run in the background."""
     cancellation_events["find_group"].clear()
     target_folder = None
@@ -212,7 +222,8 @@ def run_find_group_task(config: Dict):
             update_data = {"progress": progress, "message": message, "status": status}
             update_status_callback(update_data)
 
-        find_and_group_photos(config, callback_adapter)
+        # Run the entire blocking function in a separate thread
+        await asyncio.to_thread(find_and_group_photos, config, callback_adapter)
     except OperationAbortedError:
         abort_message = "Find & Group aborted by user. Cleaning up..."
         print(f"BACKGROUND TASK: {abort_message}")
@@ -228,7 +239,7 @@ def run_find_group_task(config: Dict):
 
 
 # NEW: Background task runner for the enrollment process.
-def run_enrollment_task(newly_created_dirs: List[str]):
+async def run_enrollment_task(newly_created_dirs: List[str]):
     """Wrapper to run the face enrollment process and send real-time updates."""
     cancellation_events["enrollment"].clear()
     try:
@@ -237,8 +248,14 @@ def run_enrollment_task(newly_created_dirs: List[str]):
             update_data = {"progress": progress, "message": message, "status": status, "source": "enrollment"}
             update_status_callback(update_data)
         
-        # The logic function handles finding new images in the enrollment folder itself.
-        update_encodings(ENROLLMENT_FOLDER, ENCODINGS_FILE, cancellation_events["enrollment"], callback_adapter)
+        # Run the entire blocking function in a separate thread
+        await asyncio.to_thread(
+            update_encodings, 
+            ENROLLMENT_FOLDER, 
+            ENCODINGS_FILE, 
+            cancellation_events["enrollment"], 
+            callback_adapter
+        )
     except OperationAbortedError:
         abort_message = "Enrollment aborted by user. Reverting changes..."
         print(f"ENROLLMENT TASK: {abort_message}")
@@ -448,7 +465,8 @@ async def abort_process():
 @app.get("/api/check-dependencies")
 async def check_dependencies():
     """Checks for the presence of optional heavy dependencies like face_recognition."""
-    return {"face_recognition_installed": face_recognition is not None}
+    # MODIFIED: Access the variable through the module to get its current state.
+    return {"face_recognition_installed": organizer_logic.face_recognition is not None}
 
 @app.get("/api/enrollment-status")
 async def get_enrollment_status():

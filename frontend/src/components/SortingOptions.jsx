@@ -87,9 +87,9 @@ const SortingOptions = ({ sortMethod, setSortMethod, isProcessing, isEnrolled, e
                         <option value="accurate">Accurate - Small faces & groups</option>
                     </select>
                     <p className="description">
-                        {faceMode === 'accurate' && "Best for finding small or distant faces in group photos"}
-                        {faceMode === 'fast' && "Works great with clear, close-up face photos"}
-                        {faceMode === 'balanced' && "Perfect balance of speed and accuracy for most photos"}
+                        {faceMode === 'accurate' && "Best for finding small or distant faces in group photos (⏱️ Very slow processing)"}
+                        {faceMode === 'fast' && "Works great with clear, close-up face photos (⚡ Fast processing)"}
+                        {faceMode === 'balanced' && "Perfect balance of speed and accuracy for most photos (⚖️ Moderate processing speed)"}
                     </p>
                 </div>
             )}
