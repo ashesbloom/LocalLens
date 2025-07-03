@@ -659,3 +659,42 @@ if os.path.exists(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")
 else:
     print(f"Warning: Frontend directory not found at '{FRONTEND_DIR}'. UI will not be served.")
+
+# ==============================================================================
+#  Application Runner (CRITICAL FOR PACKAGED APP - DYNAMIC PORT)
+# ==============================================================================
+# This block makes the script self-executable, safe for multiprocessing,
+# and dynamically finds a free port to avoid conflicts.
+
+if __name__ == "__main__":
+    import uvicorn
+    import socket
+    from multiprocessing import freeze_support
+
+    def find_free_port():
+        """Finds and returns an available TCP port on the host."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            # Bind to port 0 to let the OS choose an ephemeral port
+            s.bind(("127.0.0.1", 0))
+            # Return the chosen port number
+            return s.getsockname()[1]
+
+    # This is CRITICAL for packaged apps on Windows/macOS using multiprocessing
+    freeze_support()
+
+    # --- Server Configuration ---
+    HOST = "127.0.0.1"  # Keep this for security
+    PORT = find_free_port()
+
+    # --- Announce the Port for Tauri ---
+    # Print the port in a specific format that the Tauri sidecar listener can parse.
+    # The `flush=True` is important to ensure the output is sent immediately.
+    print(f"PYTHON_BACKEND_PORT:{PORT}", flush=True)
+
+    # --- Run the Server ---
+    uvicorn.run(
+        app,
+        host=HOST,
+        port=PORT,
+        log_level="info"
+    )

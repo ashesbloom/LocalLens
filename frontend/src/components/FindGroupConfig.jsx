@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Calendar, MapPin, Users, FolderPlus, Loader, AlertTriangle, Search, CheckSquare, Square } from 'react-feather';
+import './FindGroupConfig.css';
 
 const FindGroupConfig = ({
   metadata,

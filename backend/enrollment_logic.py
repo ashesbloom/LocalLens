@@ -98,13 +98,34 @@ def update_encodings(dataset_path, encodings_file, cancellation_event, status_ca
     # --- 3. Find New Images to Process ---
     status_callback(10, "Scanning for new people and images...")
     all_image_paths = []
+        # NEW: List to track ignored files
+    ignored_files = [] 
+    supported_enrollment_formats = ('.png', '.jpg', '.jpeg')
+
     for person_name in os.listdir(dataset_path):
         person_dir = os.path.join(dataset_path, person_name)
         if os.path.isdir(person_dir):
             for filename in os.listdir(person_dir):
-                if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    all_image_paths.append((os.path.join(person_dir, filename), person_name))
+                file_path = os.path.join(person_dir, filename)
+                if filename.lower().endswith(supported_enrollment_formats):
+                    all_image_paths.append((file_path, person_name))
+                else:
+                    # If it doesn't match, add it to the ignored list
+                    # We check if it's a file to avoid adding subdirectories like .DS_Store
+                    if os.path.isfile(file_path):
+                        ignored_files.append(filename)
 
+    # NEW: Report ignored files immediately after scanning
+    if ignored_files:
+        # Create a user-friendly message
+        ignored_message = (
+            f"Warning: {len(ignored_files)} file(s) were ignored because they are not "
+            f"supported for enrollment (only JPG, JPEG, PNG are allowed). "
+            f"Ignored files: {', '.join(ignored_files[:5])}" # Show the first 5
+            f"{'...' if len(ignored_files) > 5 else ''}"
+        )
+        # Use your callback system to send this warning to the UI
+        status_callback(15, ignored_message, "warning")
     # Filter out images that have already been processed
     new_images_to_process = [
         (path, name) for path, name in all_image_paths if path not in processed_paths

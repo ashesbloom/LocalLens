@@ -1,5 +1,3 @@
-/* 3. FILE: frontend/src/App.css (Component-specific styles) */
-@import url('./components/FindGroupConfig.css');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
@@ -194,7 +192,6 @@ p {
   font-weight: bold;
   background: var(--color-gradient);
   -webkit-background-clip: text;
-  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin: 0;
   animation: gentle-glow 3s ease-in-out infinite; /* Restored Glow */
