@@ -1,4 +1,3 @@
-
 # ==============================================================================
 #  Photo Organizer - API Server & Main Entry Point (Fully Featured)
 # ==============================================================================
@@ -191,8 +190,13 @@ async def run_organization_task(config: Dict):
         config["cancellation_event"] = cancellation_events["sorting"]
         
         # Create an adapter for the callback to match the expected signature
-        def callback_adapter(progress: int, message: str, status: str = "running"):
-            update_data = {"progress": progress, "message": message, "status": status}
+        def callback_adapter(progress: int, message: str, status: str = "running", analytics: Optional[Dict] = None):
+            update_data = {
+                "progress": progress, 
+                "message": message, 
+                "status": status,
+                "analytics": analytics or {} # Add analytics to the payload
+            }
             update_status_callback(update_data)
 
         # Run the entire blocking function in a separate thread

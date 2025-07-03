@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import AbortButton from './AbortButton';
 import './ProgressTracker.css';
 
-const ProgressTracker = ({ progress, progressLabel, isProcessing, onAbort }) => {
+const ProgressTracker = ({ progress, progressLabel, isProcessing, onAbort, analytics }) => {
     const [scannerPosition, setScannerPosition] = useState(0);
     const [isScanning, setIsScanning] = useState(false);
     const [particleKey, setParticleKey] = useState(0);
@@ -98,16 +98,16 @@ const ProgressTracker = ({ progress, progressLabel, isProcessing, onAbort }) => 
                 <div className="progress-analytics">
                     <div className="analytics-grid">
                         <div className="metric">
-                            <span className="metric-label">Scan Rate</span>
-                            <span className="metric-value">{(progress * 1.3).toFixed(1)}Hz</span>
+                            <span className="metric-label">Scan Rate - </span>
+                            <span className="metric-value">{analytics?.scan_rate || '0.0'} files/s</span>
                         </div>
                         <div className="metric">
-                            <span className="metric-label">Data Flow</span>
-                            <span className="metric-value">{Math.round(progress * 2.7)}MB/s</span>
+                            <span className="metric-label">Data Flow - </span>
+                            <span className="metric-value">{analytics?.data_flow || '0.0'} MB/s</span>
                         </div>
                         <div className="metric">
-                            <span className="metric-label">Quality</span>
-                            <span className="metric-value">{Math.min(100, Math.round(progress * 1.1))}%</span>
+                            <span className="metric-label">Mode - </span>
+                            <span className="metric-value">{analytics?.quality || 'N/A'}</span>
                         </div>
                     </div>
                 </div>

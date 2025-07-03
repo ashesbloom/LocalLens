@@ -49,6 +49,8 @@ function App() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState(0);
     const [progressLabel, setProgressLabel] = useState('Ready for a new task !');
+    // NEW: State for real-time analytics
+    const [analytics, setAnalytics] = useState({ scan_rate: '0.0', data_flow: '0.0', quality: 'N/A' });
     const [logs, setLogs] = useState([]);
     const [showSaveButton, setShowSaveButton] = useState(false);
     const logConsoleRef = useRef(null);
@@ -461,8 +463,6 @@ function App() {
 
         es.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            
-            // Always allow final status messages to be fully processed to reset the UI.
             const isFinalStatus = data.status === 'complete' || data.status === 'aborted' || data.status === 'error';
 
             // Determine if the log is for the current operation
@@ -479,6 +479,11 @@ function App() {
 
             if (data.progress !== undefined) {
                 setProgress(data.progress);
+            }
+
+            // NEW: Update analytics if they are in the payload
+            if (data.analytics) {
+                setAnalytics(data.analytics);
             }
 
             // Handle completion or abortion
@@ -501,6 +506,8 @@ function App() {
                     // Reset processing states
                     setIsEnrolling(false);
                     setIsProcessing(false);
+                    // Reset analytics to default
+                    setAnalytics({ scan_rate: '0.0', data_flow: '0.0', quality: 'N/A' });
 
                     // Handle Find & Group completion modal
                     if (operationMode === 'find' && data.status === 'complete') {
@@ -914,7 +921,7 @@ function App() {
     };
 
     return (
-        <div className={`app-container ${themeClass}`}>
+        <div id="app-container" className={themeClass}>
             {!isBackendConnected && (
                 <div className="connection-error-banner">
                     <p>Connection to backend lost. Attempting to reconnect...</p>
@@ -1151,6 +1158,7 @@ function App() {
                         progressLabel={progressLabel} 
                         isProcessing={isProcessing}
                         onAbort={handleAbortProcess}
+                        analytics={analytics} // Pass analytics down
                     />
                     <LogConsole ref={logConsoleRef} logs={logs} />
                     <div className="footer-actions">

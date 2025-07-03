@@ -1,4 +1,3 @@
-
 # ==============================================================================
 #  Photo Organizer - Core Backend Logic (Fully Integrated)
 # ==============================================================================
@@ -22,6 +21,7 @@ from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 import tempfile
 from multiprocessing import Pool, TimeoutError as MultiprocessingTimeoutError
+import time # ADD THIS IMPORT
 
 # --- Custom Exception Import ---
 from exceptions import OperationAbortedError
@@ -495,12 +495,15 @@ def find_and_group_photos(config, update_callback):
     logging.info(f"Starting Find & Group Session. Target folder: '{target_folder_name}'")
     logging.info(f"Filters applied: {json.dumps(find_config, indent=2)}")
 
-    update_callback(0, "Preparing to search for photos...", "running")
+    # --- NEW: Analytics setup for Find & Group ---
+    # 'fast' mode is used for searching, so quality is fixed.
+    initial_analytics = {"quality": "Fast", "scan_rate": "0.0", "data_flow": "0.0"}
+    update_callback(0, "Preparing to search for photos...", "running", initial_analytics)
 
     files_to_process = [os.path.join(dp, f) for dp, _, fn in os.walk(source_dir) for f in fn if f.lower().endswith(SUPPORTED_EXTENSIONS)]
     total_files = len(files_to_process)
     if total_files == 0:
-        update_callback(100, "No supported image files found in the source directory.", "complete")
+        update_callback(100, "No supported image files found in the source directory.", "complete", initial_analytics)
         return
 
     found_count = 0
@@ -508,22 +511,44 @@ def find_and_group_photos(config, update_callback):
     
     # Load face models only if a people filter is active
     if find_config.get('people'):
-        update_callback(5, "Initializing face recognition engine...", "running")
+        update_callback(5, "Initializing face recognition engine...", "running", initial_analytics)
         if not encodings_path or not os.path.exists(encodings_path):
-            update_callback(100, "Cannot use People filter: Face encodings file not found.", "error")
+            update_callback(100, "Cannot use People filter: Face encodings file not found.", "error", initial_analytics)
             return
         try:
             known_encodings, known_names = load_face_encodings(encodings_path)
             if not known_encodings:
-                update_callback(100, "Cannot use People filter: No faces are enrolled.", "error")
+                update_callback(100, "Cannot use People filter: No faces are enrolled.", "error", initial_analytics)
                 return
         except Exception as e:
-            update_callback(100, f"Fatal Error loading face data: {e}", "error")
+            update_callback(100, f"Fatal Error loading face data: {e}", "error", initial_analytics)
             return
+
+    # --- NEW: Real-time analytics tracking ---
+    start_time = time.time()
+    processed_files_count = 0
+    processed_size_mb = 0.0
 
     for i, source_path in enumerate(files_to_process):
         progress = 10 + int(((i + 1) / total_files) * 85)
-        update_callback(progress, f"Searching: {os.path.basename(source_path)}", "running")
+        
+        # --- Analytics Calculation ---
+        analytics = {"quality": "Fast", "scan_rate": "0.0", "data_flow": "0.0"}
+        try:
+            file_size_mb = os.path.getsize(source_path) / (1024 * 1024)
+            processed_files_count += 1
+            processed_size_mb += file_size_mb
+            
+            elapsed_time = time.time() - start_time
+            if elapsed_time > 0.5:
+                scan_rate = processed_files_count / elapsed_time
+                data_flow = processed_size_mb / elapsed_time
+                analytics["scan_rate"] = f"{scan_rate:.1f}"
+                analytics["data_flow"] = f"{data_flow:.1f}"
+        except OSError:
+            pass
+
+        update_callback(progress, f"Searching: {os.path.basename(source_path)}", "running", analytics)
         
         if cancellation_event and cancellation_event.is_set():
             raise OperationAbortedError("Find & Group operation cancelled by user.")
@@ -577,7 +602,7 @@ def find_and_group_photos(config, update_callback):
         completion_message = "Search complete. No photos matched the specified criteria."
         
     logging.info(completion_message)
-    update_callback(100, completion_message, "complete")
+    update_callback(100, completion_message, "complete", initial_analytics)
 
 
 def _get_standard_sort_paths(base_dir, sort_method, date_obj, location_path, names, multiple_countries_found, sort_options):
@@ -700,10 +725,38 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
             countries = set(loc.split(os.path.sep)[0] for loc in locations if os.path.sep in loc)
             multiple_countries_found = len(countries) > 1
 
+    # --- NEW: Real-time analytics tracking ---
+    start_time = time.time()
+    processed_files_count = 0
+    processed_size_mb = 0.0
+    # Map face_mode to a user-friendly quality string
+    quality_map = {"fast": "Fast", "balanced": "Balanced", "accurate": "High"}
+    quality_metric = quality_map.get(face_rec_mode, "N/A")
+
+
     moved_count = 0
     for i, source_path in enumerate(files_to_process):
         progress = 10 + int(((i + 1) / total_files) * 85)
-        update_callback(progress, f"Analyzing: {os.path.basename(source_path)}", "running")
+        
+        # --- Analytics Calculation ---
+        analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
+        try:
+            # Get file size for data flow calculation
+            file_size_mb = os.path.getsize(source_path) / (1024 * 1024)
+            processed_files_count += 1
+            processed_size_mb += file_size_mb
+            
+            elapsed_time = time.time() - start_time
+            if elapsed_time > 0.5: # Update analytics every half second to avoid noisy data
+                scan_rate = processed_files_count / elapsed_time
+                data_flow = processed_size_mb / elapsed_time
+                analytics["scan_rate"] = f"{scan_rate:.1f}"
+                analytics["data_flow"] = f"{data_flow:.1f}"
+        except OSError:
+            pass # Ignore if file is inaccessible
+
+        # Pass analytics with the update
+        update_callback(progress, f"Analyzing: {os.path.basename(source_path)}", "running", analytics)
         
         if cancellation_event and cancellation_event.is_set():
             raise OperationAbortedError("Sorting operation cancelled by user.")
@@ -787,28 +840,33 @@ def process_photos(config, update_callback):
     root_logger.addHandler(log_handler)
     root_logger.setLevel(logging.INFO)
     
-    update_callback(0, "System prepared. Initiating organization process.", "running")
+    # --- MODIFIED: Determine quality metric for initial messages ---
+    face_rec_mode = sort_options.get('face_mode', 'balanced')
+    quality_map = {"fast": "Fast", "balanced": "Balanced", "accurate": "High"}
+    quality_metric = quality_map.get(face_rec_mode, "N/A")
+    initial_analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
+    update_callback(0, "System prepared. Initiating organization process.", "running", initial_analytics)
 
     temp_source_path = None
     try:
-        update_callback(1, "Creating secure temporary workspace...", "running")
+        update_callback(1, "Creating secure temporary workspace...", "running", initial_analytics)
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         temp_source_name = f"_Source_Copy_{timestamp}"
         temp_source_path = os.path.join(os.path.dirname(dest_dir), temp_source_name)
         ignore_pattern = shutil.ignore_patterns(*ignore_list) if ignore_list else None
         shutil.copytree(source_dir, temp_source_path, ignore=ignore_pattern, copy_function=shutil.copy2)
-        update_callback(5, "Workspace secured. Commencing file processing...", "running")
+        update_callback(5, "Workspace secured. Commencing file processing...", "running", initial_analytics)
         
         # CONFLICT FIXED: Pass the correct path to the core processing loop
         moved_count = _core_processing_loop(temp_source_path, dest_dir, sort_options, update_callback, encodings_path, cancellation_event)
 
         completion_message = f"Process complete. {moved_count} files successfully organized."
         logging.info(completion_message)
-        update_callback(100, completion_message, "complete")
+        update_callback(100, completion_message, "complete", initial_analytics)
 
     finally:
         if temp_source_path and os.path.exists(temp_source_path):
-            update_callback(99, "Finalizing operation: Cleaning up temporary workspace...", "running")
+            update_callback(99, "Finalizing operation: Cleaning up temporary workspace...", "running", initial_analytics)
             shutil.rmtree(temp_source_path)
             logging.info("Temporary folder cleanup complete.")
         
