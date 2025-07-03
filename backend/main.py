@@ -1,3 +1,4 @@
+
 # ==============================================================================
 #  Photo Organizer - API Server & Main Entry Point (Fully Featured)
 # ==============================================================================
@@ -57,6 +58,7 @@ from organizer_logic import (
 )
 import organizer_logic
 from enrollment_logic import update_encodings
+import enrollment_logic
 
 # --- Lifespan Context Manager ---
 @asynccontextmanager

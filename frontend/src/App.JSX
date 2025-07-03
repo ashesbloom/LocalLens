@@ -154,17 +154,6 @@ function App() {
         }
     }, [operationMode]);
 
-    // NEW: Effect to automatically refresh the AI model status after enrollment.
-    useEffect(() => {
-        // This effect triggers when the enrollment process completes (isEnrolling goes from true to false).
-        if (prevIsEnrolling.current && !isEnrolling) {
-            logToConsole("Enrollment finished. Refreshing AI model status...", 'info');
-            checkEnrollmentStatus();
-        }
-        // Keep the ref updated with the current state for the next render.
-        prevIsEnrolling.current = isEnrolling;
-    }, [isEnrolling]);
-
     // ADD THIS NEW EFFECT FOR METADATA SCANNING
     useEffect(() => {
         const fetchMetadata = async () => {
