@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
-use std::time::Duration;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,56 +19,48 @@ pub fn run() {
 
             // Start the Python backend as a sidecar
             tauri::async_runtime::spawn(async move {
-                let shell = app_handle.shell();
+                // FIX: Use "app_handle" which was defined above, instead of "handle".
+                let (mut rx, _child) = app_handle.shell()
+                    .command("backend_server") 
+                    .args([""]) // Keep this if it's working for you
+                    .spawn()
+                    .expect("Failed to spawn backend server");
 
-                match shell.sidecar("backend_server") {
-                    Ok(command) => {
-                        println!("Starting Python backend server...");
+                // Listen for output from the Python process
+                while let Some(event) = rx.recv().await {
+                    match event {
+                        CommandEvent::Stdout(line) => {
+                            let line = String::from_utf8_lossy(&line);
+                            println!("Backend stdout: {}", line);
 
-                        let (mut rx, mut _child) = command
-                            .spawn()
-                            .expect("Failed to spawn backend server");
+                            // Look for the port announcement
+                            if line.starts_with("PYTHON_BACKEND_PORT:") {
+                                if let Some(port_str) = line.strip_prefix("PYTHON_BACKEND_PORT:")
+                                {
+                                    if let Ok(port) = port_str.trim().parse::<u16>() {
+                                        println!("Backend server running on port: {}", port);
+                                        *port_clone.lock().unwrap() = Some(port);
 
-                        // Listen for output from the Python process
-                        while let Some(event) = rx.recv().await {
-                            match event {
-                                CommandEvent::Stdout(line) => {
-                                    let line = String::from_utf8_lossy(&line);
-                                    println!("Backend stdout: {}", line);
-
-                                    // Look for the port announcement
-                                    if line.starts_with("PYTHON_BACKEND_PORT:") {
-                                        if let Some(port_str) = line.strip_prefix("PYTHON_BACKEND_PORT:")
-                                        {
-                                            if let Ok(port) = port_str.trim().parse::<u16>() {
-                                                println!("Backend server running on port: {}", port);
-                                                *port_clone.lock().unwrap() = Some(port);
-
-                                                // Emit event to frontend with the port
-                                                let _ = app_handle.emit("backend-ready", port);
-                                            }
-                                        }
+                                        // Emit event to frontend with the port
+                                        let _ = app_handle.emit("backend-ready", port);
                                     }
-                                }
-                                CommandEvent::Stderr(line) => {
-                                    let line = String::from_utf8_lossy(&line);
-                                    println!("Backend stderr: {}", line);
-                                }
-                                CommandEvent::Error(error) => {
-                                    println!("Backend error: {}", error);
-                                }
-                                CommandEvent::Terminated(payload) => {
-                                    println!("Backend terminated with code: {:?}", payload.code);
-                                    break;
-                                }
-                                _ => {
-                                    // Handle any other CommandEvent variants
                                 }
                             }
                         }
-                    }
-                    Err(e) => {
-                        println!("Failed to start backend server: {}", e);
+                        CommandEvent::Stderr(line) => {
+                            let line = String::from_utf8_lossy(&line);
+                            println!("Backend stderr: {}", line);
+                        }
+                        CommandEvent::Error(error) => {
+                            println!("Backend error: {}", error);
+                        }
+                        CommandEvent::Terminated(payload) => {
+                            println!("Backend terminated with code: {:?}", payload.code);
+                            break;
+                        }
+                        _ => {
+                            // Handle any other CommandEvent variants
+                        }
                     }
                 }
             });
@@ -89,10 +81,22 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-// NEW: Command to get the backend port
+// FINAL FIX: This async version waits for the port, eliminating race conditions.
 #[tauri::command]
-fn get_backend_port(backend_info: State<BackendInfo>) -> Option<u16> {
-    *backend_info.port.lock().unwrap()
+async fn get_backend_port(backend_info: State<'_, BackendInfo>) -> Result<Option<u16>, String> {
+    // Wait for up to 5 seconds for the port to become available.
+    for _ in 0..50 {
+        // Create a new scope to ensure the MutexGuard is dropped before .await
+        {
+            let port_lock = backend_info.port.lock().unwrap();
+            if let Some(port) = *port_lock {
+                return Ok(Some(port)); // Success: return immediately.
+            }
+        }
+        // The lock is released here, so it's safe to await.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    Ok(None) // Timeout: return Ok(None) if the port wasn't found.
 }
 
 #[derive(Default)]
