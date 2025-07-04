@@ -94,16 +94,11 @@ import reverse_geocoder as rg
 #  Constants & Configuration (Consolidated from Best Versions)
 # ==============================================================================
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-PRESETS_FOLDER = os.path.join(script_dir, "presets")
-os.makedirs(PRESETS_FOLDER, exist_ok=True)
-
-PATHS_FILE_NAME = os.path.join(PRESETS_FOLDER, "paths.json")
-
-# CONFLICT FIXED: Removed outdated, hardcoded path constants.
-# The correct path will now be passed in from main.py.
-# FACE_RECOGNITION_SUBFOLDER = os.path.join(script_dir, "facial recognition model (local)")
-# ENCODINGS_FILE = os.path.join(FACE_RECOGNITION_SUBFOLDER, "face_encodings.pkl")
+# REMOVE THESE LINES - They are now handled in main.py
+# script_dir = os.path.dirname(os.path.abspath(__file__))
+# PRESETS_FOLDER = os.path.join(script_dir, "presets")
+# os.makedirs(PRESETS_FOLDER, exist_ok=True)
+# PATHS_FILE_NAME = os.path.join(PRESETS_FOLDER, "paths.json")
 
 SUPPORTED_EXTENSIONS = (
     # Standard formats
@@ -130,19 +125,20 @@ RESIZE_WIDTH_FOR_PROCESSING = 800
 #  Preset & Configuration Handling
 # ==============================================================================
 
-def load_presets(filename):
-    if not os.path.exists(filename): return {}
-    try:
-        with open(filename, 'r', encoding='utf-8') as f: return json.load(f)
-    except (json.JSONDecodeError, IOError): return {}
-
-def save_presets(filename, data):
-    try:
-        with open(filename, 'w', encoding='utf-8') as f: json.dump(data, f, indent=4)
-        return True
-    except IOError as e:
-        logging.error(f"Error saving presets to {filename}: {e}")
-        return False
+# REMOVE THESE FUNCTIONS - Their logic is now directly in main.py's endpoints
+# def load_presets(filename):
+#     if not os.path.exists(filename): return {}
+#     try:
+#         with open(filename, 'r', encoding='utf-8') as f: return json.load(f)
+#     except (json.JSONDecodeError, IOError): return {}
+#
+# def save_presets(filename, data):
+#     try:
+#         with open(filename, 'w', encoding='utf-8') as f: json.dump(data, f, indent=4)
+#         return True
+#     except IOError as e:
+#         logging.error(f"Error saving presets to {filename}: {e}")
+#         return False
 
 # ==============================================================================
 #  Image Metadata Extraction
@@ -730,7 +726,7 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
     processed_files_count = 0
     processed_size_mb = 0.0
     # Map face_mode to a user-friendly quality string
-    quality_map = {"fast": "Fast", "balanced": "Balanced", "accurate": "High"}
+    quality_map = {"fast": "Fast", "balanced": "Balanced", "accurate": "Accurate"}
     quality_metric = quality_map.get(face_rec_mode, "N/A")
 
 

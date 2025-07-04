@@ -16,9 +16,9 @@ import subprocess
 import shutil
 import pickle
 import logging
-import threading
-import multiprocessing # Import the multiprocessing library
+import signal
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Body, Request, BackgroundTasks, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,35 +29,60 @@ import asyncio
 import os
 import shutil
 import json
-import multiprocessing
+import multiprocessing # <-- ADD THIS
+import signal # <-- ADD THIS
+import uvicorn
 from asyncio import Queue, CancelledError # FIX: Import the asyncio Queue and CancelledError
 
 # --- Custom Exception Import ---
 from exceptions import OperationAbortedError
 
 # --- Path Configuration ---
-# Use absolute paths to prevent issues when the script is run from different directories
-BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.join(BACKEND_DIR, '..')
-FRONTEND_DIR = os.path.join(PROJECT_ROOT, "frontend", "dist") # Serve from the 'dist' folder for production builds
 
-# Centralized paths for data files
-PRESETS_DIR = os.path.join(BACKEND_DIR, "presets")
-PATHS_FILE_NAME = os.path.join(PRESETS_DIR, "paths.json")
-ENROLLMENT_FOLDER = os.path.join(BACKEND_DIR, "Enrollment")
-ENCODINGS_FILE = os.path.join(BACKEND_DIR, "encodings.pickle")
-LAST_CONFIG_FILE = os.path.join(PRESETS_DIR, "last_config.json")
+# NEW: Define the path to the frontend build directory
+# This handles both development (running as script) and production (running as .exe)
+if getattr(sys, 'frozen', False):
+    # Path when running as a bundled executable (e.g., from PyInstaller)
+    # The frontend is expected to be in a 'dist' folder relative to the executable
+    application_path = os.path.dirname(sys.executable)
+    # This path assumes the backend exe is in `src-tauri` and the UI is in `dist`
+    # Adjust if your final build structure is different.
+    FRONTEND_DIR = os.path.join(application_path, '..', 'dist') 
+else:
+    # Path when running as a script (`python main.py`)
+    application_path = os.path.dirname(os.path.abspath(__file__))
+    FRONTEND_DIR = os.path.join(application_path, '..', 'frontend', 'dist')
+
+
+def get_app_data_dir():
+    """Gets the application data directory, creating it if it doesn't exist."""
+    if sys.platform == 'win32':
+        appdata_env = os.getenv('APPDATA')
+        if not appdata_env:
+            raise RuntimeError("APPDATA environment variable is not set on Windows.")
+        app_data_path = Path(appdata_env) / 'LocalLens'
+    else: # For macOS and Linux
+        app_data_path = Path.home() / '.config' / 'LocalLens'
+    app_data_path.mkdir(parents=True, exist_ok=True)
+    return app_data_path
+
+# --- Centralized paths for ALL user data ---
+APP_DATA_DIR = get_app_data_dir()
+ENROLLMENT_FOLDER = APP_DATA_DIR / "Enrollment"
+ENCODINGS_FILE = APP_DATA_DIR / "encodings.pickle"
+LAST_CONFIG_FILE = APP_DATA_DIR / "last_config.json"
+PATH_PRESETS_FILE = APP_DATA_DIR / "path_presets.json"
+
 
 # --- Backend Logic Imports ---
 # MODIFIED: Import the module itself to access its variables dynamically.
 from organizer_logic import (
-    process_photos, load_presets, save_presets, SUPPORTED_EXTENSIONS, 
+    process_photos, SUPPORTED_EXTENSIONS, 
     load_face_encodings, find_and_group_photos, get_metadata_overview, 
     initialize_libraries
 )
 import organizer_logic
 from enrollment_logic import update_encodings
-import enrollment_logic
 
 # --- Lifespan Context Manager ---
 @asynccontextmanager
@@ -66,8 +91,8 @@ async def lifespan(app: FastAPI):
     # One-time initialization of heavy libraries with verbose output.
     initialize_libraries(is_main_process=True)
     
-    os.makedirs(PRESETS_DIR, exist_ok=True)
-    os.makedirs(ENROLLMENT_FOLDER, exist_ok=True)
+    # Create necessary folders on startup in the persistent location
+    ENROLLMENT_FOLDER.mkdir(exist_ok=True)
     yield
     # Code here would run on shutdown
 
@@ -224,8 +249,14 @@ async def run_find_group_task(config: Dict):
         target_folder_name = config.get("find_config", {}).get('folderName', "Find_Results")
         target_folder = os.path.join(config["destination_folder"], target_folder_name)
 
-        def callback_adapter(progress: int, message: str, status: str = "running"):
-            update_data = {"progress": progress, "message": message, "status": status}
+        # FIX: The callback adapter now accepts the 'analytics' dictionary.
+        def callback_adapter(progress: int, message: str, status: str = "running", analytics: Optional[Dict] = None):
+            update_data = {
+                "progress": progress, 
+                "message": message, 
+                "status": status,
+                "analytics": analytics or {}
+            }
             update_status_callback(update_data)
 
         # Run the entire blocking function in a separate thread
@@ -419,6 +450,7 @@ async def add_person_endpoint(request: BatchEnrollmentRequest, background_tasks:
     Accepts a batch of people and their images, copies them to the
     enrollment directory, and then triggers the background enrollment task.
     """
+    from enrollment_logic import update_encodings
     newly_created_dirs = []
     try:
         for person_data in request.people_to_enroll:
@@ -527,7 +559,7 @@ async def validate_path(path: str = Body(..., embed=True)):
 @app.get("/api/config/load")
 async def load_last_config():
     """Loads the last used configuration from a file."""
-    if not os.path.exists(LAST_CONFIG_FILE):
+    if not LAST_CONFIG_FILE.exists():
         return {} # Return empty dict if no config saved yet
     try:
         with open(LAST_CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -550,16 +582,25 @@ async def save_last_config(config: LastConfig):
 @app.get("/api/presets/paths")
 async def get_path_presets():
     """Loads and returns saved source/destination path configurations."""
-    return load_presets(PATHS_FILE_NAME)
+    if not PATH_PRESETS_FILE.exists():
+        return {}
+    try:
+        with open(PATH_PRESETS_FILE, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
 
-@app.post("/api/save-preset")
-async def save_preset(preset: PathPreset):
+# FIX: Renamed from /api/save-preset and updated logic
+@app.post("/api/presets/paths")
+async def save_path_preset(preset: PathPreset):
     """Saves or updates a path preset."""
-    presets = load_presets(PATHS_FILE_NAME)
-    presets[preset.name] = {"source": preset.source, "destination": preset.destination}
-    if save_presets(PATHS_FILE_NAME, presets):
+    try:
+        presets = await get_path_presets()
+        presets[preset.name] = {"source": preset.source, "destination": preset.destination}
+        with open(PATH_PRESETS_FILE, 'w') as f:
+            json.dump(presets, f, indent=4)
         return {"status": "success", "name": preset.name}
-    else:
+    except IOError:
         raise HTTPException(status_code=500, detail="Failed to save preset file.")
 
 @app.post("/api/open-enrolled-folder")
@@ -653,48 +694,52 @@ async def delete_enrolled_face(request: OpenEnrolledFolderRequest):
         print(f"Error deleting enrolled face: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete '{person_name}': {str(e)}")
 
+# NEW: Endpoint to gracefully shut down the server
+@app.post("/api/shutdown")
+async def shutdown_server():
+    """
+    A dedicated endpoint to gracefully shut down the Uvicorn server.
+    This is called by the Tauri frontend just before exiting.
+    """
+    print("Shutdown signal received. Server is terminating.")
+    # A small delay can help ensure the HTTP response is sent before shutdown.
+    await asyncio.sleep(0.1) 
+    
+    # This is a common way to stop the server from within an endpoint.
+    # It might cause a clean exit or raise an exception that the runner handles.
+    os.kill(os.getpid(), signal.SIGTERM)
+    return {"status": "shutting down"}
+
+
 # --- Static File Serving ---
 # This should point to the build output of your frontend
 if os.path.exists(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")
-else:
-    print(f"Warning: Frontend directory not found at '{FRONTEND_DIR}'. UI will not be served.")
 
 # ==============================================================================
-#  Application Runner (CRITICAL FOR PACKAGED APP - DYNAMIC PORT)
+#  Main Execution Block
 # ==============================================================================
-# This block makes the script self-executable, safe for multiprocessing,
-# and dynamically finds a free port to avoid conflicts.
-
 if __name__ == "__main__":
-    import uvicorn
+    # This is CRITICAL for PyInstaller on Windows to prevent infinite subprocesses.
+    multiprocessing.freeze_support()
+
+    # FIX: Re-implement the port discovery logic for Tauri.
+    # We need to run the server in a way that we can get the port number.
+    
+    # Use a socket to get a free port from the OS.
     import socket
-    from multiprocessing import freeze_support
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        _, port = s.getsockname()
 
-    def find_free_port():
-        """Finds and returns an available TCP port on the host."""
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            # Bind to port 0 to let the OS choose an ephemeral port
-            s.bind(("127.0.0.1", 0))
-            # Return the chosen port number
-            return s.getsockname()[1]
+    # Print the port for the Tauri shell to capture. This is the crucial link.
+    print(f"PYTHON_BACKEND_PORT:{port}", flush=True)
 
-    # This is CRITICAL for packaged apps on Windows/macOS using multiprocessing
-    freeze_support()
-
-    # --- Server Configuration ---
-    HOST = "127.0.0.1"  # Keep this for security
-    PORT = find_free_port()
-
-    # --- Announce the Port for Tauri ---
-    # Print the port in a specific format that the Tauri sidecar listener can parse.
-    # The `flush=True` is important to ensure the output is sent immediately.
-    print(f"PYTHON_BACKEND_PORT:{PORT}", flush=True)
-
-    # --- Run the Server ---
+    # Now run Uvicorn on the specific port we found.
     uvicorn.run(
         app,
-        host=HOST,
-        port=PORT,
+        host="127.0.0.1",
+        port=port, # Use the dynamically found free port
+        reload=False,
         log_level="info"
     )

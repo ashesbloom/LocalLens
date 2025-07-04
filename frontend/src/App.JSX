@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core'; // <-- ADD THIS
 import { open, message } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import FaceEnrollment from './components/FaceEnrollment';
@@ -16,12 +18,9 @@ import FindGroupConfig from './components/FindGroupConfig';
 import EnrolledFacesModal from './components/EnrolledFacesModal';
 import FaceEnrollmentModal from './components/FaceEnrollmentModal';
 import FindGroupResultModal from './components/FindGroupResultModal';
-import AbortButton from './components/AbortButton';
-import ConfirmationModal from './components/ConfirmationModal'; // NEW: Import ConfirmationModal
-// import './components/FindGroupResultModal.css';
-import './App.css';
+import ConfirmationModal from './components/ConfirmationModal'; 
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+import './App.css';
 
 function App() {
     // --- State Management ---
@@ -57,11 +56,15 @@ function App() {
     const eventSourceRef = useRef(null);
     const footerRef = useRef(null);
     // FIX: Ref to prevent duplicate startup calls in React's Strict Mode.
-    const startupRan = useRef(false);
     const prevIsEnrolling = useRef(false); // NEW: Ref to track the previous state of enrollment.
     // NEW: State and ref for backend connection retry logic
     const [isBackendConnected, setIsBackendConnected] = useState(true);
     const retryTimeoutRef = useRef(null);
+
+    // --- Backend Connection State ---
+    const [backendPort, setBackendPort] = useState(null);
+    const [isBackendReady, setIsBackendReady] = useState(false);
+    const startupRan = useRef(false);
 
     // --- NEW State for Subfolders ---
     const [subfolders, setSubfolders] = useState([]);
@@ -121,7 +124,55 @@ function App() {
         folderName: '',
     });
 
+
+
     // --- Effects ---
+
+    // Effect 1: Listen for the backend port from Tauri
+    useEffect(() => {
+        const portSetupRef = { current: false }; // Use a ref to prevent race conditions
+
+        const setupPort = (port) => {
+            if (port && !portSetupRef.current) {
+                console.log("SUCCESS: Backend port configured:", port);
+                setBackendPort(port);
+                setIsBackendReady(true);
+                portSetupRef.current = true;
+            }
+        };
+
+        // Try invoking for reloads. This is faster if the backend is already running.
+        invoke('get_backend_port')
+            .then(setupPort)
+            .catch(e => console.error("Could not invoke get_backend_port:", e));
+
+        // Also listen for the event for the initial launch.
+        const unlistenPromise = listen('backend-ready', (event) => {
+            setupPort(event.payload);
+        });
+
+        // Cleanup function
+        return () => {
+            unlistenPromise.then(f => f());
+        };
+    }, []); // Empty dependency array means this runs only once on mount.
+
+    // Effect 2: Run startup tasks ONLY AFTER the backend is ready
+    useEffect(() => {
+        console.log(`STEP 3: Startup effect triggered. isBackendReady: ${isBackendReady}`);
+
+        // We check both isBackendReady and that startup hasn't run yet.
+        if (isBackendReady && !startupRan.current) {
+            console.log("STEP 4: Backend is ready! Running startup checks...");
+            runStartupChecks();
+            loadPresets();
+            loadLastConfig();
+            // Mark startup as complete to prevent re-running
+            startupRan.current = true;
+        }
+    }, [isBackendReady]); // This effect depends ONLY on isBackendReady.
+
+    // Effect 3: Log scrolling effect
     useEffect(() => {
         if (logConsoleRef.current) {
             logConsoleRef.current.scrollTop = logConsoleRef.current.scrollHeight;
@@ -238,23 +289,7 @@ function App() {
         }
     }, [isProcessing]);
 
-    useEffect(() => {
-        // This check prevents the startup logic from running twice in development
-        // due to React's Strict Mode, which fixes the duplicate log issue.
-        if (startupRan.current === false) {
-            runStartupChecks();
-            loadPresets();
-            loadLastConfig();
-            startupRan.current = true;
-        }
-
-        return () => {
-            if (eventSourceRef.current) {
-                eventSourceRef.current.close();
-            }
-        };
-    }, []);
-
+    
     
 
     // NEW: Effect to handle automatic reconnection attempts
@@ -303,6 +338,11 @@ function App() {
 
     // --- Core API Functions ---
     const apiCall = async (endpoint, options = {}) => {
+        if (!isBackendReady || !backendPort) {
+            throw new Error(`API call to ${endpoint} failed: Backend is not ready.`);
+        }
+        const API_BASE_URL = `http://127.0.0.1:${backendPort}`;
+
         try {
             const response = await fetch(`${API_BASE_URL}${endpoint}`, {
                 ...options,
@@ -453,6 +493,12 @@ function App() {
         if (eventSourceRef.current) {
             eventSourceRef.current.close();
         }
+
+        if (!isBackendReady || !backendPort) {
+            logToConsole("Cannot start log stream: Backend is not connected.", "error");
+            return;
+        }
+        const API_BASE_URL = `http://127.0.0.1:${backendPort}`;
 
         const es = new EventSource(`${API_BASE_URL}/api/stream-logs`);
         eventSourceRef.current = es;
@@ -830,7 +876,15 @@ function App() {
             console.log('Could not save config before exit:', error);
         }
 
-        // Close the application
+        // NEW: Gracefully shut down the backend server
+        try {
+            // No need to handle errors here; if it fails, we're exiting anyway.
+            await apiCall('/api/shutdown', { method: 'POST' });
+        } catch (e) {
+            // Ignore errors, as the backend might already be down.
+        }
+
+        // Close the application window
         try {
             const appWindow = getCurrentWindow();
             await appWindow.close();
