@@ -66,4 +66,4 @@ jobs:
       - name: Test Tauri build (debug)
         run: |
           cd frontend
-          npm run tauri build -- --debug
+          npm run tauri build -- --debug  # This is correct for CI testing

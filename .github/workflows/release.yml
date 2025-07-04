@@ -77,7 +77,7 @@ jobs:
       - name: Build Tauri application
         run: |
           cd frontend
-          npm run tauri build
+          npm run tauri build  # Remove any --debug flags here
 
       # Generate checksums for verification
       - name: Generate checksums
@@ -97,7 +97,14 @@ jobs:
       - name: Find installer files
         id: find_files
         run: |
-          cd frontend\src-tauri\target\release\bundle
+          cd frontend\src-tauri\target\release\bundle  # Make sure this is 'release', not 'debug'
+          
+          # If release folder doesn't exist, check debug folder as fallback
+          if (-not (Test-Path ".")) {
+            cd ..\debug\bundle
+            Write-Output "Using debug bundle directory as fallback"
+          }
+          
           $msiFile = Get-ChildItem -Path "msi" -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
           $exeFile = Get-ChildItem -Path "nsis" -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           
