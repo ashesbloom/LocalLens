@@ -236,4 +236,4 @@ This project is licensed under the GNU Affero General Public License v3.0 (AGPL-
 
 ---
 
-** ⛓️‍💥 Engineered with purpose by [Mayank Pandey](https://www.linkedin.com/in/onlinerecord-mayank/)**
+**⛓️‍💥 Engineered with purpose by [Mayank Pandey](https://www.linkedin.com/in/onlinerecord-mayank/)**
