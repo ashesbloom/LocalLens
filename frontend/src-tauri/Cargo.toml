@@ -1,5 +1,5 @@
 [package]
-name = "AI_Photo_Organizer"
+name = "LocalLens"
 version = "0.1.0"
 description = "Application to organize photos using AI with face recognition and object detection."
 authors = ["you"]

@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "AI_Photo_Organizer"
+name = "LocalLens"
 version = "0.1.0"
 dependencies = [
  "serde",
