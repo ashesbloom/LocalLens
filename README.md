@@ -1,5 +1,4 @@
 # Local Lens
-
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
 [![Build Status](https://img.shields.io/badge/Build-Passing-green.svg)]()
@@ -9,6 +8,7 @@
 ![GitHub stars ](https://img.shields.io/github/stars/ashesbloom/LocalLens?style=social)
 ![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social)
 ![GitHub repo size ](https://img.shields.io/github/repo-size/ashesbloom/LocalLens)
+[![Buy Me A Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://coff.ee/ashesbloom)
 
 **Local Lens** is a powerful, AI-driven photo organization application that intelligently sorts and categorizes your photo collection using advanced facial recognition, location data, and metadata analysis. Built with modern technologies, it provides a seamless desktop experience.
 
@@ -279,3 +279,6 @@ This project is licensed under the GNU Affero General Public License v3.0 (AGPL-
 ---
 
 **⛓️‍💥 Engineered with purpose by [Mayank Pandey](https://www.linkedin.com/in/onlinerecord-mayank/)**
+> If you found my project useful, please consider supporting me so I can build more projects like this (I'm broke af):
+
+[![Buy Me A Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://coff.ee/ashesbloom)
