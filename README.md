@@ -5,8 +5,8 @@
 [![GitHub release](https://img.shields.io/github/v/release/ashesbloom/LocalLens)](https://github.com/ashesbloom/LocalLens/releases)
 [![GitHub downloads](https://img.shields.io/github/downloads/ashesbloom/LocalLens/total)](https://github.com/ashesbloom/LocalLens/releases)
 
-![GitHub stars ](https://img.shields.io/github/stars/ashesbloom/LocalLens?style=social)
-![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social)
+![GitHub stars ](https://img.shields.io/github/stars/ashesbloom/LocalLens?style=social&cacheSeconds=60)
+![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social&cacheSeconds=60)
 ![GitHub repo size ](https://img.shields.io/github/repo-size/ashesbloom/LocalLens)
 [![Buy Me A Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://coff.ee/ashesbloom)
 
