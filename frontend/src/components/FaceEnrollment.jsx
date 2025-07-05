@@ -45,7 +45,7 @@ const FaceEnrollment = ({
         <div className={`enrollment-section ${isModalMode ? 'modal-mode' : ''}`}>
             <div className="form-group">
                 <h2 className="section-title">Face Enrollment</h2>
-                <p className="description">Add multiple people for face recognition. Provide 5-10 photos per person for best results.</p>
+                <p className="description">Add multiple people for face recognition. <strong style={{fontWeight: 'bold', color: 'lightpink'}}> Provide 7-10 close up photos ideally from all angles per person </strong> for best results.</p>
             </div>
             
             {/* --- Form for adding a new person --- */}
