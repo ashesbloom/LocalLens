@@ -5,10 +5,6 @@
 [![Build Status](https://img.shields.io/badge/Build-Passing-green.svg)]()
 [![GitHub release](https://img.shields.io/github/v/release/ashesbloom/LocalLens)](https://github.com/ashesbloom/LocalLens/releases)
 [![GitHub downloads](https://img.shields.io/github/downloads/ashesbloom/LocalLens/total)](https://github.com/ashesbloom/LocalLens/releases)
-<<<<<<< HEAD
-=======
-
->>>>>>> f6b09269f929c6eec523115d9bab904498c43136
 
 ![GitHub stars ](https://img.shields.io/github/stars/ashesbloom/LocalLens?style=social)
 ![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social)
@@ -21,15 +17,15 @@
 Take a look at Local Lens in action:
 
 <p align="center">
-    <img src="https://github.com/ashesbloom/LocalLens/assets/preview1.png" alt="Local Lens Main Dashboard" width="700"/>
+    <img src="https://github.com/ashesbloom/LocalLens/blob/main/assets/preview1.png?raw=true" alt="Local Lens Main Dashboard" width="700"/>
 </p>
 
 <p align="center">
-    <img src="https://github.com/ashesbloom/LocalLens/assets/preview2.png" alt="Face Recognition in Local Lens" width="700"/>
+    <img src="https://github.com/ashesbloom/LocalLens/blob/main/assets/preview2.png?raw=true" alt="Face Recognition in Local Lens" width="700"/>
 </p>
 
 <p align="center">
-    <img src="https://github.com/ashesbloom/LocalLens/assets/preview3.png" alt="Photo Organization by Location" width="700"/>
+    <img src="https://github.com/ashesbloom/LocalLens/blob/main/assets/preview3.png?raw=true" alt="Photo Organization by Location" width="700"/>
 </p>
 
 > _Screenshots are for illustration. UI may evolve with updates._
