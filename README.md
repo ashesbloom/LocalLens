@@ -279,6 +279,6 @@ This project is licensed under the GNU Affero General Public License v3.0 (AGPL-
 ---
 
 **⛓️‍💥 Engineered with purpose by [Mayank Pandey](https://www.linkedin.com/in/onlinerecord-mayank/)**
-> If you found my project useful, please consider supporting me so I can build more projects like this (I'm broke af):
-
+> If you found my project useful, please consider supporting me so I can build more projects like this, cuz I'm broke af:
 [![Buy Me A Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://coff.ee/ashesbloom)
+> Alternatively, you can scan this UPI ID: [ Scan QR](https://drive.google.com/file/d/1jxE5fkx7AZc4rgabLLM8TGaPb09pJEAl/view?usp=sharing)
