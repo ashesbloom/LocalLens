@@ -5,6 +5,10 @@
 [![Build Status](https://img.shields.io/badge/Build-Passing-green.svg)]()
 [![GitHub release](https://img.shields.io/github/v/release/ashesbloom/LocalLens)](https://github.com/ashesbloom/LocalLens/releases)
 [![GitHub downloads](https://img.shields.io/github/downloads/ashesbloom/LocalLens/total)](https://github.com/ashesbloom/LocalLens/releases)
+<<<<<<< HEAD
+=======
+
+>>>>>>> f6b09269f929c6eec523115d9bab904498c43136
 
 ![GitHub stars ](https://img.shields.io/github/stars/ashesbloom/LocalLens?style=social)
 ![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social)
