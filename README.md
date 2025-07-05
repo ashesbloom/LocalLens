@@ -3,8 +3,8 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
 [![Build Status](https://img.shields.io/badge/Build-Passing-green.svg)]()
-![GitHub release ](https://img.shields.io/github/v/release/ashesbloom/LocalLens)
-![GitHub downloads ](https://img.shields.io/github/downloads/ashesbloom/LocalLens/total)
+[![GitHub release](https://img.shields.io/github/v/release/ashesbloom/LocalLens)](https://github.com/ashesbloom/LocalLens/releases)
+[![GitHub downloads](https://img.shields.io/github/downloads/ashesbloom/LocalLens/total)](https://github.com/ashesbloom/LocalLens/releases)
 
 ![GitHub stars ](https://img.shields.io/github/stars/ashesbloom/LocalLens?style=social)
 ![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social)
@@ -12,43 +12,82 @@
 
 **Local Lens** is a powerful, AI-driven photo organization application that intelligently sorts and categorizes your photo collection using advanced facial recognition, location data, and metadata analysis. Built with modern technologies, it provides a seamless desktop experience.
 
-## 🌟 Features
+## 🖥️ Software Preview
 
-### 🎯 Vision & Purpose
+Take a look at Local Lens in action:
 
-**Local Lens** revolutionizes how you manage massive photo collections through intelligent, privacy-first automation. Designed for photographers, families, and anyone drowning in thousands of digital memories, this application transforms the overwhelming task of photo organization into an effortless, secure experience.
+<p align="center">
+    <img src="https://github.com/ashesbloom/LocalLens/assets/preview1.png" alt="Local Lens Main Dashboard" width="700"/>
+</p>
 
-#### The Challenge We Solve
-Managing tens of thousands of photos manually is a labor-intensive nightmare. Traditional cloud solutions compromise your privacy and require expensive subscriptions. Local Lens addresses this by bringing enterprise-grade AI capabilities directly to your desktop.
+<p align="center">
+    <img src="https://github.com/ashesbloom/LocalLens/assets/preview2.png" alt="Face Recognition in Local Lens" width="700"/>
+</p>
 
-#### Core Philosophy: Privacy-First Intelligence
-- **🔒 100% Local Processing**: All AI models, face recognition, and data analysis happen entirely on your machine
-- **🛡️ Zero Data Transmission**: Your photos never leave your device - ultimate security guaranteed
-- **⚡ Lightning-Fast Search**: Find any photo in minutes using dynamic, real-time filters
-- **🔍 Multi-Dimensional Discovery**: Search by faces, dates, locations, or any combination simultaneously
+<p align="center">
+    <img src="https://github.com/ashesbloom/LocalLens/assets/preview3.png" alt="Photo Organization by Location" width="700"/>
+</p>
 
-#### Intelligent Organization Features
-- **📅 Smart Date Sorting**: Automatic chronological organization with metadata extraction
-- **🗺️ Location Intelligence**: GPS-based clustering and reverse geocoding for place-based organization
-- **👤 Face Recognition**: Train the AI to recognize family members, friends, and recurring subjects
-- **🔄 Dynamic Filtering**: Real-time search results that update as you type and adjust filters
-- **📊 Comprehensive Analytics**: Detailed insights into your photo collection patterns
+> _Screenshots are for illustration. UI may evolve with updates._
 
-#### Enterprise-Grade Safety & Reliability
-- **💾 Data Integrity Guarantee**: Multiple validation layers ensure 100% data safety during processing
-- **🔄 Non-Destructive Operations**: Original files remain untouched with smart duplicate management
-- **📋 Detailed Logging**: Complete audit trail of all organizational activities
-- **⚠️ Robust Error Handling**: Graceful recovery from any processing interruptions
-- **🎯 Precision Accuracy**: Advanced algorithms minimize false positives in face detection and matching
+## 🎯 Vision & Purpose
 
-Whether you're a professional photographer with massive archives, a family preserving decades of memories, or anyone tired of scrolling endlessly through unorganized photos, Local Lens transforms chaos into clarity while keeping your privacy absolutely protected.
+**Local Lens** revolutionizes photo management with intelligent, privacy-first automation. Designed for photographers, families, and anyone with thousands of digital memories, it transforms overwhelming photo organization into an effortless, secure experience.
+
+### The Challenge We Solve
+Manual photo sorting is tedious, and cloud solutions risk your privacy. Local Lens brings enterprise-grade AI directly to your desktop—no subscriptions, no data leaving your device.
+
+### Core Philosophy: Privacy-First Intelligence
+- **🔒 100% Local Processing**: All AI and analysis run on your machine
+- **🛡️ Zero Data Transmission**: Photos never leave your device
+- **⚡ Lightning-Fast Search**: Dynamic, real-time filters
+- **🔍 Multi-Dimensional Discovery**: Search by faces, dates, locations, or combinations
+
+### Intelligent Organization Features
+- **📅 Smart Date Sorting**: Chronological organization via metadata
+- **🗺️ Location Intelligence**: GPS clustering and reverse geocoding
+- **👤 Face Recognition**: Train AI to recognize people
+- **🔄 Dynamic Filtering**: Real-time, responsive search
+- **📊 Analytics**: Insights into your photo collection
+
+### Enterprise-Grade Safety & Reliability
+- **💾 Data Integrity**: Multiple validation layers for safety
+- **🔄 Non-Destructive**: Originals untouched, smart duplicate management
+- **📋 Logging**: Complete audit trail
+- **⚠️ Robust Error Handling**: Graceful recovery from interruptions
+- **🎯 Precision Accuracy**: Advanced algorithms minimize false positives
 
 ### Advanced Features
-- **👥 Face Enrollment**: Train the AI to recognize specific people in your photos
-- **🌍 Cross-Platform Support**: Native applications for Windows, macOS, and Linux
-- **💾 Persistent Configuration**: Save and load sorting preferences and presets
-- **🔍 Real-Time Preview**: Live analytics and progress tracking during operations
-- **🎨 Modern UI**: Clean, intuitive interface built with React and Tauri
+- **👥 Face Enrollment**: Teach AI to recognize specific people
+- **🌍 Cross-Platform**: Native on Windows, macOS, Linux
+- **💾 Persistent Config**: Save/load sorting presets
+- **🔍 Real-Time Preview**: Live analytics and progress
+- **🎨 Modern UI**: Clean interface with React & Tauri
+
+#### 🧠 Enhanced Automatic Strategy (How Local Lens Stays Fast & Accurate)
+
+Local Lens uses an adaptive, two-pass face recognition strategy for maximum accuracy and stability:
+
+- **Conservative Start**: Begins with minimal parallel processing for stability on all hardware.
+- **Best-Model First**: Tries the high-accuracy 'cnn' model for each image.
+- **Intelligent Fallback**: If 'cnn' fails (e.g., due to memory limits), it logs a warning and instantly retries with the lighter 'hog' model—ensuring no image is skipped.
+- **Accurate Model Approach**: 
+    - **First Pass**: Runs the fast 'hog' model for initial detection.
+    - **Confidence Check**: If a high-confidence match is found, it's accepted.
+    - **Second Pass**: If not, escalates to the more accurate 'cnn' model for tough cases.
+
+This guarantees the best possible result for every photo, adapting to your hardware and image complexity—never crashing or missing faces.
+
+
+### 🖼️ Supported Formats
+
+Local Lens supports a wide range of image formats for both professional and casual users:
+
+`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.heic`, `.heif`, `.dng`, `.cr2`, `.cr3`, `.nef`, `.arw`, `.raf`, `.avif`, `.psd`, `.hdr`
+
+Whether you shoot on a phone or a pro camera, your images are covered.
+
+---
 
 ## 🏗️ Architecture
 
@@ -119,11 +158,11 @@ Local Lens uses a hybrid architecture combining the best of web and desktop tech
 ## 🚀 Quick Start
 
 ### Option 1: Download Pre-built Release (Recommended)
-1. Visit the [Releases page](https://github.com/your-username/local-lens/releases)
+1. Visit the [Releases page](https://github.com/ashesbloom/LocalLens/releases)
 2. Download the installer for your platform:
-   - Windows: `Local_Lens_x.x.x_x64-setup.exe` or `Local_Lens_x.x.x_x64_en-US.msi`
-   - macOS: `Local_Lens_x.x.x_x64.dmg`
-   - Linux: `Local_Lens_x.x.x_amd64.deb` or `Local_Lens_x.x.x_x86_64.AppImage`
+   - Windows: `Local_Lens_x.x.x_x64_en-US.msi`
+   - macOS: _Releasing soon_
+   - Linux: _Releasing soon_
 3. Run the installer and follow the setup wizard
 4. Launch Local Lens from your applications menu
 
