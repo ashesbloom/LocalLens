@@ -7,7 +7,7 @@
 
 ![GitHub stars ](https://img.shields.io/github/stars/ashesbloom/LocalLens?style=social&cacheSeconds=60)
 ![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social&cacheSeconds=60)
-![Views](https://komarev.com/ghpvc/?username=ashesbloom&repo=Locallens&color=brightblue&style=plastic&label=Views+so+far)
+![Views](https://komarev.com/ghpvc/?username=ashesbloom&repo=Locallens&color=blue&style=plastic&label=Views+so+far)
 
 [![Buy Me A Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://coff.ee/ashesbloom)
 
