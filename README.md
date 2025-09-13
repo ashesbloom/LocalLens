@@ -7,7 +7,8 @@
 
 ![GitHub stars ](https://img.shields.io/github/stars/ashesbloom/LocalLens?style=social&cacheSeconds=60)
 ![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social&cacheSeconds=60)
-![GitHub repo size ](https://img.shields.io/github/repo-size/ashesbloom/LocalLens)
+![Views](https://komarev.com/ghpvc/?username=ashesbloom&repo=Locallens&color=blue&style=plastic&label=Views+so+far)
+
 [![Buy Me A Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://coff.ee/ashesbloom)
 
 **Local Lens** is a powerful, AI-driven photo organization application that intelligently sorts and categorizes your photo collection using advanced facial recognition, location data, and metadata analysis. Built with modern technologies, it provides a seamless desktop experience.
@@ -123,7 +124,7 @@ Local Lens uses a hybrid architecture combining the best of web and desktop tech
 [![React](https://img.shields.io/badge/React-18+-61dafb.svg?logo=react&logoColor=white)](https://reactjs.org/)
 [![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Tauri](https://img.shields.io/badge/Tauri-1.0+-24c8db.svg?logo=tauri&logoColor=white)](https://tauri.app/)
+[![Tauri](https://img.shields.io/badge/Tauri-2.0-24c8db.svg?logo=tauri&logoColor=white)](https://tauri.app/)
 [![Vite](https://img.shields.io/badge/Vite-4.0+-646cff.svg?logo=vite&logoColor=white)](https://vitejs.dev/)
 
 ### Frontend
@@ -326,6 +327,7 @@ This project is licensed under the GNU Affero General Public License v3.0 (AGPL-
 ---
 
 **⛓️‍💥 Engineered with purpose by [Mayank Pandey](https://www.linkedin.com/in/onlinerecord-mayank/)**
-> If you found my project useful, please consider supporting me so I can build more projects like this (I'm broke af):
-
-[![Buy Me A Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://coff.ee/ashesbloom)
+> If you found my project useful, please consider supporting me so I can build more projects like this,
+> cuz I'm broke af: [![Buy Me A Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://coff.ee/ashesbloom)
+> 
+> Alternatively, you can scan this UPI ID: [ Scan QR](https://drive.google.com/file/d/1jxE5fkx7AZc4rgabLLM8TGaPb09pJEAl/view?usp=sharing)
