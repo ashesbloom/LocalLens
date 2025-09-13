@@ -1,16 +1,95 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ChevronRight, Folder } from 'lucide-react';
+
+// NEW: Recursive component to render each level of the folder tree
+const FolderTreeItem = ({ folder, ignoredSubfolders, onToggle, isProcessing }) => {
+    const [isExpanded, setIsExpanded] = useState(true);
+    const isIgnored = ignoredSubfolders.includes(folder.path);
+
+    const handleToggleExpand = (e) => {
+        e.stopPropagation(); // Prevent the label's click event from firing
+        if (folder.children.length > 0) {
+            setIsExpanded(!isExpanded);
+        }
+    };
+
+    const handleCheckboxClick = () => {
+        onToggle(folder);
+    };
+
+    return (
+        <div className="folder-tree-node">
+            <div className={`subfolder-item ${isIgnored ? 'ignored' : ''}`} onClick={handleCheckboxClick}>
+                <div className="folder-expander" onClick={handleToggleExpand}>
+                    {folder.children.length > 0 && (
+                        <ChevronRight
+                            size={16}
+                            className={`chevron-icon ${isExpanded ? 'expanded' : ''}`}
+                        />
+                    )}
+                </div>
+                <input
+                    type="checkbox"
+                    checked={isIgnored}
+                    onChange={() => {}} // Click is handled by the parent div
+                    disabled={isProcessing}
+                />
+                <Folder size={16} className="folder-icon" />
+                <span className="folder-name" title={folder.name}>{folder.name}</span>
+            </div>
+            {isExpanded && folder.children.length > 0 && (
+                <div className="folder-tree-children">
+                    {folder.children.map(child => (
+                        <FolderTreeItem
+                            key={child.path}
+                            folder={child}
+                            ignoredSubfolders={ignoredSubfolders}
+                            onToggle={onToggle}
+                            isProcessing={isProcessing}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 
 const SubfolderSelector = ({ subfolders, ignoredSubfolders, setIgnoredSubfolders, isProcessing, stats, className = '', onAnimationEnd }) => {
     if (subfolders.length === 0 && !stats) {
         return null;
     }
 
-    const handleCheckboxChange = (folderName) => {
-        setIgnoredSubfolders(prev => 
-            prev.includes(folderName)
-                ? prev.filter(f => f !== folderName)
-                : [...prev, folderName]
-        );
+    const getDescendantPaths = (folder) => {
+        const paths = [];
+        const queue = [...folder.children];
+        while (queue.length > 0) {
+            const current = queue.shift();
+            paths.push(current.path);
+            if (current.children && current.children.length > 0) {
+                queue.push(...current.children);
+            }
+        }
+        return paths;
+    };
+
+    const handleToggleFolder = (folder) => {
+        // RESTORED LOGIC: Toggling a parent affects all its descendants.
+        const isCurrentlyIgnored = ignoredSubfolders.includes(folder.path);
+        const descendantPaths = getDescendantPaths(folder);
+
+        setIgnoredSubfolders(prev => {
+            let newIgnored;
+            if (isCurrentlyIgnored) {
+                // Un-ignoring: Remove the folder and all its descendants from the ignore list.
+                const pathsToRemove = new Set([folder.path, ...descendantPaths]);
+                newIgnored = prev.filter(p => !pathsToRemove.has(p));
+            } else {
+                // Ignoring: Add the folder and all its descendants to the ignore list.
+                const pathsToAdd = [folder.path, ...descendantPaths];
+                newIgnored = [...new Set([...prev, ...pathsToAdd])];
+            }
+            return newIgnored;
+        });
     };
 
     return (
@@ -37,18 +116,15 @@ const SubfolderSelector = ({ subfolders, ignoredSubfolders, setIgnoredSubfolders
             </div>
 
             {subfolders.length > 0 && (
-                <div className="subfolder-list">
+                <div className="subfolder-list tree-view">
                     {subfolders.map(folder => (
-                        <label key={folder} className="subfolder-item" title={folder}>
-                            <input 
-                                type="checkbox"
-                                checked={ignoredSubfolders.includes(folder)}
-                                onChange={() => handleCheckboxChange(folder)}
-                                disabled={isProcessing}
-                            />
-                            <span className="folder-icon">📁</span>
-                            <span className="folder-name">{folder}</span>
-                        </label>
+                        <FolderTreeItem
+                            key={folder.path}
+                            folder={folder}
+                            ignoredSubfolders={ignoredSubfolders}
+                            onToggle={handleToggleFolder}
+                            isProcessing={isProcessing}
+                        />
                     ))}
                 </div>
             )}

@@ -21,59 +21,60 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(backend_info)
         .setup(|app| {
-            let backend_info = app.state::<BackendInfo>();
-            let port_clone = Arc::clone(&backend_info.port);
-            let child_clone = Arc::clone(&backend_info.child);
             let app_handle = app.handle().clone();
 
-            // Start the Python backend as a sidecar
-            tauri::async_runtime::spawn(async move {
-                let (mut rx, child) = app_handle.shell()
-                    .command("backend_server") 
-                    .spawn()
-                    .expect("Failed to spawn backend server");
+            // --- Conditional Backend Startup ---
 
-                // Store the child process handle in the shared state
-                *child_clone.lock().unwrap() = Some(child);
+            // In production, we spawn the sidecar executable
+            #[cfg(not(debug_assertions))]
+            {
+                let backend_info = app.state::<BackendInfo>();
+                let port_clone = Arc::clone(&backend_info.port);
+                let child_clone = Arc::clone(&backend_info.child);
 
-                // Listen for output from the Python process
-                while let Some(event) = rx.recv().await {
-                    match event {
-                        CommandEvent::Stdout(line) => {
-                            let line = String::from_utf8_lossy(&line);
-                            println!("Backend stdout: {}", line);
+                tauri::async_runtime::spawn(async move {
+                    let (mut rx, child) = app_handle.shell()
+                        .command("backend_server")
+                        .spawn()
+                        .expect("Failed to spawn backend server");
 
-                            // Look for the port announcement
+                    *child_clone.lock().unwrap() = Some(child);
+
+                    while let Some(event) = rx.recv().await {
+                        if let CommandEvent::Stdout(bytes) = event {
+                            // Convert the byte vector to a string.
+                            let line = String::from_utf8_lossy(&bytes);
+
                             if line.starts_with("PYTHON_BACKEND_PORT:") {
-                                if let Some(port_str) = line.strip_prefix("PYTHON_BACKEND_PORT:")
-                                {
+                                if let Some(port_str) = line.strip_prefix("PYTHON_BACKEND_PORT:") {
+                                    // Now that port_str is a &str, we can trim and parse it.
                                     if let Ok(port) = port_str.trim().parse::<u16>() {
-                                        println!("Backend server running on port: {}", port);
+                                        println!("Backend sidecar running on port: {}", port);
                                         *port_clone.lock().unwrap() = Some(port);
-
-                                        // Emit event to frontend with the port
                                         let _ = app_handle.emit("backend-ready", port);
                                     }
                                 }
                             }
                         }
-                        CommandEvent::Stderr(line) => {
-                            let line = String::from_utf8_lossy(&line);
-                            println!("Backend stderr: {}", line);
-                        }
-                        CommandEvent::Error(error) => {
-                            println!("Backend error: {}", error);
-                        }
-                        CommandEvent::Terminated(payload) => {
-                            println!("Backend terminated with code: {:?}", payload.code);
-                            break;
-                        }
-                        _ => {
-                            // Handle any other CommandEvent variants
-                        }
                     }
-                }
-            });
+                });
+            }
+
+            // In development, we connect to the manually started backend
+            #[cfg(debug_assertions)]
+            {
+                let backend_info = app.state::<BackendInfo>();
+                let dev_port = 8000; // Default port for the dev server
+                *backend_info.port.lock().unwrap() = Some(dev_port);
+                
+                // We need to give the frontend a moment to be ready to receive the event.
+                tauri::async_runtime::spawn(async move {
+                    // A small delay ensures the JS listener is ready.
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    println!("DEV MODE: Emitting backend-ready event for port {}", dev_port);
+                    let _ = app_handle.emit("backend-ready", dev_port);
+                });
+            }
 
             Ok(())
         })

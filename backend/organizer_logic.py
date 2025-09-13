@@ -21,10 +21,13 @@ from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 import tempfile
 from multiprocessing import Pool, TimeoutError as MultiprocessingTimeoutError
-import time # ADD THIS IMPORT
+import time
+
 
 # --- Custom Exception Import ---
 from exceptions import OperationAbortedError
+
+# --- REVERT: REMOVE ALL MULTIPROCESSING WORKER FUNCTIONS ---
 
 # --- Optional Imports with Graceful Fallbacks ---
 try:
@@ -233,12 +236,46 @@ def get_location(exif_data):
         logging.warning(f"Could not extract location due to corrupted GPS metadata: {e}")
         return None
 
-def get_metadata_overview(source_dir, ignore_list=None, encodings_path=None):
+def build_folder_tree(root_path):
     """
-    MODIFIED: Now scans for available months within each year.
+    NEW: Recursively builds a hierarchical tree of subdirectories.
+    """
+    tree = []
+    try:
+        # Use a dictionary to keep track of nodes by their path for easy lookup
+        dir_map = {root_path: tree}
+        for dirpath, dirnames, _ in os.walk(root_path, topdown=True):
+            # Find the parent node in our map
+            parent_list = dir_map.get(dirpath)
+            if parent_list is None:
+                continue # Should not happen in a top-down walk
+
+            # Sort dirnames to ensure consistent order in the UI
+            dirnames.sort(key=lambda v: v.lower())
+            
+            for dirname in dirnames:
+                current_path = os.path.join(dirpath, dirname)
+                node = {
+                    "name": dirname,
+                    "path": current_path,
+                    "children": []
+                }
+                parent_list.append(node)
+                # Add the new node's children list to the map for the next level
+                dir_map[current_path] = node["children"]
+        return tree
+    except Exception as e:
+        logging.error(f"Failed to build folder tree for {root_path}: {e}")
+        return []
+
+def get_metadata_overview(source_dir, ignore_list=None, encodings_path=None, scan_for_location=True):
+    """
+    MODIFIED: Now conditionally scans for location to avoid loading geocoder unnecessarily.
     """
     locations, people = set(), set()
     date_structure = {} # Changed from a simple set of years to a dict
+    # FIX: The ignore_list contains folder names, not full paths.
+    # This ensures the check later on is correct.
     ignore_set = set(ignore_list) if ignore_list else set()
     
     # Pre-load known faces if an encodings path is provided
@@ -252,8 +289,13 @@ def get_metadata_overview(source_dir, ignore_list=None, encodings_path=None):
             logging.warning(f"Could not load face encodings for metadata overview: {e}")
 
     files_to_scan = []
+    # CORRECTED LOGIC: Walk the entire tree, then filter files based on their parent folder.
     for dirpath, dirnames, filenames in os.walk(source_dir):
-        dirnames[:] = [d for d in dirnames if os.path.join(dirpath, d) not in ignore_set]
+        # Do not prune the walk. Instead, check each file's parent.
+        if dirpath in ignore_set:
+            # If the current directory is ignored, skip all files directly within it.
+            continue
+        
         for f in filenames:
             if f.lower().endswith(SUPPORTED_EXTENSIONS):
                 files_to_scan.append(os.path.join(dirpath, f))
@@ -264,10 +306,15 @@ def get_metadata_overview(source_dir, ignore_list=None, encodings_path=None):
     logging.info(f"Scanning {len(files_to_scan)} files for metadata overview...")
     for file_path in files_to_scan:
         exif = get_exif_data(file_path)
-        loc = get_location(exif)
+        
+        # --- CONDITIONAL LOCATION SCAN ---
+        # Only call get_location if the operation requires it.
+        if scan_for_location:
+            loc = get_location(exif)
+            if loc:
+                locations.add(loc)
+
         date_obj = get_date_taken(exif)
-        if loc:
-            locations.add(loc)
         if date_obj:
             year_str = str(date_obj.year)
             month_str = date_obj.strftime('%m') # e.g., "07"
@@ -303,10 +350,12 @@ def handle_file_op(op, source_path, target_folder, new_filename, date_obj):
         if date_obj:
             timestamp = date_obj.timestamp()
             os.utime(destination_path, (timestamp, timestamp))
-        return True
+        # FIX: Return the actual destination path on success, not a boolean.
+        return destination_path
     except Exception as e:
         logging.error(f"Error performing '{op}' on '{os.path.basename(source_path)}': {e}")
-        return False
+        # FIX: Return None on failure.
+        return None
 
 # ==============================================================================
 #  Face Recognition Core Logic
@@ -479,8 +528,11 @@ def find_and_group_photos(config, update_callback):
     source_dir = config["source_folder"]
     base_dest_dir = config["destination_folder"]
     find_config = config["find_config"]
+    ignore_list = config.get("ignore_list", []) # Get the ignore list
     encodings_path = config.get("encodings_path")
     cancellation_event = config.get("cancellation_event")
+    # NEW: Get operation mode, defaulting to 'copy' for this feature
+    operation_mode = config.get("operation_mode", "copy")
 
     target_folder_name = find_config.get('folderName', "Find_Results")
     target_folder = os.path.join(base_dest_dir, target_folder_name)
@@ -496,7 +548,17 @@ def find_and_group_photos(config, update_callback):
     initial_analytics = {"quality": "Fast", "scan_rate": "0.0", "data_flow": "0.0"}
     update_callback(0, "Preparing to search for photos...", "running", initial_analytics)
 
-    files_to_process = [os.path.join(dp, f) for dp, _, fn in os.walk(source_dir) for f in fn if f.lower().endswith(SUPPORTED_EXTENSIONS)]
+    # CORRECTED LOGIC: Filter files to process using the parent folder check.
+    ignore_set = set(ignore_list)
+    files_to_process = []
+    for dirpath, dirnames, filenames in os.walk(source_dir):
+        if dirpath in ignore_set:
+            continue # Ignore files in this directory, but os.walk will still process its subdirectories.
+        
+        for f in filenames:
+            if f.lower().endswith(SUPPORTED_EXTENSIONS):
+                files_to_process.append(os.path.join(dirpath, f))
+
     total_files = len(files_to_process)
     if total_files == 0:
         update_callback(100, "No supported image files found in the source directory.", "complete", initial_analytics)
@@ -589,11 +651,11 @@ def find_and_group_photos(config, update_callback):
         if match:
             date_obj = get_date_taken(exif_data)
             new_filename = f"{date_obj.strftime('%Y-%m-%d_%H%M%S')}_{os.path.basename(source_path)}" if date_obj else os.path.basename(source_path)
-            if handle_file_op('copy', source_path, target_folder, new_filename, date_obj):
+            if handle_file_op(operation_mode, source_path, target_folder, new_filename, date_obj):
                 found_count += 1
-                logging.info(f"Found match: Copied '{os.path.basename(source_path)}' to '{target_folder_name}'")
+                logging.info(f"Found match: {operation_mode.capitalize()}d '{os.path.basename(source_path)}' to '{target_folder_name}'")
 
-    completion_message = f"Search complete. Found and copied {found_count} matching photos to '{target_folder_name}'."
+    completion_message = f"Search complete. Found and {operation_mode}d {found_count} matching photos to '{target_folder_name}'."
     if found_count == 0:
         completion_message = "Search complete. No photos matched the specified criteria."
         
@@ -626,6 +688,7 @@ def _get_standard_sort_paths(base_dir, sort_method, date_obj, location_path, nam
     elif sort_method == 'People':
         dest_paths = get_people_dest_paths(base_dir, names) if names else [os.path.join(base_dir, NO_FACES_FOLDER_NAME)]
     return dest_paths
+
 
 def _get_hybrid_sort_paths(dest_dir, sort_options, exif_data, date_obj, names, multiple_countries_found):
     """
@@ -685,12 +748,27 @@ def _get_hybrid_sort_paths(dest_dir, sort_options, exif_data, date_obj, names, m
     return dest_paths
 
 
-def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, encodings_path, cancellation_event=None):
+def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, encodings_path, cancellation_event=None, operation_mode='move'):
     """
     REFACTORED: This function is now a high-level orchestrator that calls dedicated
     functions for each sorting mode, preventing logic conflicts.
     """
-    files_to_process = [os.path.join(dp, f) for dp, _, fn in os.walk(work_dir) for f in fn if f.lower().endswith(SUPPORTED_EXTENSIONS)]
+    # Get the full-path ignore list from the options.
+    ignore_list = sort_options.get("ignore_list", [])
+    ignore_set = set(ignore_list)
+    
+    files_to_process = []
+    # CORRECTED LOGIC: Walk the entire tree, then filter files based on their parent folder.
+    for dirpath, dirnames, filenames in os.walk(work_dir):
+        # If the current directory is in the ignore set, skip its direct files.
+        # os.walk will continue to traverse into subdirectories like 'B' inside 'A'.
+        if dirpath in ignore_set:
+            continue
+
+        for f in filenames:
+            if f.lower().endswith(SUPPORTED_EXTENSIONS):
+                files_to_process.append(os.path.join(dirpath, f))
+
     total_files = len(files_to_process)
     if total_files == 0:
         update_callback(100, "Scan complete. No supported image files found.", "complete")
@@ -731,6 +809,9 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
 
 
     moved_count = 0
+    # ADD THIS: A manifest to track file operations for rollback on abort.
+    operation_manifest = []
+
     for i, source_path in enumerate(files_to_process):
         progress = 10 + int(((i + 1) / total_files) * 85)
         
@@ -755,7 +836,8 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
         update_callback(progress, f"Analyzing: {os.path.basename(source_path)}", "running", analytics)
         
         if cancellation_event and cancellation_event.is_set():
-            raise OperationAbortedError("Sorting operation cancelled by user.")
+            # Pass the manifest to the exception so the finally block can use it.
+            raise OperationAbortedError("Sorting operation cancelled by user.", manifest=operation_manifest)
 
         original_subfolder = os.path.relpath(os.path.dirname(source_path), work_dir) if work_dir != os.path.dirname(source_path) else ''
         exif_data = get_exif_data(source_path)
@@ -782,31 +864,53 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
         if sort_method == 'Hybrid':
             dest_paths = _get_hybrid_sort_paths(dest_dir, sort_options, exif_data, date_obj, names, multiple_countries_found)
         else: # Standard Sort
-            location_path = get_location(exif_data)
+            # --- DEFINITIVE FIX ---
+            # Only call get_location if the sort method actually requires it.
+            # This prevents the geocoder from loading and causing file locks on other sort types.
+            location_path = None
             if sort_method == 'Location':
+                logging.info("DEBUG: Location sort in progress, calling get_location().")
                 location_path = get_location(exif_data)
+            
             dest_paths = _get_standard_sort_paths(dest_dir, sort_method, date_obj, location_path, names, multiple_countries_found, sort_options)
 
         # --- File Operation Execution ---
         special_folder_path = None
-        for j, dest_path in enumerate(dest_paths):
-            if sort_method == 'Hybrid' and j == 0:
-                # Copy to the special folder
-                special_folder_path = dest_path
-                op = 'copy'
-            else:
-                # Move to the base sort destination
-                op = 'move'
-            
-            final_target = os.path.join(dest_path, original_subfolder) if sort_options.get('maintain_hierarchy') else dest_path
-            if handle_file_op(op, source_path, final_target, new_filename, date_obj) and op == 'move':
-                moved_count += 1
+        # The primary operation is now passed in
+        op = operation_mode
 
-        # Ensure the photo is moved to the base sort destination even if it was copied to the special folder
-        if special_folder_path and len(dest_paths) > 1:
-            base_sort_path = dest_paths[1]
-            final_target = os.path.join(base_sort_path, original_subfolder) if sort_options.get('maintain_hierarchy') else base_sort_path
-            handle_file_op('move', source_path, final_target, new_filename, date_obj)
+        # --- CORRECTED HYBRID MOVE LOGIC ---
+        # In Hybrid mode, we separate the 'special' copies from the final 'base' move.
+        if sort_method == 'Hybrid':
+            # The last path in the list from _get_hybrid_sort_paths is always the base sort path.
+            base_sort_path = dest_paths.pop() if dest_paths else None
+            
+            # Any remaining paths are for special folders. These are always 'copy' operations.
+            for special_dest_path in dest_paths:
+                final_target = os.path.join(special_dest_path, original_subfolder) if sort_options.get('maintain_hierarchy') else special_dest_path
+                handle_file_op('copy', source_path, final_target, new_filename, date_obj)
+
+            # Now, perform the primary operation ('move' or 'copy') for the base sort path.
+            if base_sort_path:
+                final_target = os.path.join(base_sort_path, original_subfolder) if sort_options.get('maintain_hierarchy') else base_sort_path
+                final_destination = handle_file_op(op, source_path, final_target, new_filename, date_obj)
+                if final_destination:
+                    if op == 'move':
+                        operation_manifest.append({'source': source_path, 'destination': final_destination})
+                    moved_count += 1
+        else:
+            # --- STANDARD SORT LOGIC (Unchanged) ---
+            for dest_path in dest_paths:
+                final_target = os.path.join(dest_path, original_subfolder) if sort_options.get('maintain_hierarchy') else dest_path
+                final_destination = handle_file_op(op, source_path, final_target, new_filename, date_obj)
+                
+                if final_destination:
+                    if op == 'move':
+                        operation_manifest.append({'source': source_path, 'destination': final_destination})
+                    moved_count += 1
+                    # If we successfully moved the file, we don't need to process it for other destinations
+                    if op == 'move':
+                        break
 
     return moved_count
 
@@ -816,52 +920,146 @@ def process_photos(config, update_callback):
     dest_dir = config["destination_folder"]
     sort_options = config.get("sorting_options", {"primary_sort": config.get("sort_method", "Date"), "maintain_hierarchy": True})
     ignore_list = config.get("ignore_list", [])
-    # CONFLICT FIXED: Get the correct encodings path from the config dictionary
+    # FIX: Add ignore_list to sort_options so it can be passed to _core_processing_loop
+    sort_options["ignore_list"] = ignore_list
+    operation_mode = config.get("operation_mode", "move")
     encodings_path = config.get("encodings_path")
     cancellation_event = config.get("cancellation_event")
 
-    # --- MODIFIED: Decoupled Logging ---
-    # Create a temporary file for logging in a fast, local directory to prevent blocking I/O.
     log_file_handle, temp_log_path = tempfile.mkstemp(suffix=".log", text=True)
-    os.close(log_file_handle) # Close the handle, we just need the path.
+    os.close(log_file_handle)
 
     log_handler = logging.FileHandler(temp_log_path, mode='w', encoding='utf-8')
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     log_handler.setFormatter(formatter)
     
-    # Add handler to the root logger, clearing any old ones first.
     root_logger = logging.getLogger()
     if root_logger.hasHandlers():
         root_logger.handlers.clear()
     root_logger.addHandler(log_handler)
     root_logger.setLevel(logging.INFO)
     
-    # --- MODIFIED: Determine quality metric for initial messages ---
     face_rec_mode = sort_options.get('face_mode', 'balanced')
     quality_map = {"fast": "Fast", "balanced": "Balanced", "accurate": "High"}
     quality_metric = quality_map.get(face_rec_mode, "N/A")
     initial_analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
-    update_callback(0, "System prepared. Initiating organization process.", "running", initial_analytics)
+    update_callback(0, f"System prepared. Initiating '{operation_mode.capitalize()}' operation.", "running", initial_analytics)
 
+    work_dir = source_dir
     temp_source_path = None
+    operation_successful = False # Add a flag to track success
+    # FIX: A new flag to determine if the original source should be deleted.
+    delete_original_source_on_success = False
+    
+    # ADD THIS: To hold the manifest if an abort occurs
+    rollback_manifest = None
+
     try:
-        update_callback(1, "Creating secure temporary workspace...", "running", initial_analytics)
-        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        temp_source_name = f"_Source_Copy_{timestamp}"
-        temp_source_path = os.path.join(os.path.dirname(dest_dir), temp_source_name)
-        ignore_pattern = shutil.ignore_patterns(*ignore_list) if ignore_list else None
-        shutil.copytree(source_dir, temp_source_path, ignore=ignore_pattern, copy_function=shutil.copy2)
+        if operation_mode == 'move':
+            source_dev = os.stat(source_dir).st_dev
+            dest_dev = os.stat(dest_dir).st_dev
+
+            if source_dev != dest_dev:
+                # --- SAFE PATH: Different drives ---
+                # This path is transactional and fully reversible on abort.
+                logging.warning("Source and destination are on different drives. Using safe copy-then-delete method.")
+                update_callback(1, "Verifying required disk space...", "running", initial_analytics)
+                
+                # CORRECTED LOGIC: Filter files based on their parent folder for size calculation.
+                ignore_set = set(ignore_list)
+                files_to_process = []
+                for dirpath, dirnames, filenames in os.walk(source_dir):
+                    if dirpath in ignore_set:
+                        continue # Ignore files in this directory for size calculation.
+                    
+                    for f in filenames:
+                        if f.lower().endswith(SUPPORTED_EXTENSIONS):
+                            files_to_process.append(os.path.join(dirpath, f))
+
+                total_size = sum(os.path.getsize(f) for f in files_to_process)
+                free_space = shutil.disk_usage(dest_dir).free
+
+                if total_size > free_space:
+                    required_gb = total_size / (1024**3)
+                    available_gb = free_space / (1024**3)
+                    error_msg = f"Insufficient space on destination drive. You need {required_gb:.2f} GB but only have {available_gb:.2f} GB available. Operation cancelled."
+                    logging.error(error_msg)
+                    raise Exception(error_msg)
+                
+                update_callback(2, "Space check passed. Creating secure temporary workspace...", "running", initial_analytics)
+                timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                temp_source_name = f"_Source_Copy_{timestamp}"
+                temp_source_path = os.path.join(os.path.dirname(dest_dir), temp_source_name)
+                
+                # CORRECTED: shutil.ignore_patterns does not work with full paths.
+                # We must define a custom ignore function for copytree.
+                def ignore_func(directory, contents):
+                    ignored_items = []
+                    for item in contents:
+                        full_path = os.path.join(directory, item)
+                        if full_path in ignore_set:
+                            ignored_items.append(item)
+                    return ignored_items
+
+                shutil.copytree(source_dir, temp_source_path, ignore=ignore_func, copy_function=shutil.copy2)
+                work_dir = temp_source_path
+                # Set the flag to delete the original source only if this safe method completes.
+                delete_original_source_on_success = True
+            else:
+                # --- FAST PATH: Same drive ---
+                # Work directly on the source folder. `shutil.move` will be a fast rename.
+                # Aborting here is not fully transactional, but it is safe (no data loss).
+                logging.info("Source and destination are on the same drive. Performing a fast and efficient move.")
+                update_callback(2, "Performing fast move on the same drive.", "running", initial_analytics)
+                work_dir = source_dir
+                # Do NOT set the delete flag. The files are moved one by one.
+                delete_original_source_on_success = False
+        
+        # For 'copy' operation, work_dir remains source_dir.
+
         update_callback(5, "Workspace secured. Commencing file processing...", "running", initial_analytics)
         
-        # CONFLICT FIXED: Pass the correct path to the core processing loop
-        moved_count = _core_processing_loop(temp_source_path, dest_dir, sort_options, update_callback, encodings_path, cancellation_event)
+        moved_count = _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, encodings_path, cancellation_event, operation_mode)
 
-        completion_message = f"Process complete. {moved_count} files successfully organized."
+        completion_message = f"Process complete. {moved_count} files successfully {operation_mode}d."
         logging.info(completion_message)
         update_callback(100, completion_message, "complete", initial_analytics)
+        operation_successful = True # Mark as successful
+
+    except OperationAbortedError as e:
+        # Catch the abort error to get the manifest
+        rollback_manifest = e.manifest
+        # Re-raise the exception so the main error handling catches it
+        raise e
 
     finally:
+        # --- ABORT ROLLBACK LOGIC ---
+        if rollback_manifest:
+            update_callback(99, "Aborted. Rolling back moved files...", "running", initial_analytics)
+            logging.info(f"Rollback initiated for {len(rollback_manifest)} files.")
+            for op in reversed(rollback_manifest):
+                try:
+                    # Move the file from its new destination back to its original source directory
+                    original_folder = os.path.dirname(op['source'])
+                    os.makedirs(original_folder, exist_ok=True)
+                    shutil.move(op['destination'], op['source'])
+                except Exception as rollback_e:
+                    logging.error(f"CRITICAL: Rollback failed for '{op['destination']}'. Please move it manually to '{op['source']}'. Error: {rollback_e}")
+            logging.info("Rollback complete.")
+
+        # This block runs on success, failure, or abort.
+        # FIX: Only delete the original source if the 'safe move' path was taken and was successful.
+        if delete_original_source_on_success and operation_successful:
+            try:
+                update_callback(99, "Finalizing move: Removing original source directory...", "running", initial_analytics)
+                shutil.rmtree(source_dir)
+                logging.info(f"Successfully removed original source directory: {source_dir}")
+            except Exception as e:
+                logging.error(f"CRITICAL: Failed to remove original source directory after move: {e}")
+                update_callback(100, f"Error: Could not remove original source folder. Please remove it manually: {source_dir}", "warning", initial_analytics)
+
         if temp_source_path and os.path.exists(temp_source_path):
+            # This cleanup is for the 'safe move' path, especially on abort.
             update_callback(99, "Finalizing operation: Cleaning up temporary workspace...", "running", initial_analytics)
             shutil.rmtree(temp_source_path)
             logging.info("Temporary folder cleanup complete.")
@@ -870,7 +1068,6 @@ def process_photos(config, update_callback):
             root_logger.removeHandler(log_handler)
             log_handler.close()
             
-            # --- MODIFIED: Move log file to final destination ---
             try:
                 final_log_dir = os.path.join(dest_dir, "logs")
                 os.makedirs(final_log_dir, exist_ok=True)
@@ -880,6 +1077,5 @@ def process_photos(config, update_callback):
                 print(f"Log file moved to {final_log_path}")
             except Exception as e:
                 print(f"Error moving log file to destination: {e}")
-                # Clean up the temp file if move fails
                 if os.path.exists(temp_log_path):
                     os.remove(temp_log_path)

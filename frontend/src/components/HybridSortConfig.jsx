@@ -118,7 +118,7 @@ const HybridSortConfig = ({
                     >
                         {item}
                     </button>
-                )) : <span className="no-results-text">No results found for "{searchTerm}"</span>}
+                )) : <span className="no-results-text">No results Found</span>}
             </div>
         );
     };

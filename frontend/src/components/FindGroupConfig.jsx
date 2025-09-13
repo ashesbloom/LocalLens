@@ -101,7 +101,7 @@ const FindGroupConfig = ({
             <div className="filter-pills-list scrollable-pills">
               {filteredItems.length > 0 ? filteredItems.map(item => (
                 <button key={item} className={`filter-pill ${selectedItems?.includes(item) ? 'selected' : ''}`} onClick={() => handlePillToggle(filterType === 'location' ? 'locations' : 'people', item)} disabled={isProcessing}>{item}</button>
-              )) : <span className="no-results-text">No results found for "{currentSearchTerm}"</span>}
+              )) : <span className="no-results-text">No results Found</span>}
             </div>
           </div>
         );

@@ -79,7 +79,7 @@ PATH_PRESETS_FILE = APP_DATA_DIR / "path_presets.json"
 from organizer_logic import (
     process_photos, SUPPORTED_EXTENSIONS, 
     load_face_encodings, find_and_group_photos, get_metadata_overview, 
-    initialize_libraries
+    initialize_libraries, build_folder_tree
 )
 import organizer_logic
 from enrollment_logic import update_encodings
@@ -145,6 +145,7 @@ class SortRequest(BaseModel):
     destination_folder: str
     sorting_options: SortOptions
     ignore_list: Optional[List[str]] = []
+    operation_mode: Optional[str] = 'move' # Add this line, default to 'move'
 
 # NEW: Model for the 'Find & Group' feature configuration
 class FindGroupConfig(BaseModel):
@@ -160,6 +161,8 @@ class FindGroupRequest(BaseModel):
     destination_folder: str
     find_config: FindGroupConfig
     ignore_list: Optional[List[str]] = []
+    # REMOVE: operation_mode is no longer needed here.
+    # operation_mode: Optional[str] = 'copy'
 
 class LastConfig(BaseModel):
     source_folder: Optional[str] = ""
@@ -168,6 +171,7 @@ class LastConfig(BaseModel):
     face_mode: Optional[str] = "balanced"
     maintain_hierarchy: Optional[bool] = False
     ignored_subfolders: Optional[List[str]] = []
+    operation_mode: Optional[str] = "standard" # This is for UI mode, not file op
 
 # NEW: Model for a single person's data in a batch.
 class PersonData(BaseModel):
@@ -191,6 +195,8 @@ class OpenEnrolledFolderRequest(BaseModel):
 
 class SubfolderRequest(BaseModel):
     path: str
+    # ADD THIS: The frontend will send the list of folders to ignore.
+    ignore_list: Optional[List[str]] = []
 
 class MetadataOverviewRequest(BaseModel):
     source_folder: str
@@ -366,23 +372,42 @@ async def stream_logs(request: Request):
 
 @app.post("/api/list-subfolders")
 async def list_subfolders(request: SubfolderRequest):
-    """Lists subdirectories and counts files and folders in a given path."""
+    """
+    MODIFIED: Lists subdirectories as a hierarchical tree and dynamically counts 
+    files and folders, respecting an ignore list of full paths.
+    """
     source_path = request.path
+    # The ignore list now contains full paths.
+    ignore_set = set(request.ignore_list or [])
+
     if not source_path or not os.path.isdir(source_path):
         raise HTTPException(status_code=404, detail="Source path is not a valid directory.")
     try:
-        subfolder_names = [d for d in os.listdir(source_path) if os.path.isdir(os.path.join(source_path, d))]
+        # Build the hierarchical tree structure for the UI.
+        folder_tree = build_folder_tree(source_path)
         
         file_count = 0
         folder_count = 0
         
-        # Walk the entire directory to count files and folders
-        for _, dirnames, filenames in os.walk(source_path):
-            folder_count += len(dirnames)
+        # CORRECTED LOGIC: Walk the entire directory tree to accurately count items.
+        # This now matches the behavior of the core processing logic.
+        for dirpath, dirnames, filenames in os.walk(source_path):
+            # Count folders that are NOT in the ignore list.
+            # We check this by iterating through the children of the current dirpath.
+            for d in dirnames:
+                if os.path.join(dirpath, d) not in ignore_set:
+                    folder_count += 1
+
+            # If the current directory itself is ignored, skip counting its files,
+            # but allow os.walk to continue into its subdirectories (like 'B' inside 'A').
+            if dirpath in ignore_set:
+                continue
+            
+            # If the directory is not ignored, count its supported files.
             file_count += len([f for f in filenames if f.lower().endswith(SUPPORTED_EXTENSIONS)])
 
         return {
-            "subfolders": subfolder_names,
+            "subfolders": folder_tree, # Return the tree structure
             "stats": {
                 "folder_count": folder_count,
                 "file_count": file_count
@@ -398,7 +423,8 @@ async def start_sorting_endpoint(request: SortRequest, background_tasks: Backgro
         "source_folder": request.source_folder,
         "destination_folder": request.destination_folder,
         "sorting_options": request.sorting_options.dict(),
-        "ignore_list": request.ignore_list or []
+        "ignore_list": request.ignore_list or [],
+        "operation_mode": request.operation_mode
     }
     background_tasks.add_task(run_organization_task, config)
     return {"message": "Organization process started successfully."}
@@ -412,7 +438,8 @@ async def start_find_group_endpoint(request: FindGroupRequest, background_tasks:
         "source_folder": request.source_folder,
         "destination_folder": request.destination_folder,
         "find_config": request.find_config.dict(),
-        "ignore_list": request.ignore_list or []
+        "ignore_list": request.ignore_list or [],
+        # REMOVE: No longer passing operation_mode from here.
     }
     background_tasks.add_task(run_find_group_task, config)
     return {"message": "Find & Group process started successfully."}

@@ -169,6 +169,53 @@ Local Lens uses a hybrid architecture combining the best of web and desktop tech
 3. Run the installer and follow the setup wizard
 4. Launch Local Lens from your applications menu
 
+### Option 2: Running from Source (For Developers)
+
+This method is for developers who want to run the latest code or contribute to the project. It enables hot-reloading for both the frontend and backend.
+
+#### 1. Setup
+First, ensure you have all the [required software](#for-development) installed.
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/ashesbloom/LocalLens.git
+cd LocalLens
+
+# 2. Set up the Python backend
+cd backend
+python -m venv venv
+# On Windows
+venv\Scripts\activate
+# On macOS/Linux
+# source venv/bin/activate
+pip install -r requirements.txt
+cd ..
+
+# 3. Set up the Node.js frontend
+cd frontend
+npm install
+cd ..
+```
+
+#### 2. Run the Application
+You will need two separate terminals to run the application in development mode.
+
+**Terminal 1: Start the Backend Server**
+```bash
+cd backend
+# Activate your virtual environment if not already active
+venv\Scripts\activate
+# Start the server with hot-reloading
+uvicorn main:app --reload
+```
+The backend will be running on `http://127.0.0.1:8000`.
+
+**Terminal 2: Start the Frontend Application**
+```bash
+cd frontend
+npm run tauri dev
+```
+This will open the Local Lens desktop application, which will automatically connect to your running backend server. Changes to the Python code will auto-reload the backend, and changes to the React code will auto-reload the frontend.
 
 ### For Development
 

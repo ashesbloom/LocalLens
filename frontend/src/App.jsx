@@ -8,6 +8,7 @@ import SortingOptions from './components/SortingOptions';
 import EnrollmentProgress from './components/EnrollmentProgress';
 import PathSelector from './components/PathSelector';
 import PresetManager from './components/PresetManager';
+import OperationModeToggle from './components/OperationModeToggle'; // <-- ADD THIS
 import ProgressTracker from './components/ProgressTracker';
 import LogConsole from './components/LogConsole';
 import SubfolderSelector from './components/SubfolderSelector';
@@ -18,6 +19,7 @@ import FindGroupConfig from './components/FindGroupConfig';
 import EnrolledFacesModal from './components/EnrolledFacesModal';
 import FaceEnrollmentModal from './components/FaceEnrollmentModal';
 import FindGroupResultModal from './components/FindGroupResultModal';
+import MoveCompleteModal from './components/MoveCompleteModal'; // <-- ADD THIS
 import ConfirmationModal from './components/ConfirmationModal'; 
 
 import './App.css';
@@ -42,6 +44,8 @@ function App() {
     const [selectedPreset, setSelectedPreset] = useState('');
     const [sortMethod, setSortMethod] = useState('Date');
     const [faceMode, setFaceMode] = useState('balanced');
+    // ADD THIS STATE FOR THE NEW TOGGLE
+    const [fileOperationMode, setFileOperationMode] = useState('copy');
     // const [operationMode, setOperationModeRaw] = useState(getInitialOperationMode()); 
     // FIX: Default state for hierarchy is now 'false' (Flat Output).
     const [maintainHierarchy, setMaintainHierarchy] = useState(false);
@@ -111,6 +115,9 @@ function App() {
 
     // --- NEW State for Reload Confirmation Modal ---
     const [showReloadModal, setShowReloadModal] = useState(false);
+
+    // --- NEW State for Move Complete Modal ---
+    const [showMoveCompleteModal, setShowMoveCompleteModal] = useState(false);
 
     // NEW: State to manage the animation lifecycle of the FaceEnrollment component
     const [faceEnrollmentDisplay, setFaceEnrollmentDisplay] = useState(operationMode === 'standard' ? 'visible' : 'hidden');
@@ -242,18 +249,17 @@ function App() {
         const fetchSubfolders = async () => {
             if (sourceFolder) {
                 try {
+                    // This initial call gets the full list of subfolders and initial stats.
                     const response = await apiCall('/api/list-subfolders', {
                         method: 'POST',
-                        body: JSON.stringify({ path: sourceFolder }),
+                        body: JSON.stringify({ path: sourceFolder, ignore_list: [] }),
                     });
                     setSubfolders(response.subfolders || []);
                     setFolderStats(response.stats || null);
                     setIgnoredSubfolders([]); // Reset ignored list when source changes
                 } catch (error) {
-                    setSubfolders([]); // Clear on error
+                    setSubfolders([]);
                     setFolderStats(null);
-                    // This can be noisy if the user is typing a path that doesn't exist yet
-                    // console.error("Could not fetch subfolders:", error.message);
                 }
             } else {
                 setSubfolders([]);
@@ -262,13 +268,33 @@ function App() {
             }
         };
 
-        // Debounce to avoid rapid API calls while typing/pasting a path
-        const debounceTimer = setTimeout(() => {
-            fetchSubfolders();
-        }, 500);
-
+        const debounceTimer = setTimeout(fetchSubfolders, 500);
         return () => clearTimeout(debounceTimer);
-    }, [sourceFolder]);
+    }, [sourceFolder]); // This effect runs ONLY when the source folder changes.
+
+    // ADD THIS NEW EFFECT to update stats when the ignore list changes.
+    useEffect(() => {
+        const updateStats = async () => {
+            if (sourceFolder) {
+                try {
+                    // This call only fetches the new stats based on the current ignore list.
+                    const response = await apiCall('/api/list-subfolders', {
+                        method: 'POST',
+                        body: JSON.stringify({ path: sourceFolder, ignore_list: ignoredSubfolders }),
+                    });
+                    // Only update the stats, not the subfolder list itself.
+                    setFolderStats(response.stats || null);
+                } catch (error) {
+                    setFolderStats(null);
+                }
+            }
+        };
+
+        // No need to run on initial load, the first effect handles that.
+        if (sourceFolder) {
+            updateStats();
+        }
+    }, [ignoredSubfolders]); // This effect runs ONLY when the ignore list changes.
 
     useEffect(() => {
         if (!sourceFolder || !destinationFolder) {
@@ -555,6 +581,11 @@ function App() {
                     // Reset analytics to default
                     setAnalytics({ scan_rate: '0.0', data_flow: '0.0', quality: 'N/A' });
 
+                    // NEW: Handle UI reset after a successful move operation
+                    if (data.status === 'complete' && fileOperationMode === 'move' && (operationMode === 'standard' || operationMode === 'hybrid')) {
+                        setShowMoveCompleteModal(true);
+                    }
+
                     // Handle Find & Group completion modal
                     if (operationMode === 'find' && data.status === 'complete') {
                         let foundCount = 0;
@@ -606,6 +637,7 @@ function App() {
                 if (config.destination_folder) setDestinationFolder(config.destination_folder);
                 if (config.sort_method) setSortMethod(config.sort_method);
                 if (config.face_mode) setFaceMode(config.face_mode);
+                if (config.file_operation_mode) setFileOperationMode(config.file_operation_mode); // <-- ADD THIS
                 if (typeof config.maintain_hierarchy === 'boolean') setMaintainHierarchy(config.maintain_hierarchy);
                 if (config.ignored_subfolders) setIgnoredSubfolders(config.ignored_subfolders);
                 if (config.operation_mode) setOperationMode(config.operation_mode); // Use helper
@@ -624,15 +656,17 @@ function App() {
         } catch (error) { }
     };
 
-    const saveLastConfig = async () => {
+    const saveLastConfig = async (overrides = {}) => {
         const configToSave = {
             source_folder: sourceFolder,
             destination_folder: destinationFolder,
             sort_method: sortMethod,
             face_mode: faceMode,
+            file_operation_mode: fileOperationMode,
             maintain_hierarchy: maintainHierarchy,
             ignored_subfolders: ignoredSubfolders,
-            operation_mode: operationMode, 
+            operation_mode: operationMode,
+            ...overrides // Merge any provided overrides
         };
         try {
             await apiCall('/api/config/save', {
@@ -713,6 +747,7 @@ function App() {
                 destination_folder: destinationFolder,
                 sorting_options: sortingOptions,
                 ignore_list: ignoredSubfolders,
+                operation_mode: fileOperationMode, // <-- ADD THIS
             };
         } else if (operationMode === 'hybrid') {
             if (!hybridConfig.folderName) {
@@ -737,6 +772,7 @@ function App() {
                 destination_folder: destinationFolder,
                 sorting_options: sortingOptions,
                 ignore_list: ignoredSubfolders,
+                operation_mode: fileOperationMode, // <-- ADD THIS
             };
         } else if (operationMode === 'find') {
             if (!findConfig.folderName) {
@@ -757,6 +793,7 @@ function App() {
                 destination_folder: destinationFolder,
                 find_config: findConfig,
                 ignore_list: ignoredSubfolders,
+                operation_mode: fileOperationMode, // <-- ADD THIS
             };
         }
 
@@ -1075,6 +1112,12 @@ function App() {
                             handleSavePreset={handleSavePreset}
                             showSaveButton={showSaveButton}
                         />
+                        {/* --- ADD THIS COMPONENT --- */}
+                        <OperationModeToggle
+                            operationMode={fileOperationMode}
+                            setOperationMode={setFileOperationMode}
+                            isProcessing={isProcessing || isEnrolling}
+                        />
                     </div>
                     <div className="setup-column">
                         {/* NEW: Conditional rendering with animations for component swapping */}
@@ -1259,6 +1302,21 @@ function App() {
                 folderName={findGroupModal.folderName}
                 onClose={() => setFindGroupModal(m => ({ ...m, isOpen: false }))}
                 onGoToDestination={handleOpenDestination}
+            />
+
+            <MoveCompleteModal
+                isOpen={showMoveCompleteModal}
+                onClose={() => {
+                    setShowMoveCompleteModal(false);
+                    setSourceFolder(''); // Reset source folder when modal is closed
+                    saveLastConfig({ source_folder: '' }); // Save the cleared source folder
+                }}
+                onGoToDestination={() => {
+                    setShowMoveCompleteModal(false);
+                    setSourceFolder(''); // Also reset here before opening
+                    saveLastConfig({ source_folder: '' }); // Save the cleared source folder
+                    handleOpenDestination();
+                }}
             />
         </div>
     );

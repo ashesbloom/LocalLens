@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+
+# Helpers for developer
+.github/copilot-instructions.md
+
 # C extensions
 *.so
 
@@ -210,3 +214,13 @@ cython_debug/
 
 # Ignore any log files that might be generated in the backend directory.
 /backend/*.log
+
+
+# This devloper and I am sick of discarding exe again and again
+backend_server-x86_64-pc-windows-msvc.exe
+backend_server-i686-pc-windows-msvc.exe
+backend_server-x86_64-unknown-linux-gnu
+backend_server-aarch64-unknown-linux-gnu
+backend_server-aarch64-apple-darwin
+backend_server-x86_64-apple-darwin
+backend_server-i686-unknown-linux-gnu

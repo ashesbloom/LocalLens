@@ -1748,6 +1748,47 @@ p {
   padding: 0.25rem;
 }
 
+/* --- NEW: Styles for Tree View --- */
+.subfolder-list.tree-view {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem; /* Tighter gap for tree items */
+    max-height: 250px; /* Allow more height for tree */
+}
+
+.folder-tree-node {
+    display: flex;
+    flex-direction: column;
+}
+
+.folder-tree-children {
+    padding-left: 1.5rem; /* Indentation for children */
+    border-left: 1px solid var(--color-border);
+    margin-left: 12px; /* Align with the expander icon */
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.folder-expander {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.chevron-icon {
+    color: var(--color-text-muted);
+    transition: transform 0.2s var(--transition-smooth);
+}
+
+.chevron-icon.expanded {
+    transform: rotate(90deg);
+}
+/* --- End of New Tree View Styles --- */
+
 .subfolder-item {
   display: flex;
   align-items: center;
@@ -1761,14 +1802,21 @@ p {
   overflow: hidden;
 }
 
-.subfolder-item:has(input:checked) {
+.subfolder-item.ignored {
   background-color: #fee2e2;
   border-color: var(--color-danger);
   color: var(--color-danger);
+}
+
+.subfolder-item:has(input:checked) {
+  /* This style is now replaced by the .ignored class for better control */
+  /* background-color: #fee2e2; */
+  /* border-color: var(--color-danger); */
+  /* color: var(--color-danger); */
   transform: scale(1.02);
 }
 
-.subfolder-item:hover:not(:has(input:checked)) {
+.subfolder-item:hover:not(.ignored) {
   border-color: var(--color-primary);
   background-color: rgba(var(--color-primary-rgb), 0.1);
   transform: translateX(4px);
@@ -1782,6 +1830,11 @@ p {
 .folder-icon {
   color: var(--color-text-muted);
   transition: color var(--transition-speed) var(--transition-smooth);
+  flex-shrink: 0; /* Prevent icon from shrinking */
+}
+
+.subfolder-item.ignored .folder-icon {
+  color: var(--color-danger);
 }
 
 .subfolder-item:has(input:checked) .folder-icon {

@@ -4,12 +4,11 @@
   "version": "1.1.0",
   "identifier": "ashes.locallens",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run dev:pre && npm run dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
-
   "app": {
     "windows": [
       {
@@ -19,8 +18,8 @@
       }
     ],
     "security": {
-      "csp" : null
-    }  
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
@@ -32,6 +31,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["backend_server"]
+    "externalBin": [
+      "backend_server"
+    ]
   }
 }
