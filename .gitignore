@@ -6,6 +6,9 @@ __pycache__/
 
 # Helpers for developer
 .github/copilot-instructions.md
+/backend/requirements-build.txt
+/backend/requirements-optional.txt
+/backend/requirements-runtime.txt
 
 # C extensions
 *.so
