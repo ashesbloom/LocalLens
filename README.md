@@ -3,7 +3,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
 [![Build Status](https://img.shields.io/badge/Build-Passing-green.svg)]()
 [![GitHub release](https://img.shields.io/github/v/release/ashesbloom/LocalLens)](https://github.com/ashesbloom/LocalLens/releases)
-[![GitHub downloads](https://img.shields.io/github/downloads/ashesbloom/LocalLens/total)](https://github.com/ashesbloom/LocalLens/releases)
+[![GitHub downloads](https://img.shields.io/github/downloads/ashesbloom/LocalLens/total)](https://github.com/ashesbloom/LocalLens/releases/latest)
 
 ![GitHub stars ](https://img.shields.io/github/stars/ashesbloom/LocalLens?style=social&cacheSeconds=60)
 ![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social&cacheSeconds=60)
@@ -330,4 +330,7 @@ This project is licensed under the GNU Affero General Public License v3.0 (AGPL-
 > If you found my project useful, please consider supporting me so I can build more projects like this,
 > cuz I'm broke af: [![Buy Me A Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://coff.ee/ashesbloom)
 > 
-> Alternatively, you can scan this UPI ID: [ Scan QR](https://drive.google.com/file/d/1jxE5fkx7AZc4rgabLLM8TGaPb09pJEAl/view?usp=sharing)
+> Alternatively, you can scan this UPI ID: <br><br>
+> <img width="150" height="150" alt="image" src="https://github.com/user-attachments/assets/b21d0e47-254f-4402-a99f-46d8c9add1ad" />
+
+
