@@ -22,6 +22,7 @@ import FindGroupResultModal from './components/FindGroupResultModal';
 import MoveCompleteModal from './components/MoveCompleteModal'; // <-- ADD THIS
 import ConfirmationModal from './components/ConfirmationModal'; 
 import UpdateChecker from './components/UpdateChecker'; // <-- ADD: Auto-update notification
+import { version } from '../package.json';
 
 import './App.css';
 
@@ -1039,7 +1040,7 @@ function App() {
                 />
 
                 {/* Update Checker - Top Left Notification */}
-                <UpdateChecker currentVersion="2.0.1" />
+                <UpdateChecker currentVersion={version} />
 
                 {/* Exit Button */}
                 <button onClick={handleExit} className="btn-exit" aria-label="Kill Backend" title="Kill Backend">

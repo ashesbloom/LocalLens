@@ -43,7 +43,9 @@ function UpdateChecker({ currentVersion }) {
     const [isDownloading, setIsDownloading] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
     const [error, setError] = useState(null);
+    const [isChecking, setIsChecking] = useState(false);
     const panelRef = useRef(null);
+    const downloadedBytesRef = useRef(0);
 
     // ============================================
     // DEBUG MODE - Set to true to simulate update
@@ -76,7 +78,10 @@ function UpdateChecker({ currentVersion }) {
 
     // Check for updates on mount
     useEffect(() => {
-        const checkForUpdates = async () => {
+        const checkForUpdates = async (retryCount = 0) => {
+            const MAX_RETRIES = 3;
+            const RETRY_DELAY = 5000; // 5 seconds between retries
+
             // ============================================
             // DEBUG: Simulate update available
             // ============================================
@@ -92,8 +97,12 @@ function UpdateChecker({ currentVersion }) {
                 return;
             }
 
+            setIsChecking(true);
             try {
+                console.log(`Checking for updates... (attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
                 const update = await check();
+                setIsChecking(false);
+                
                 if (update) {
                     console.log(`Update available: ${update.version}`);
                     setUpdateAvailable(true);
@@ -105,16 +114,25 @@ function UpdateChecker({ currentVersion }) {
                         _updateObject: update
                     });
                 } else {
-                    console.log('No updates available.');
+                    console.log('No updates available - you are on the latest version.');
+                    setUpdateAvailable(false);
                 }
             } catch (e) {
-                console.error('Failed to check for updates:', e);
-                // Don't show error to user for check failures, just log it
+                console.error(`Failed to check for updates (attempt ${retryCount + 1}):`, e);
+                setIsChecking(false);
+                
+                // Retry if we haven't exceeded max retries
+                if (retryCount < MAX_RETRIES) {
+                    console.log(`Retrying update check in ${RETRY_DELAY / 1000} seconds...`);
+                    setTimeout(() => checkForUpdates(retryCount + 1), RETRY_DELAY);
+                } else {
+                    console.error('Max retries reached. Could not check for updates.');
+                }
             }
         };
 
-        // Delay check slightly to not block initial render
-        const timer = setTimeout(checkForUpdates, 3000);
+        // Start check almost immediately (500ms delay for initial render)
+        const timer = setTimeout(() => checkForUpdates(0), 500);
         return () => clearTimeout(timer);
     }, []);
 
@@ -171,38 +189,103 @@ function UpdateChecker({ currentVersion }) {
             return;
         }
 
-        if (!updateInfo?._updateObject) return;
+        if (!updateInfo?._updateObject) {
+            setError('Update information not available. Please try again.');
+            return;
+        }
 
         setIsDownloading(true);
         setError(null);
+        setDownloadProgress(0);
+        downloadedBytesRef.current = 0;
 
         try {
             const update = updateInfo._updateObject;
+            let contentLength = 0;
+            
+            console.log('Starting update download and install...');
             
             // Download with progress
             await update.downloadAndInstall((event) => {
                 switch (event.event) {
                     case 'Started':
-                        console.log(`Download started, size: ${event.data.contentLength}`);
+                        contentLength = event.data.contentLength || 0;
+                        console.log(`Download started, total size: ${contentLength} bytes`);
+                        downloadedBytesRef.current = 0;
                         setDownloadProgress(0);
                         break;
                     case 'Progress':
-                        const progress = Math.round((event.data.chunkLength / event.data.contentLength) * 100);
-                        setDownloadProgress(progress);
+                        // Accumulate downloaded bytes
+                        downloadedBytesRef.current += event.data.chunkLength;
+                        if (contentLength > 0) {
+                            const progress = Math.min(
+                                Math.round((downloadedBytesRef.current / contentLength) * 100),
+                                99 // Cap at 99% until finished
+                            );
+                            setDownloadProgress(progress);
+                            console.log(`Download progress: ${progress}% (${downloadedBytesRef.current}/${contentLength} bytes)`);
+                        }
                         break;
                     case 'Finished':
-                        console.log('Download finished');
+                        console.log('Download finished, installing...');
                         setDownloadProgress(100);
                         break;
                 }
             });
 
+            console.log('Update installed successfully, relaunching...');
             // Relaunch the application
             await relaunch();
         } catch (e) {
             console.error('Failed to install update:', e);
-            setError('Failed to install update. Please try again or download manually.');
+            const errorMessage = e?.message || String(e);
+            
+            // Provide more specific error messages
+            let userMessage = 'Failed to install update. ';
+            if (errorMessage.includes('signature')) {
+                userMessage += 'Update signature verification failed. ';
+            } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+                userMessage += 'Network error occurred. Please check your connection. ';
+            } else if (errorMessage.includes('permission') || errorMessage.includes('access')) {
+                userMessage += 'Permission denied. Try running as administrator. ';
+            }
+            userMessage += 'Please try again or download manually from GitHub.';
+            
+            setError(userMessage);
             setIsDownloading(false);
+            setDownloadProgress(0);
+        }
+    };
+
+    // Manual check for updates
+    const handleManualCheck = async () => {
+        if (isChecking) return;
+        
+        setIsChecking(true);
+        setError(null);
+        
+        try {
+            console.log('Manual update check triggered...');
+            const update = await check();
+            
+            if (update) {
+                console.log(`Update available: ${update.version}`);
+                setUpdateAvailable(true);
+                setUpdateInfo({
+                    version: update.version,
+                    notes: update.body || 'No release notes provided.',
+                    date: update.date || new Date().toISOString(),
+                    _updateObject: update
+                });
+            } else {
+                console.log('No updates available - you are on the latest version.');
+                setUpdateAvailable(false);
+            }
+        } catch (e) {
+            console.error('Failed to check for updates:', e);
+            setError('Failed to check for updates. Please check your internet connection.');
+        } finally {
+            setIsChecking(false);
         }
     };
 
@@ -297,6 +380,14 @@ function UpdateChecker({ currentVersion }) {
                             {error && (
                                 <div className="update-error">
                                     {error}
+                                    <a 
+                                        href="https://github.com/ashesbloom/LocalLens/releases/latest"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="update-manual-link"
+                                    >
+                                        Download from GitHub →
+                                    </a>
                                 </div>
                             )}
 
@@ -356,6 +447,27 @@ function UpdateChecker({ currentVersion }) {
                                 </div>
                                 <p className="uptodate-text">You're up to date!</p>
                                 <p className="uptodate-subtext">Local Lens v{currentVersion} is the latest version.</p>
+                                
+                                {/* Error message for check failures */}
+                                {error && (
+                                    <div className="update-error" style={{ marginTop: '12px' }}>
+                                        {error}
+                                    </div>
+                                )}
+                                
+                                <button 
+                                    className="btn-check-updates"
+                                    onClick={handleManualCheck}
+                                    disabled={isChecking}
+                                >
+                                    {isChecking ? (
+                                        <>
+                                            <LoaderIcon /> Checking...
+                                        </>
+                                    ) : (
+                                        'Check for Updates'
+                                    )}
+                                </button>
                             </div>
                         </>
                     )}

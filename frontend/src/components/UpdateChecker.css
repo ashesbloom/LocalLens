@@ -347,6 +347,21 @@
     border-radius: 0.5rem;
     color: #fecaca;
     font-size: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.update-manual-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.update-manual-link:hover {
+    color: var(--color-primary-hover, #60a5fa);
+    text-decoration: underline;
 }
 
 /* ========================================
@@ -473,4 +488,33 @@
     font-size: 0.8rem;
     color: rgba(255, 255, 255, 0.5);
     margin: 0;
+}
+
+/* Check for Updates Button */
+.btn-check-updates {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.8);
+    border-radius: 0.5rem;
+    font-weight: 500;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.btn-check-updates:hover:not(:disabled) {
+    background: rgba(var(--color-primary-rgb), 0.2);
+    border-color: rgba(var(--color-primary-rgb), 0.4);
+    color: white;
+}
+
+.btn-check-updates:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
 }

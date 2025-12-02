@@ -30,3 +30,7 @@ dist-ssr
 
 # Test coverage reports
 coverage
+
+# Tauri secret files
+tauri-*.key
+tauri-*.key.pub

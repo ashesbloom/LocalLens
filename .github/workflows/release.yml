@@ -82,6 +82,30 @@ jobs:
           cd frontend
           npm run tauri build
 
+      # Debug: List all files in bundle directory to see if .sig files were created
+      - name: Debug - List bundle files
+        run: |
+          Write-Output "=== Checking if signing key is set ==="
+          if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+            Write-Output "TAURI_SIGNING_PRIVATE_KEY is SET (length: $($env:TAURI_SIGNING_PRIVATE_KEY.Length))"
+          } else {
+            Write-Output "WARNING: TAURI_SIGNING_PRIVATE_KEY is NOT SET - signatures will be empty!"
+          }
+          
+          Write-Output "`n=== Files in msi folder ==="
+          Get-ChildItem -Path "frontend\src-tauri\target\release\bundle\msi" -Recurse | ForEach-Object { Write-Output $_.FullName }
+          
+          Write-Output "`n=== Files in nsis folder (if exists) ==="
+          if (Test-Path "frontend\src-tauri\target\release\bundle\nsis") {
+            Get-ChildItem -Path "frontend\src-tauri\target\release\bundle\nsis" -Recurse | ForEach-Object { Write-Output $_.FullName }
+          }
+          
+          Write-Output "`n=== Looking for .sig files ==="
+          Get-ChildItem -Path "frontend\src-tauri\target\release\bundle" -Recurse -Filter "*.sig" | ForEach-Object { 
+            Write-Output "Found signature: $($_.FullName)"
+            Write-Output "Content: $(Get-Content $_.FullName -Raw)"
+          }
+
       # Generate checksums for verification
       - name: Generate checksums
         run: |
@@ -189,9 +213,22 @@ jobs:
         run: |
           $version = "${{ steps.get_version.outputs.version }}"
           $tag = "${{ github.ref_name }}"
-          $msiSignature = "${{ steps.find_files.outputs.msi_signature }}"
           $repo = "${{ github.repository }}"
           $pubDate = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+          
+          # Try to read signature directly from file (more reliable than output variable)
+          $sigPath = "frontend\src-tauri\target\release\bundle\msi\*.sig"
+          $sigFiles = Get-ChildItem -Path $sigPath -ErrorAction SilentlyContinue
+          
+          $msiSignature = ""
+          if ($sigFiles) {
+            $msiSignature = (Get-Content $sigFiles[0].FullName -Raw).Trim()
+            Write-Output "Found signature in file: $($sigFiles[0].FullName)"
+            Write-Output "Signature (first 50 chars): $($msiSignature.Substring(0, [Math]::Min(50, $msiSignature.Length)))..."
+          } else {
+            Write-Output "WARNING: No .sig file found! Auto-update will NOT work."
+            Write-Output "Make sure TAURI_SIGNING_PRIVATE_KEY secret is set in GitHub repository settings."
+          }
           
           # Get release notes (unescape the GitHub Actions encoding)
           $releaseNotes = "${{ steps.release_notes.outputs.notes }}"
