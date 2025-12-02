@@ -14,6 +14,9 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '18'
+  # Tauri updater signing key (set in GitHub Secrets)
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
 jobs:
   build-windows:
@@ -73,11 +76,11 @@ jobs:
         run: |
           copy backend\dist\backend_server-x86_64-pc-windows-msvc.exe frontend\src-tauri\
 
-      # Build the final application
+      # Build the final application with signing enabled
       - name: Build Tauri application
         run: |
           cd frontend
-          npm run tauri build  # Remove any --debug flags here
+          npm run tauri build
 
       # Generate checksums for verification
       - name: Generate checksums
@@ -93,20 +96,16 @@ jobs:
           Write-Output "Generated checksums:"
           Get-Content "checksums-windows.txt"
 
-      # Find the generated installer files
+      # Find the generated installer files and signature
       - name: Find installer files
         id: find_files
         run: |
-          cd frontend\src-tauri\target\release\bundle  # Make sure this is 'release', not 'debug'
-          
-          # If release folder doesn't exist, check debug folder as fallback
-          if (-not (Test-Path ".")) {
-            cd ..\debug\bundle
-            Write-Output "Using debug bundle directory as fallback"
-          }
+          cd frontend\src-tauri\target\release\bundle
           
           $msiFile = Get-ChildItem -Path "msi" -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $exeFile = Get-ChildItem -Path "nsis" -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $msiSigFile = Get-ChildItem -Path "msi" -Filter "*.msi.sig" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $exeFile = Get-ChildItem -Path "nsis" -Filter "*.exe" -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch "\.sig$" } | Select-Object -First 1
+          $exeSigFile = Get-ChildItem -Path "nsis" -Filter "*.exe.sig" -ErrorAction SilentlyContinue | Select-Object -First 1
           
           if ($msiFile) {
             $msiPath = $msiFile.FullName
@@ -114,11 +113,25 @@ jobs:
             echo "msi_name=$($msiFile.Name)" >> $env:GITHUB_OUTPUT
             Write-Output "Found MSI: $msiPath"
           }
+          if ($msiSigFile) {
+            $msiSigPath = $msiSigFile.FullName
+            $msiSignature = Get-Content $msiSigPath -Raw
+            echo "msi_sig_path=$msiSigPath" >> $env:GITHUB_OUTPUT
+            echo "msi_signature=$msiSignature" >> $env:GITHUB_OUTPUT
+            Write-Output "Found MSI signature: $msiSigPath"
+          }
           if ($exeFile) {
             $exePath = $exeFile.FullName
             echo "exe_path=$exePath" >> $env:GITHUB_OUTPUT
             echo "exe_name=$($exeFile.Name)" >> $env:GITHUB_OUTPUT
             Write-Output "Found EXE: $exePath"
+          }
+          if ($exeSigFile) {
+            $exeSigPath = $exeSigFile.FullName
+            $exeSignature = Get-Content $exeSigPath -Raw
+            echo "exe_sig_path=$exeSigPath" >> $env:GITHUB_OUTPUT
+            echo "exe_signature=$exeSignature" >> $env:GITHUB_OUTPUT
+            Write-Output "Found EXE signature: $exeSigPath"
           }
           
           $checksumPath = "checksums-windows.txt"
@@ -127,6 +140,86 @@ jobs:
             echo "checksum_path=$fullChecksumPath" >> $env:GITHUB_OUTPUT
             Write-Output "Found checksums: $fullChecksumPath"
           }
+
+      # Get version from tag
+      - name: Get version
+        id: get_version
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "Version: $version"
+
+      # Extract release notes from CHANGELOG.md
+      - name: Extract release notes
+        id: release_notes
+        run: |
+          $version = "${{ steps.get_version.outputs.version }}"
+          $changelogPath = "CHANGELOG.md"
+          
+          if (Test-Path $changelogPath) {
+            $content = Get-Content $changelogPath -Raw
+            
+            # Match the section for this version (## [X.Y.Z] until next ## [ or end)
+            $pattern = "(?s)## \[$version\][^\r\n]*\r?\n(.*?)(?=\r?\n## \[|$)"
+            $match = [regex]::Match($content, $pattern)
+            
+            if ($match.Success) {
+              $notes = $match.Groups[1].Value.Trim()
+              # Escape for GitHub Actions output
+              $notes = $notes -replace '%', '%25'
+              $notes = $notes -replace "`n", '%0A'
+              $notes = $notes -replace "`r", '%0D'
+              echo "notes=$notes" >> $env:GITHUB_OUTPUT
+              Write-Output "Found release notes for version $version"
+            } else {
+              $defaultNotes = "Release $version - See CHANGELOG.md for details"
+              echo "notes=$defaultNotes" >> $env:GITHUB_OUTPUT
+              Write-Output "No specific notes found for $version, using default"
+            }
+          } else {
+            $defaultNotes = "Release $version"
+            echo "notes=$defaultNotes" >> $env:GITHUB_OUTPUT
+            Write-Output "CHANGELOG.md not found, using default notes"
+          }
+
+      # Generate latest.json for Tauri updater
+      - name: Generate latest.json
+        id: generate_latest
+        run: |
+          $version = "${{ steps.get_version.outputs.version }}"
+          $tag = "${{ github.ref_name }}"
+          $msiSignature = "${{ steps.find_files.outputs.msi_signature }}"
+          $repo = "${{ github.repository }}"
+          $pubDate = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+          
+          # Get release notes (unescape the GitHub Actions encoding)
+          $releaseNotes = "${{ steps.release_notes.outputs.notes }}"
+          $releaseNotes = $releaseNotes -replace '%0A', "`n"
+          $releaseNotes = $releaseNotes -replace '%0D', "`r"
+          $releaseNotes = $releaseNotes -replace '%25', '%'
+          
+          # URL for the MSI installer (standard naming)
+          $downloadUrl = "https://github.com/$repo/releases/download/$tag/Local_Lens_${tag}_x64_en-US.msi"
+          
+          $latestJson = @{
+            version = $version
+            notes = $releaseNotes
+            pub_date = $pubDate
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $msiSignature.Trim()
+                url = $downloadUrl
+              }
+            }
+          } | ConvertTo-Json -Depth 4
+          
+          $latestJson | Out-File -FilePath "latest.json" -Encoding utf8
+          Write-Output "Generated latest.json:"
+          Get-Content "latest.json"
+          
+          $latestPath = Resolve-Path "latest.json"
+          echo "latest_json_path=$latestPath" >> $env:GITHUB_OUTPUT
 
       # Create GitHub release
       - name: Create Release
@@ -141,6 +234,10 @@ jobs:
           prerelease: false
           body: |
             ## Local Lens ${{ github.ref_name }}
+            
+            ${{ steps.release_notes.outputs.notes }}
+            
+            ---
             
             ### 🔒 Security & Verification
             
@@ -207,6 +304,18 @@ jobs:
           asset_name: checksums-windows.txt
           asset_content_type: text/plain
 
+      # Upload latest.json for Tauri auto-updater
+      - name: Upload latest.json
+        if: steps.generate_latest.outputs.latest_json_path
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.generate_latest.outputs.latest_json_path }}
+          asset_name: latest.json
+          asset_content_type: application/json
+
       # Print summary
       - name: Build Summary
         run: |
@@ -218,4 +327,5 @@ jobs:
           if ("${{ steps.find_files.outputs.exe_name }}" -ne "") {
             Write-Output "   - EXE: ${{ steps.find_files.outputs.exe_name }}"
           }
+          Write-Output "📋 Generated latest.json for auto-updater"
           Write-Output "🔒 Release created as draft - review and publish manually"

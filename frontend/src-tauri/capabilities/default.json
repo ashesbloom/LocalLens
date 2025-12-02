@@ -9,6 +9,12 @@
     "dialog:allow-save",
     "shell:allow-open",
     "core:event:allow-listen",
-    "core:event:default"
+    "core:event:default",
+    "updater:default",
+    "updater:allow-check",
+    "updater:allow-download",
+    "updater:allow-install",
+    "process:allow-restart",
+    "process:allow-exit"
   ]
 }

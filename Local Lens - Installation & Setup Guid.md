@@ -128,7 +128,12 @@ npm install
 
 ### 4. Development Workflow
 
-#### Terminal 1: Python Backend (Development Server)
+You can run the application in two modes during development:
+
+#### Option 1: Manual Server (Default)
+Run the Python backend manually. This is best for developing backend features as you can restart the server quickly.
+
+**Terminal 1: Python Backend**
 ```bash
 cd backend
 venv\Scripts\activate  # Windows
@@ -137,7 +142,7 @@ python main.py
 ```
 The backend will start on `http://127.0.0.1:8000`
 
-#### Terminal 2: Frontend Development
+**Terminal 2: Frontend & Tauri**
 ```bash
 cd frontend
 npm run tauri dev
@@ -146,6 +151,18 @@ This will:
 - Start the Vite development server
 - Launch the Tauri desktop application
 - Enable hot-reload for frontend changes
+
+#### Option 2: Sidecar Mode (Testing the Executable)
+Force Tauri to launch the bundled `backend_server` executable (sidecar) instead of connecting to localhost:8000. Use this to verify the frozen executable works before building.
+
+**Terminal:**
+```powershell
+# Windows PowerShell
+$env:USE_SIDECAR="true"; npm run tauri dev
+
+# macOS/Linux
+USE_SIDECAR=true npm run tauri dev
+```
 
 ## 🔧 Building for Production
 

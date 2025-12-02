@@ -1,0 +1,476 @@
+/* UpdateChecker.css - Glassmorphism style matching the app theme */
+/* Uses CSS variables from the active theme (standard/hybrid/find) */
+
+.update-checker {
+    position: absolute;
+    top: 1.5rem;
+    left: 1.5rem;
+    z-index: 1000;
+}
+
+/* ========================================
+   NOTIFICATION ICON BUTTON
+   ======================================== */
+.update-icon-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    
+    /* Glassmorphism effect */
+    background: linear-gradient(
+        135deg, 
+        rgba(255, 255, 255, 0.15) 0%, 
+        rgba(255, 255, 255, 0.05) 100%
+    );
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.12),
+        0 2px 8px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    
+    color: rgba(255, 255, 255, 0.8);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.update-icon-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 
+        0 12px 40px rgba(var(--color-primary-rgb), 0.25),
+        0 4px 12px rgba(var(--color-primary-rgb), 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    border-color: rgba(var(--color-primary-rgb), 0.4);
+    color: white;
+}
+
+.update-icon-btn.active {
+    background: linear-gradient(
+        135deg, 
+        rgba(var(--color-primary-rgb), 0.3) 0%, 
+        rgba(var(--color-primary-rgb), 0.15) 100%
+    );
+    border-color: rgba(var(--color-primary-rgb), 0.5);
+}
+
+.update-icon-btn.has-update {
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 
+            0 8px 32px rgba(0, 0, 0, 0.12),
+            0 2px 8px rgba(0, 0, 0, 0.08),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    50% {
+        box-shadow: 
+            0 8px 32px rgba(var(--color-primary-rgb), 0.3),
+            0 2px 8px rgba(var(--color-primary-rgb), 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2),
+            0 0 20px rgba(var(--color-primary-rgb), 0.3);
+    }
+}
+
+/* Update badge (red dot) */
+.update-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 10px;
+    height: 10px;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border-radius: 50%;
+    border: 2px solid var(--color-bg, #111827);
+    animation: badge-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+/* ========================================
+   EXPANDED PANEL
+   ======================================== */
+.update-panel {
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 0;
+    width: 380px;
+    
+    /* Glassmorphism */
+    background: linear-gradient(
+        145deg, 
+        rgba(42, 55, 74, 0.95) 0%, 
+        rgba(31, 41, 55, 0.95) 100%
+    );
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 1rem;
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.4),
+        0 8px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    
+    animation: panel-slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+@keyframes panel-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Triangle arrow pointing to the icon */
+.update-panel-arrow {
+    position: absolute;
+    top: -8px;
+    left: 18px;
+    width: 16px;
+    height: 16px;
+    background: linear-gradient(
+        135deg, 
+        rgba(42, 55, 74, 0.95) 0%, 
+        rgba(42, 55, 74, 0.95) 50%,
+        transparent 50%,
+        transparent 100%
+    );
+    border-left: 1px solid rgba(255, 255, 255, 0.15);
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    transform: rotate(45deg);
+}
+
+/* ========================================
+   PANEL HEADER
+   ======================================== */
+.update-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1rem 0.5rem 1rem;
+}
+
+.update-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 1rem;
+    color: white;
+}
+
+.update-new-badge {
+    background: var(--color-gradient);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.2rem 0.5rem;
+    border-radius: 99px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.update-panel-close {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.6);
+    transition: all 0.2s ease;
+}
+
+.update-panel-close:hover {
+    background: rgba(220, 38, 38, 0.3);
+    color: white;
+}
+
+/* ========================================
+   META INFO
+   ======================================== */
+.update-panel-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem 0.75rem 1rem;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.update-current {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* ========================================
+   RELEASE NOTES BODY
+   ======================================== */
+.update-panel-body {
+    padding: 1.25rem;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.release-notes-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.5rem;
+}
+
+.release-notes-content {
+    font-size: 0.85rem;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.85);
+    text-align: left;
+}
+
+.release-notes-content h2,
+.release-notes-content h3,
+.release-notes-content h4 {
+    color: white;
+    margin: 1.25rem 0 0.6rem 0;
+    font-weight: 600;
+    text-align: left;
+}
+
+.release-notes-content h2 { font-size: 1.1rem; }
+.release-notes-content h3 { 
+    font-size: 0.95rem; 
+    color: var(--color-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.release-notes-content h3::before {
+    content: '';
+    width: 3px;
+    height: 1em;
+    background: var(--color-gradient);
+    border-radius: 2px;
+}
+.release-notes-content h4 { 
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.release-notes-content p {
+    margin: 0.3rem 0;
+    text-align: left;
+}
+
+.release-notes-content li {
+    margin-left: 1.25rem;
+    list-style-type: none;
+    margin-bottom: 0.4rem;
+    position: relative;
+    padding-left: 0.25rem;
+    text-align: left;
+}
+
+.release-notes-content li::before {
+    content: '•';
+    position: absolute;
+    left: -1rem;
+    color: var(--color-primary);
+    font-weight: bold;
+}
+
+.release-notes-content code {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.8rem;
+    color: var(--color-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.release-notes-content strong {
+    color: white;
+    font-weight: 600;
+}
+
+/* First h3 shouldn't have top margin */
+.release-notes-content h3:first-child,
+.release-notes-content h2:first-child {
+    margin-top: 0;
+}
+
+/* Scrollbar */
+.update-panel-body::-webkit-scrollbar {
+    width: 6px;
+}
+.update-panel-body::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+.update-panel-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+.update-panel-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* ========================================
+   ERROR MESSAGE
+   ======================================== */
+.update-error {
+    padding: 0.75rem 1rem;
+    margin: 0 1rem;
+    background: rgba(220, 38, 38, 0.2);
+    border: 1px solid rgba(220, 38, 38, 0.3);
+    border-radius: 0.5rem;
+    color: #fecaca;
+    font-size: 0.8rem;
+}
+
+/* ========================================
+   ACTIONS FOOTER
+   ======================================== */
+.update-panel-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.btn-update-later {
+    flex: 1;
+    padding: 0.6rem 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.8);
+    border-radius: 0.5rem;
+    font-weight: 500;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-update-later:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: white;
+}
+
+.btn-update-install {
+    flex: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border: none;
+    background: var(--color-gradient);
+    color: white;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-update-install:hover {
+    background: linear-gradient(135deg, var(--color-primary-hover), var(--color-primary));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px var(--color-shadow-primary);
+}
+
+/* ========================================
+   DOWNLOAD PROGRESS
+   ======================================== */
+.update-progress-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.update-progress-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.update-progress-fill {
+    height: 100%;
+    background: var(--color-gradient);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.update-progress-text {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Spin animation for loader */
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ========================================
+   UP TO DATE STATE
+   ======================================== */
+.update-uptodate {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 1rem;
+    text-align: center;
+}
+
+.uptodate-icon {
+    color: var(--color-primary);
+    margin-bottom: 0.75rem;
+}
+
+.uptodate-text {
+    font-size: 1rem;
+    font-weight: 600;
+    color: white;
+    margin: 0 0 0.25rem 0;
+}
+
+.uptodate-subtext {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0;
+}

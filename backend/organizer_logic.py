@@ -531,8 +531,8 @@ def find_and_group_photos(config, update_callback):
     ignore_list = config.get("ignore_list", []) # Get the ignore list
     encodings_path = config.get("encodings_path")
     cancellation_event = config.get("cancellation_event")
-    # NEW: Get operation mode, defaulting to 'copy' for this feature
-    operation_mode = config.get("operation_mode", "copy")
+    # NEW: Force operation mode to 'copy' for Find & Group, ignoring any user input
+    operation_mode = "copy"
 
     target_folder_name = find_config.get('folderName', "Find_Results")
     target_folder = os.path.join(base_dest_dir, target_folder_name)
@@ -653,9 +653,11 @@ def find_and_group_photos(config, update_callback):
             new_filename = f"{date_obj.strftime('%Y-%m-%d_%H%M%S')}_{os.path.basename(source_path)}" if date_obj else os.path.basename(source_path)
             if handle_file_op(operation_mode, source_path, target_folder, new_filename, date_obj):
                 found_count += 1
-                logging.info(f"Found match: {operation_mode.capitalize()}d '{os.path.basename(source_path)}' to '{target_folder_name}'")
+                verb = "copied" if operation_mode == "copy" else "moved"
+                logging.info(f"Found match: {verb.capitalize()} '{os.path.basename(source_path)}' to '{target_folder_name}'")
 
-    completion_message = f"Search complete. Found and {operation_mode}d {found_count} matching photos to '{target_folder_name}'."
+    verb = "copied" if operation_mode == "copy" else "moved"
+    completion_message = f"Search complete. Found and {verb} {found_count} matching photos to '{target_folder_name}'."
     if found_count == 0:
         completion_message = "Search complete. No photos matched the specified criteria."
         

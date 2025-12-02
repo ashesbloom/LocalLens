@@ -21,6 +21,7 @@ import FaceEnrollmentModal from './components/FaceEnrollmentModal';
 import FindGroupResultModal from './components/FindGroupResultModal';
 import MoveCompleteModal from './components/MoveCompleteModal'; // <-- ADD THIS
 import ConfirmationModal from './components/ConfirmationModal'; 
+import UpdateChecker from './components/UpdateChecker'; // <-- ADD: Auto-update notification
 
 import './App.css';
 
@@ -587,10 +588,12 @@ function App() {
                     }
 
                     // Handle Find & Group completion modal
-                    if (operationMode === 'find' && data.status === 'complete') {
+                    // FIX: Ensure we don't trigger this modal if the completed operation was actually enrollment.
+                    if (operationMode === 'find' && data.status === 'complete' && !isEnrolling) {
                         let foundCount = 0;
                         let folderName = findConfig.folderName || '';
-                        const match = data.message.match(/Found and copied (\d+) matching photo/);
+                        // FIX: Regex now handles 'copied', 'moved', and the typo 'copyd' to be robust.
+                        const match = data.message.match(/Found and (?:copied|moved|copyd) (\d+) matching photo/);
                         if (match) {
                             foundCount = parseInt(match[1], 10);
                         }
@@ -838,12 +841,21 @@ function App() {
         }
     };
 
-    const handleOpenDestination = async () => {
+    const handleOpenDestination = async (subPath = null) => {
         if (destinationFolder) {
             try {
+                // FIX: Allow opening a specific subfolder if provided (e.g. for Find & Group results)
+                let pathToOpen = destinationFolder;
+                if (subPath && typeof subPath === 'string') {
+                    // Use a simple join strategy that works for the backend
+                    pathToOpen = destinationFolder.endsWith('\\') || destinationFolder.endsWith('/') 
+                        ? destinationFolder + subPath 
+                        : destinationFolder + '/' + subPath;
+                }
+
                 const result = await apiCall("/api/open-folder", {
                     method: 'POST',
-                    body: JSON.stringify({ folder_path: destinationFolder })
+                    body: JSON.stringify({ folder_path: pathToOpen })
                 });
                 if (result.status === 'success') {
                     logToConsole(result.message, 'success');
@@ -1026,6 +1038,9 @@ function App() {
                     onEnrollClick={() => setShowFaceEnrollmentModal(true)}
                 />
 
+                {/* Update Checker - Top Left Notification */}
+                <UpdateChecker currentVersion="1.2.0" />
+
                 {/* Exit Button */}
                 <button onClick={handleExit} className="btn-exit" aria-label="Kill Backend" title="Kill Backend">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1113,11 +1128,13 @@ function App() {
                             showSaveButton={showSaveButton}
                         />
                         {/* --- ADD THIS COMPONENT --- */}
-                        <OperationModeToggle
-                            operationMode={fileOperationMode}
-                            setOperationMode={setFileOperationMode}
-                            isProcessing={isProcessing || isEnrolling}
-                        />
+                        {operationMode !== 'find' && (
+                            <OperationModeToggle
+                                operationMode={fileOperationMode}
+                                setOperationMode={setFileOperationMode}
+                                isProcessing={isProcessing || isEnrolling}
+                            />
+                        )}
                     </div>
                     <div className="setup-column">
                         {/* NEW: Conditional rendering with animations for component swapping */}
@@ -1301,7 +1318,7 @@ function App() {
                 foundCount={findGroupModal.foundCount}
                 folderName={findGroupModal.folderName}
                 onClose={() => setFindGroupModal(m => ({ ...m, isOpen: false }))}
-                onGoToDestination={handleOpenDestination}
+                onGoToDestination={() => handleOpenDestination(findGroupModal.folderName)}
             />
 
             <MoveCompleteModal

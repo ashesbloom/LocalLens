@@ -753,11 +753,15 @@ if __name__ == "__main__":
     # FIX: Re-implement the port discovery logic for Tauri.
     # We need to run the server in a way that we can get the port number.
     
-    # Use a socket to get a free port from the OS.
-    import socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
-        _, port = s.getsockname()
+    if getattr(sys, 'frozen', False):
+        # Production: Use a socket to get a free port from the OS.
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(('', 0))
+            _, port = s.getsockname()
+    else:
+        # Development: Use fixed port 8000 to match frontend config
+        port = 8000
 
     # Print the port for the Tauri shell to capture. This is the crucial link.
     print(f"PYTHON_BACKEND_PORT:{port}", flush=True)

@@ -16,6 +16,8 @@ pub fn run() {
     let backend_info = BackendInfo::default();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -25,12 +27,17 @@ pub fn run() {
 
             // --- Conditional Backend Startup ---
 
-            // In production, we spawn the sidecar executable
-            #[cfg(not(debug_assertions))]
-            {
+            // Check for USE_SIDECAR env var (set to "true" to force sidecar in dev)
+            let use_sidecar = std::env::var("USE_SIDECAR").unwrap_or_else(|_| "false".to_string()) == "true";
+            // Check if we are in release mode
+            let is_release = !cfg!(debug_assertions);
+
+            if is_release || use_sidecar {
+                println!("Starting backend as sidecar (Release: {}, Force: {})", is_release, use_sidecar);
                 let backend_info = app.state::<BackendInfo>();
                 let port_clone = Arc::clone(&backend_info.port);
                 let child_clone = Arc::clone(&backend_info.child);
+                let app_handle = app_handle.clone();
 
                 tauri::async_runtime::spawn(async move {
                     let (mut rx, child) = app_handle.shell()
@@ -44,6 +51,7 @@ pub fn run() {
                         if let CommandEvent::Stdout(bytes) = event {
                             // Convert the byte vector to a string.
                             let line = String::from_utf8_lossy(&bytes);
+                            println!("Backend: {}", line); // Print backend logs to console
 
                             if line.starts_with("PYTHON_BACKEND_PORT:") {
                                 if let Some(port_str) = line.strip_prefix("PYTHON_BACKEND_PORT:") {
@@ -58,14 +66,13 @@ pub fn run() {
                         }
                     }
                 });
-            }
-
-            // In development, we connect to the manually started backend
-            #[cfg(debug_assertions)]
-            {
+            } else {
+                // Default Dev Mode: Connect to manually started backend
+                println!("Starting in Dev Mode: Expecting manual backend on port 8000");
                 let backend_info = app.state::<BackendInfo>();
                 let dev_port = 8000; // Default port for the dev server
                 *backend_info.port.lock().unwrap() = Some(dev_port);
+                let app_handle = app_handle.clone();
                 
                 // We need to give the frontend a moment to be ready to receive the event.
                 tauri::async_runtime::spawn(async move {
