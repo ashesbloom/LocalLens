@@ -50,10 +50,9 @@ function UpdateChecker({ currentVersion }) {
     // ============================================
     const DEBUG_SIMULATE_UPDATE = false;
     const SIMULATED_UPDATE = {
-        version: "1.3.0",
+        version: "2.0.1",
         date: "2024-12-02T10:30:00Z",
-        notes: `## 🚀 What's New in v1.3.0
-
+        notes: `## What's New in v2.0.1
 ### ✨ New Features
 - <b>Auto-Update System</b>: Get notified when new versions are available
 - <b>One-Click Updates</b>: Install updates without leaving the app

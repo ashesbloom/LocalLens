@@ -1039,7 +1039,7 @@ function App() {
                 />
 
                 {/* Update Checker - Top Left Notification */}
-                <UpdateChecker currentVersion="1.2.0" />
+                <UpdateChecker currentVersion="2.0.1" />
 
                 {/* Exit Button */}
                 <button onClick={handleExit} className="btn-exit" aria-label="Kill Backend" title="Kill Backend">
