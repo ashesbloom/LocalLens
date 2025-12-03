@@ -109,10 +109,13 @@ jobs:
             Write-Output "Key file created. Size: $len bytes"
             
             # Hex dump first 16 bytes to check for BOM or corruption
-            # Note: In PS 5.1 use -Encoding Byte
-            $head = Get-Content "tauri.key" -Encoding Byte -TotalCount 16
-            $hex = ($head | ForEach-Object { '{0:X2}' -f $_ }) -join ' '
-            Write-Output "File Head (Hex): $hex"
+            # Using Format-Hex which is available in PS 5.1 and Core
+            try {
+              $hex = Format-Hex -Path "tauri.key" -Count 16 | Out-String
+              Write-Output "File Head (Hex):`n$hex"
+            } catch {
+              Write-Warning "Could not run Format-Hex: $_"
+            }
             
             # Verify header text
             $firstLine = Get-Content "tauri.key" -TotalCount 1

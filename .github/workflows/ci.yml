@@ -66,4 +66,23 @@ jobs:
       - name: Test Tauri build (debug)
         run: |
           cd frontend
-          npm run tauri build -- --debug  # This is correct for CI testing
+          
+          # Disable updater artifacts to avoid signing requirement in CI
+          Write-Output "Disabling createUpdaterArtifacts for CI build..."
+          $configPath = "src-tauri/tauri.conf.json"
+          $json = Get-Content $configPath -Raw | ConvertFrom-Json
+          $updated = $false
+          if ($json.bundle -and $json.bundle.createUpdaterArtifacts) {
+            $json.bundle.createUpdaterArtifacts = $false
+            $updated = $true
+          }
+          if ($json.plugins -and $json.plugins.updater) {
+            $json.plugins.PSObject.Properties.Remove('updater')
+            $updated = $true
+          }
+          if ($updated) {
+            $json | ConvertTo-Json -Depth 20 | Set-Content $configPath
+            Write-Output "Updated tauri.conf.json to disable signing and remove updater config."
+          }
+          
+          npm run tauri build -- --debug
