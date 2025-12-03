@@ -83,6 +83,13 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           cd frontend
+          # Decode the Base64 private key to a file to avoid newline issues
+          $keyContent = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:TAURI_SIGNING_PRIVATE_KEY))
+          $keyContent | Out-File -FilePath "tauri.key" -Encoding utf8 -NoNewline
+          
+          # Set the environment variable to the content of the file (or path if Tauri supports it, but content is safer)
+          $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content "tauri.key" -Raw
+          
           npm run tauri build
 
       # Debug: List all files in bundle directory to see if .sig files were created
