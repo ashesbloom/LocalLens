@@ -83,12 +83,51 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           cd frontend
-          # Decode the Base64 private key to a file to avoid newline issues
-          $keyContent = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:TAURI_SIGNING_PRIVATE_KEY))
-          $keyContent | Out-File -FilePath "tauri.key" -Encoding utf8 -NoNewline
           
-          # Set the environment variable to the content of the file (or path if Tauri supports it, but content is safer)
-          $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content "tauri.key" -Raw
+          Write-Output "=== Debugging Signing Key Setup ==="
+          
+          # Check Password
+          if ($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+             Write-Output "Password env var is set (length: $($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD.Length))"
+          } else {
+             Write-Warning "Password env var is EMPTY"
+          }
+
+          # Decode Base64 directly to bytes and write to file (avoids BOM/encoding issues)
+          try {
+            $bytes = [System.Convert]::FromBase64String($env:TAURI_SIGNING_PRIVATE_KEY)
+            [System.IO.File]::WriteAllBytes("$PWD/tauri.key", $bytes)
+            Write-Output "Successfully decoded key to tauri.key"
+          } catch {
+            Write-Error "Failed to decode Base64 key: $_"
+            exit 1
+          }
+          
+          # Debug: Check file content (Hex dump start)
+          if (Test-Path "tauri.key") {
+            $len = (Get-Item 'tauri.key').Length
+            Write-Output "Key file created. Size: $len bytes"
+            
+            # Hex dump first 16 bytes to check for BOM or corruption
+            # Note: In PS 5.1 use -Encoding Byte
+            $head = Get-Content "tauri.key" -Encoding Byte -TotalCount 16
+            $hex = ($head | ForEach-Object { '{0:X2}' -f $_ }) -join ' '
+            Write-Output "File Head (Hex): $hex"
+            
+            # Verify header text
+            $firstLine = Get-Content "tauri.key" -TotalCount 1
+            Write-Output "First line text: $firstLine"
+            
+            if ($firstLine -notmatch "^untrusted comment:") {
+               Write-Warning "Key file does not start with 'untrusted comment:'"
+            }
+          }
+          
+          # Strategy: Pass the FILE PATH to Tauri
+          # This bypasses any environment variable string corruption issues
+          $keyPath = (Resolve-Path "tauri.key").Path
+          $env:TAURI_SIGNING_PRIVATE_KEY = $keyPath
+          Write-Output "Setting TAURI_SIGNING_PRIVATE_KEY to path: $keyPath"
           
           npm run tauri build
 
