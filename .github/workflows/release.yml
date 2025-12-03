@@ -95,12 +95,15 @@ jobs:
 
           # Decode Base64 directly to bytes and write to file (avoids BOM/encoding issues)
           try {
+            # Try to decode as Base64 first (in case user encoded the key file)
             $bytes = [System.Convert]::FromBase64String($env:TAURI_SIGNING_PRIVATE_KEY)
             [System.IO.File]::WriteAllBytes("$PWD/tauri.key", $bytes)
-            Write-Output "Successfully decoded key to tauri.key"
+            Write-Output "Successfully decoded Base64 key to tauri.key"
           } catch {
-            Write-Error "Failed to decode Base64 key: $_"
-            exit 1
+            # If Base64 decoding fails, assume it's the raw text content of the key
+            Write-Output "Secret is not Base64, assuming raw key content."
+            $env:TAURI_SIGNING_PRIVATE_KEY | Out-File -FilePath "tauri.key" -Encoding utf8 -NoNewline
+            Write-Output "Saved raw key content to tauri.key"
           }
           
           # Debug: Check file content (Hex dump start)
