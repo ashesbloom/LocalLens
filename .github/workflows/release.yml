@@ -102,7 +102,10 @@ jobs:
           } catch {
             # If Base64 decoding fails, assume it's the raw text content of the key
             Write-Output "Secret is not Base64, assuming raw key content."
-            $env:TAURI_SIGNING_PRIVATE_KEY | Out-File -FilePath "tauri.key" -Encoding utf8 -NoNewline
+            # Explicitly use UTF-8 NO BOM and Trim whitespace
+            $keyContent = $env:TAURI_SIGNING_PRIVATE_KEY.Trim()
+            $encoding = New-Object System.Text.UTF8Encoding $false
+            [System.IO.File]::WriteAllText("$PWD/tauri.key", $keyContent, $encoding)
             Write-Output "Saved raw key content to tauri.key"
           }
           
@@ -129,11 +132,10 @@ jobs:
             }
           }
           
-          # Strategy: Pass the FILE PATH to Tauri
-          # This bypasses any environment variable string corruption issues
-          $keyPath = (Resolve-Path "tauri.key").Path
-          $env:TAURI_SIGNING_PRIVATE_KEY = $keyPath
-          Write-Output "Setting TAURI_SIGNING_PRIVATE_KEY to path: $keyPath"
+          # Strategy: Pass the content to Tauri
+          # We reload it from the file to ensure we use the clean version we just wrote
+          $env:TAURI_SIGNING_PRIVATE_KEY = [System.IO.File]::ReadAllText("$PWD/tauri.key")
+          Write-Output "Setting TAURI_SIGNING_PRIVATE_KEY to clean key content (length: $($env:TAURI_SIGNING_PRIVATE_KEY.Length))"
           
           npm run tauri build
 
