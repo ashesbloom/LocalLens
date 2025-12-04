@@ -118,6 +118,12 @@ function App() {
     // --- NEW State for Reload Confirmation Modal ---
     const [showReloadModal, setShowReloadModal] = useState(false);
 
+    // --- NEW State for Invalid Preset Error Modal ---
+    const [invalidPresetError, setInvalidPresetError] = useState({ show: false, presetName: '', invalidPaths: [] });
+
+    // --- NEW State for Delete Preset Confirmation Modal ---
+    const [deletePresetConfirm, setDeletePresetConfirm] = useState({ show: false, presetName: '' });
+
     // --- NEW State for Move Complete Modal ---
     const [showMoveCompleteModal, setShowMoveCompleteModal] = useState(false);
 
@@ -385,12 +391,16 @@ function App() {
             const result = await response.json();
             if (!response.ok) {
                 // Refined: Check for 'detail' from FastAPI's HTTPException first.
-                throw new Error(result.detail || result.message || `API call to ${endpoint} failed: ${response.statusText}`);
+                // Create an error with additional info for callers to distinguish error types
+                const error = new Error(result.detail || result.message || `API call to ${endpoint} failed: ${response.statusText}`);
+                error.status = response.status;
+                error.isHttpError = true;
+                throw error;
             }
             return result;
         } catch (error) {
-            // This error is typically a network failure (e.g., "Failed to fetch")
-            if (isBackendConnected) {
+            // Only mark backend as disconnected for actual network failures, not HTTP errors (4xx, 5xx)
+            if (!error.isHttpError && isBackendConnected) {
                 setIsBackendConnected(false);
                 logToConsole(`Backend connection lost. Will try to reconnect automatically.`, 'error');
             }
@@ -402,6 +412,20 @@ function App() {
 
     const logToConsole = (message, type = 'info') => {
         setLogs(prevLogs => [...prevLogs, { message, type, time: new Date().toLocaleTimeString() }]);
+    };
+
+    // Helper function to validate if a path exists on the filesystem
+    const validatePath = async (path) => {
+        if (!path) return false;
+        try {
+            await apiCall('/api/validate-path', {
+                method: 'POST',
+                body: JSON.stringify({ path }),
+            });
+            return true;
+        } catch (error) {
+            return false;
+        }
     };
 
     // --- UI Handlers & Backend Integrations ---
@@ -637,8 +661,23 @@ function App() {
         try {
             const config = await apiCall('/api/config/load');
             if (Object.keys(config).length > 0) {
-                if (config.source_folder) setSourceFolder(config.source_folder);
-                if (config.destination_folder) setDestinationFolder(config.destination_folder);
+                // Validate folder paths before setting them to prevent crashes
+                if (config.source_folder) {
+                    const sourceValid = await validatePath(config.source_folder);
+                    if (sourceValid) {
+                        setSourceFolder(config.source_folder);
+                    } else {
+                        logToConsole(`Previous source folder no longer exists: ${config.source_folder}`, "warning");
+                    }
+                }
+                if (config.destination_folder) {
+                    const destValid = await validatePath(config.destination_folder);
+                    if (destValid) {
+                        setDestinationFolder(config.destination_folder);
+                    } else {
+                        logToConsole(`Previous destination folder no longer exists: ${config.destination_folder}`, "warning");
+                    }
+                }
                 if (config.sort_method) setSortMethod(config.sort_method);
                 if (config.face_mode) setFaceMode(config.face_mode);
                 if (config.file_operation_mode) setFileOperationMode(config.file_operation_mode); // <-- ADD THIS
@@ -701,13 +740,85 @@ function App() {
         }
     };
 
+    const handleDeletePreset = async (presetName) => {
+        try {
+            await apiCall(`/api/presets/paths/${encodeURIComponent(presetName)}`, {
+                method: 'DELETE',
+            });
+            logToConsole(`Preset '${presetName}' deleted successfully.`, 'success');
+            // Clear selection if the deleted preset was selected
+            if (selectedPreset === presetName) {
+                setSelectedPreset('');
+            }
+            await loadPresets();
+        } catch (error) {
+            logToConsole(`Failed to delete preset '${presetName}': ${error.message}`, 'error');
+        }
+    };
+
+    // Track if we're currently validating a preset to prevent multiple simultaneous validations
+    const [isValidatingPreset, setIsValidatingPreset] = useState(false);
+    
     const handlePresetChange = (e) => {
         const presetName = e.target.value;
-        setSelectedPreset(presetName);
-        if (presets[presetName]) {
-            setSourceFolder(presets[presetName].source);
-            setDestinationFolder(presets[presetName].destination);
+        
+        if (!presets[presetName]) {
+            setSelectedPreset(presetName);
+            return;
         }
+        
+        // Prevent selecting while validation is in progress
+        if (isValidatingPreset) {
+            return;
+        }
+        
+        const sourcePath = presets[presetName].source;
+        const destPath = presets[presetName].destination;
+        
+        // Set validating state to show feedback
+        setIsValidatingPreset(true);
+        
+        // Wrap async validation in an IIFE to properly handle the promise
+        (async () => {
+            try {
+                // Validate both paths exist before setting them
+                const [sourceValid, destValid] = await Promise.all([
+                    validatePath(sourcePath),
+                    validatePath(destPath)
+                ]);
+                
+                const invalidPaths = [];
+                if (!sourceValid) invalidPaths.push(`Source: ${sourcePath}`);
+                if (!destValid) invalidPaths.push(`Destination: ${destPath}`);
+                
+                if (invalidPaths.length > 0) {
+                    // Show error modal using state (more reliable than message() from IIFE)
+                    setInvalidPresetError({
+                        show: true,
+                        presetName: presetName,
+                        invalidPaths: invalidPaths
+                    });
+                    setIsValidatingPreset(false);
+                    return;
+                }
+                
+                // Only update state if validation passes
+                setSelectedPreset(presetName);
+                setSourceFolder(sourcePath);
+                setDestinationFolder(destPath);
+                logToConsole(`Loaded preset '${presetName}' successfully.`, 'success');
+            } catch (err) {
+                console.error('Error validating preset paths:', err);
+                // Show error modal for backend connection issues
+                setInvalidPresetError({
+                    show: true,
+                    presetName: presetName,
+                    invalidPaths: [`Backend error: ${err.message}`]
+                });
+            } finally {
+                setIsValidatingPreset(false);
+            }
+        })();
     };
 
     const resetUi = () => {
@@ -1108,6 +1219,50 @@ function App() {
                 </p>
             </ConfirmationModal>
 
+            {/* Invalid Preset Error Modal */}
+            <ConfirmationModal
+                isVisible={invalidPresetError.show}
+                title="Invalid Preset Paths"
+                onCancel={() => setInvalidPresetError({ show: false, presetName: '', invalidPaths: [] })}
+                onConfirm={async () => {
+                    await handleDeletePreset(invalidPresetError.presetName);
+                    setInvalidPresetError({ show: false, presetName: '', invalidPaths: [] });
+                }}
+                confirmText="Delete Preset"
+                cancelText="Keep Preset"
+            >
+                <p>
+                    <strong>The preset '{invalidPresetError.presetName}' contains folder paths that no longer exist:</strong>
+                    <br /><br />
+                    <span style={{ fontFamily: 'monospace', fontSize: '0.9em', wordBreak: 'break-all' }}>
+                        {invalidPresetError.invalidPaths.map((path, idx) => (
+                            <span key={idx}>{path}<br /></span>
+                        ))}
+                    </span>
+                    <br />
+                    Would you like to delete this preset or keep it for later?
+                </p>
+            </ConfirmationModal>
+
+            {/* Delete Preset Confirmation Modal */}
+            <ConfirmationModal
+                isVisible={deletePresetConfirm.show}
+                title="Delete Preset"
+                onCancel={() => setDeletePresetConfirm({ show: false, presetName: '' })}
+                onConfirm={async () => {
+                    await handleDeletePreset(deletePresetConfirm.presetName);
+                    setDeletePresetConfirm({ show: false, presetName: '' });
+                }}
+                confirmText="Delete"
+                cancelText="Cancel"
+            >
+                <p>
+                    Are you sure you want to delete the preset <strong>'{deletePresetConfirm.presetName}'</strong>?
+                    <br /><br />
+                    This action cannot be undone.
+                </p>
+            </ConfirmationModal>
+
             <main className="app-main">
                 <div className="setup-grid">
                     <div className="setup-column">
@@ -1126,6 +1281,7 @@ function App() {
                             selectedPreset={selectedPreset}
                             handleSelectPreset={handlePresetChange}
                             handleSavePreset={handleSavePreset}
+                            onRequestDelete={(presetName) => setDeletePresetConfirm({ show: true, presetName })}
                             showSaveButton={showSaveButton}
                         />
                         {/* --- ADD THIS COMPONENT --- */}

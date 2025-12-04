@@ -1,0 +1,38 @@
+/* Preset Manager Styles */
+
+.preset-dropdown-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.preset-dropdown-container .select-field {
+    flex: 1;
+}
+
+.btn-delete-preset {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    background: transparent;
+    border: 1px solid var(--border-color, #3a3a3a);
+    border-radius: 6px;
+    color: var(--text-secondary, #888);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 36px;
+    height: 36px;
+}
+
+.btn-delete-preset:hover {
+    background: rgba(220, 53, 69, 0.1);
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+.btn-delete-preset svg {
+    width: 16px;
+    height: 16px;
+}

@@ -1,7 +1,7 @@
 {
   "name": "local-lens",
   "private": true,
-  "version": "2.0.2",
+  "version": "2.0.6",
   "type": "module",
   "scripts": {
     "dev:pre": "node -e \"const fs = require('fs'); const path = 'src-tauri/backend_server-x86_64-pc-windows-msvc.exe'; if (!fs.existsSync(path)) { fs.writeFileSync(path, ''); }\"",

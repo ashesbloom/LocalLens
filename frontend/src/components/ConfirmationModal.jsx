@@ -1,7 +1,7 @@
 import React from 'react';
 import './ConfirmationModal.css';
 
-const ConfirmationModal = ({ isVisible, title, onConfirm, onCancel, confirmText = "Confirm", children }) => {
+const ConfirmationModal = ({ isVisible, title, onConfirm, onCancel, confirmText = "Confirm", cancelText = "Cancel", hideCancelButton = false, children }) => {
     if (!isVisible) {
         return null;
     }
@@ -23,9 +23,11 @@ const ConfirmationModal = ({ isVisible, title, onConfirm, onCancel, confirmText 
                     {children}
                 </div>
                 <div className="confirm-modal-actions">
-                    <button className="btn-cancel" onClick={onCancel}>
-                        Cancel
-                    </button>
+                    {!hideCancelButton && (
+                        <button className="btn-cancel" onClick={onCancel}>
+                            {cancelText}
+                        </button>
+                    )}
                     <button className="btn-confirm" onClick={onConfirm}>
                         {confirmText}
                     </button>

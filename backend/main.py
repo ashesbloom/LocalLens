@@ -630,6 +630,20 @@ async def save_path_preset(preset: PathPreset):
     except IOError:
         raise HTTPException(status_code=500, detail="Failed to save preset file.")
 
+@app.delete("/api/presets/paths/{preset_name}")
+async def delete_path_preset(preset_name: str):
+    """Deletes a path preset by name."""
+    try:
+        presets = await get_path_presets()
+        if preset_name not in presets:
+            raise HTTPException(status_code=404, detail=f"Preset '{preset_name}' not found.")
+        del presets[preset_name]
+        with open(PATH_PRESETS_FILE, 'w') as f:
+            json.dump(presets, f, indent=4)
+        return {"status": "success", "message": f"Preset '{preset_name}' deleted."}
+    except IOError:
+        raise HTTPException(status_code=500, detail="Failed to delete preset.")
+
 @app.post("/api/open-enrolled-folder")
 async def open_enrolled_folder(request: OpenEnrolledFolderRequest):
     """Opens the folder for a specific enrolled person."""

@@ -74,7 +74,6 @@ jobs:
           copy backend\dist\backend_server-x86_64-pc-windows-msvc.exe frontend\src-tauri\
 
      
-
       # Build the final application
       - name: Build Tauri application
         env:
