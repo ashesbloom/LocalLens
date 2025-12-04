@@ -77,24 +77,36 @@ jobs:
 
       # Decode the secret and set the environment variable for the next step
       - name: Setup Signing Key
+        env:
+          # CORRECT: Map secret to an env var. No quotes needed here in YAML.
+          TAURI_KEY_SECRET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          # 1. Get the Base64 secret
-          $encoded = "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
+          # 1. Get the Base64 secret from the environment variable
+          # This avoids injection issues and whitespace problems from GitHub Secrets
+          $encoded = $env:TAURI_KEY_SECRET
           
           if ($encoded) {
             # 2. Decode Base64 to text
-            $bytes = [System.Convert]::FromBase64String($encoded)
-            $decodedKey = [System.Text.Encoding]::UTF8.GetString($bytes)
-            
-            # 3. Write to a temporary file (frontend/tauri.key)
-            $keyPath = Join-Path (Get-Location) "frontend/tauri.key"
-            [System.IO.File]::WriteAllText($keyPath, $decodedKey)
-            
-            # 4. Set the environment variable to the FILE PATH
-            # This is the equivalent of 'export' but for GitHub Actions Windows runners
-            echo "TAURI_SIGNING_PRIVATE_KEY=$keyPath" >> $env:GITHUB_ENV
-            
-            Write-Host "Success: Signing key decoded and saved to $keyPath"
+            try {
+              # Trim just in case there's accidental whitespace from the secret copy-paste
+              $encoded = $encoded.Trim()
+              $bytes = [System.Convert]::FromBase64String($encoded)
+              $decodedKey = [System.Text.Encoding]::UTF8.GetString($bytes)
+              
+              # 3. Write to a temporary file (frontend/tauri.key)
+              $keyPath = Join-Path (Get-Location) "frontend/tauri.key"
+              # WriteAllText ensures no BOM if we don't specify encoding, or we can be explicit
+              [System.IO.File]::WriteAllText($keyPath, $decodedKey)
+              
+              # 4. Set the environment variable to the FILE PATH
+              echo "TAURI_SIGNING_PRIVATE_KEY=$keyPath" >> $env:GITHUB_ENV
+              
+              Write-Host "Success: Signing key decoded and saved to $keyPath"
+            } catch {
+              Write-Error "Failed to decode signing key. Check if the secret is a valid Base64 string."
+              Write-Error $_
+              exit 1
+            }
           } else {
             Write-Warning "TAURI_SIGNING_PRIVATE_KEY secret is missing!"
           }
