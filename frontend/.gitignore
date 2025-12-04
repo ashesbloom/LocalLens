@@ -34,3 +34,5 @@ coverage
 # Tauri secret files
 tauri-*.key
 tauri-*.key.pub
+
+.tauri

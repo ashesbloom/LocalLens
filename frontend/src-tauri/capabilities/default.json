@@ -15,6 +15,7 @@
     "updater:allow-download",
     "updater:allow-install",
     "process:allow-restart",
-    "process:allow-exit"
+    "process:allow-exit",
+    "updater:allow-download-and-install"
   ]
 }

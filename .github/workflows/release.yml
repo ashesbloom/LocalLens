@@ -14,9 +14,8 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '18'
-  # Tauri updater signing key (set in GitHub Secrets)
-  # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-  # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+  # Password is passed directly (can be empty)
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
 jobs:
   build-windows:
@@ -76,92 +75,37 @@ jobs:
         run: |
           copy backend\dist\backend_server-x86_64-pc-windows-msvc.exe frontend\src-tauri\
 
-      # Build the final application with signing enabled
+      # Decode the secret and set the environment variable for the next step
+      - name: Setup Signing Key
+        run: |
+          # 1. Get the Base64 secret
+          $encoded = "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
+          
+          if ($encoded) {
+            # 2. Decode Base64 to text
+            $bytes = [System.Convert]::FromBase64String($encoded)
+            $decodedKey = [System.Text.Encoding]::UTF8.GetString($bytes)
+            
+            # 3. Write to a temporary file (frontend/tauri.key)
+            $keyPath = Join-Path (Get-Location) "frontend/tauri.key"
+            [System.IO.File]::WriteAllText($keyPath, $decodedKey)
+            
+            # 4. Set the environment variable to the FILE PATH
+            # This is the equivalent of 'export' but for GitHub Actions Windows runners
+            echo "TAURI_SIGNING_PRIVATE_KEY=$keyPath" >> $env:GITHUB_ENV
+            
+            Write-Host "Success: Signing key decoded and saved to $keyPath"
+          } else {
+            Write-Warning "TAURI_SIGNING_PRIVATE_KEY secret is missing!"
+          }
+
+      # Build the final application
       - name: Build Tauri application
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           cd frontend
-          
-          Write-Output "=== Debugging Signing Key Setup ==="
-          
-          # Check Password
-          if ($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
-             Write-Output "Password env var is set (length: $($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD.Length))"
-          } else {
-             Write-Warning "Password env var is EMPTY"
-          }
-
-          # Decode Base64 directly to bytes and write to file (avoids BOM/encoding issues)
-          try {
-            # Try to decode as Base64 first (in case user encoded the key file)
-            $bytes = [System.Convert]::FromBase64String($env:TAURI_SIGNING_PRIVATE_KEY)
-            [System.IO.File]::WriteAllBytes("$PWD/tauri.key", $bytes)
-            Write-Output "Successfully decoded Base64 key to tauri.key"
-          } catch {
-            # If Base64 decoding fails, assume it's the raw text content of the key
-            Write-Output "Secret is not Base64, assuming raw key content."
-            # Explicitly use UTF-8 NO BOM and Trim whitespace
-            $keyContent = $env:TAURI_SIGNING_PRIVATE_KEY.Trim()
-            $encoding = New-Object System.Text.UTF8Encoding $false
-            [System.IO.File]::WriteAllText("$PWD/tauri.key", $keyContent, $encoding)
-            Write-Output "Saved raw key content to tauri.key"
-          }
-          
-          # Debug: Check file content (Hex dump start)
-          if (Test-Path "tauri.key") {
-            $len = (Get-Item 'tauri.key').Length
-            Write-Output "Key file created. Size: $len bytes"
-            
-            # Hex dump first 16 bytes to check for BOM or corruption
-            # Using Format-Hex which is available in PS 5.1 and Core
-            try {
-              $hex = Format-Hex -Path "tauri.key" -Count 16 | Out-String
-              Write-Output "File Head (Hex):`n$hex"
-            } catch {
-              Write-Warning "Could not run Format-Hex: $_"
-            }
-            
-            # Verify header text
-            $firstLine = Get-Content "tauri.key" -TotalCount 1
-            Write-Output "First line text: $firstLine"
-            
-            if ($firstLine -notmatch "^untrusted comment:") {
-               Write-Warning "Key file does not start with 'untrusted comment:'"
-            }
-          }
-          
-          # Strategy: Pass the content to Tauri
-          # We reload it from the file to ensure we use the clean version we just wrote
-          $env:TAURI_SIGNING_PRIVATE_KEY = [System.IO.File]::ReadAllText("$PWD/tauri.key")
-          Write-Output "Setting TAURI_SIGNING_PRIVATE_KEY to clean key content (length: $($env:TAURI_SIGNING_PRIVATE_KEY.Length))"
-          
           npm run tauri build
 
-      # Debug: List all files in bundle directory to see if .sig files were created
-      - name: Debug - List bundle files
-        run: |
-          Write-Output "=== Checking if signing key is set ==="
-          if ($env:TAURI_SIGNING_PRIVATE_KEY) {
-            Write-Output "TAURI_SIGNING_PRIVATE_KEY is SET (length: $($env:TAURI_SIGNING_PRIVATE_KEY.Length))"
-          } else {
-            Write-Output "WARNING: TAURI_SIGNING_PRIVATE_KEY is NOT SET - signatures will be empty!"
-          }
-          
-          Write-Output "`n=== Files in msi folder ==="
-          Get-ChildItem -Path "frontend\src-tauri\target\release\bundle\msi" -Recurse | ForEach-Object { Write-Output $_.FullName }
-          
-          Write-Output "`n=== Files in nsis folder (if exists) ==="
-          if (Test-Path "frontend\src-tauri\target\release\bundle\nsis") {
-            Get-ChildItem -Path "frontend\src-tauri\target\release\bundle\nsis" -Recurse | ForEach-Object { Write-Output $_.FullName }
-          }
-          
-          Write-Output "`n=== Looking for .sig files ==="
-          Get-ChildItem -Path "frontend\src-tauri\target\release\bundle" -Recurse -Filter "*.sig" | ForEach-Object { 
-            Write-Output "Found signature: $($_.FullName)"
-            Write-Output "Content: $(Get-Content $_.FullName -Raw)"
-          }
+
 
       # Generate checksums for verification
       - name: Generate checksums
