@@ -11,9 +11,13 @@
 
 <br />
 <div align="center">
-  <img src="https://github.com/ashesbloom/LocalLens/blob/main/frontend/src-tauri/icons/StoreLogo.png?raw=true" alt="Local Lens Logo" />
-  <h1>Your Memories, Your Machine, Your Privacy.</h1>
+  <h1>
+    <img src="https://github.com/ashesbloom/LocalLens/blob/main/frontend/src-tauri/icons/StoreLogo.png?raw=true" alt="Local Lens Logo" width="120" />
+    <br />
+    Your Memories, Your Machine, Your Privacy.
+  </h1>
   <p><strong>Local Lens</strong> is the AI-powered home for your photos. Sort by face, location, and date entirely offline.</p>
+  
   <h3>
     <a href="https://github.com/ashesbloom/LocalLens/releases/latest">📥 Download Latest Version (Windows)</a>
   </h3>
