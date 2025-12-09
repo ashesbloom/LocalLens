@@ -7,7 +7,7 @@ __pycache__/
 # Helpers for developer
 .github/copilot-instructions.md
 bugs.txt
-changes
+Changes
 Key.txt
 
 # C extensions

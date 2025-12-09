@@ -1,21 +1,29 @@
 # Local Lens
+
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
-[![Build Status](https://img.shields.io/badge/Build-Passing-green.svg)]()
 [![GitHub release](https://img.shields.io/github/v/release/ashesbloom/LocalLens)](https://github.com/ashesbloom/LocalLens/releases)
-[![GitHub downloads](https://img.shields.io/github/downloads/ashesbloom/LocalLens/total)](https://github.com/ashesbloom/LocalLens/releases/latest)
+[![GitHub downloads](https://img.shields.io/github/downloads/ashesbloom/LocalLens/total?color=success&label=Downloads&logo=windows)](https://github.com/ashesbloom/LocalLens/releases/latest)
 
 ![GitHub stars ](https://img.shields.io/github/stars/ashesbloom/LocalLens?style=social&cacheSeconds=60)
 ![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social&cacheSeconds=60)
 ![Views](https://komarev.com/ghpvc/?username=ashesbloom&repo=Locallens&color=blue&style=plastic&label=Views+so+far)
 
-[![Buy Me A Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://coff.ee/ashesbloom)
-
-**Local Lens** is a powerful, AI-driven photo organization application that intelligently sorts and categorizes your photo collection using advanced facial recognition, location data, and metadata analysis. Built with modern technologies, it provides a seamless desktop experience.
+<br />
+<div align="center">
+  <img src="https://github.com/ashesbloom/LocalLens/blob/main/frontend/src-tauri/icons/StoreLogo.png?raw=true" alt="Local Lens Logo" />
+  <h1>Your Memories, Your Machine, Your Privacy.</h1>
+  <p><strong>Local Lens</strong> is the AI-powered home for your photos. Sort by face, location, and date entirely offline.</p>
+  <h3>
+    <a href="https://github.com/ashesbloom/LocalLens/releases/latest">📥 Download Latest Version (Windows)</a>
+  </h3>
+  <p><em>macOS and Linux support coming soon</em></p>
+</div>
+<br />
 
 ## 🖥️ Software Preview
 
-Take a look at Local Lens in action:
+See how Local Lens organizes thousands of photos in seconds:
 
 <p align="center">
     <img src="https://github.com/ashesbloom/LocalLens/blob/main/assets/preview1.png?raw=true" alt="Local Lens Main Dashboard" width="250"/>
@@ -23,73 +31,65 @@ Take a look at Local Lens in action:
     <img src="https://github.com/ashesbloom/LocalLens/blob/main/assets/preview3.png?raw=true" alt="Photo Organization by Location" width="250"/>
 </p>
 
-Different Modes of Local Lens:
+### Different Modes & Themes
 <p align="center">
     <img src="https://github.com/ashesbloom/LocalLens/blob/main/assets/preview4.png?raw=true" alt="Different Modes of Local Lens" width="520" style="display:block; margin: 0 auto 16px auto;"/>
 </p>
 <p align="center">
-    <img src="https://github.com/ashesbloom/LocalLens/blob/main/assets/preview5.png?raw=true" alt="Different Modes of Local Lens" width="250"/>
-    <img src="https://github.com/ashesbloom/LocalLens/blob/main/assets/preview6.png?raw=true" alt="Different Modes of Local Lens" width="250"/>
+    <img src="https://github.com/ashesbloom/LocalLens/blob/main/assets/preview5.png?raw=true" alt="Dark Mode Interface" width="250"/>
+    <img src="https://github.com/ashesbloom/LocalLens/blob/main/assets/preview6.png?raw=true" alt="Light Mode Interface" width="250"/>
 </p>
 
-> _Screenshots are for illustration. UI may evolve with updates._
+> _Screenshots are for illustration. UI evolves with every update._
+
+---
+
+## 🆚 Why Local Lens?
+
+| Feature | ☁️ Cloud Services (Google/iCloud) | 🔒 Local Lens |
+| :--- | :--- | :--- |
+| **Privacy** | Your photos are scanned for ads/data | **100% Private. Zero data leaves your PC.** |
+| **Cost** | Monthly Subscription ($$$) | **Free & Open Source** |
+| **Storage** | Limited (15GB cap) | **Unlimited (Limited only by your HDD)** |
+| **Speed** | Depends on Internet speed | **Instant (Local Processing)** |
+| **AI Processing** | Server-side | **On-Device (CNN & HOG Models)** |
 
 ## 🎯 Vision & Purpose
 
-**Local Lens** revolutionizes photo management with intelligent, privacy-first automation. Designed for photographers, families, and anyone with thousands of digital memories, it transforms overwhelming photo organization into an effortless, secure experience.
+**Local Lens** revolutionizes photo management with intelligent, privacy-first automation. Designed for photographers, data hoarders, families, and anyone with terabytes of digital memories, it transforms overwhelming photo organization into an effortless, secure experience.
 
-### The Challenge We Solve
-Manual photo sorting is tedious, and cloud solutions risk your privacy. Local Lens brings enterprise-grade AI directly to your desktop—no subscriptions, no data leaving your device.
+### The Problem
+Manual photo sorting is tedious. Cloud solutions get expensive and risk your privacy. 
 
-### Core Philosophy: Privacy-First Intelligence
-- **🔒 100% Local Processing**: All AI and analysis run on your machine
-- **🛡️ Zero Data Transmission**: Photos never leave your device
-- **⚡ Lightning-Fast Search**: Dynamic, real-time filters
-- **🔍 Multi-Dimensional Discovery**: Search by faces, dates, locations, or combinations
+### The Solution
+Local Lens brings enterprise-grade AI directly to your desktop. No subscriptions, no upload times, no data harvesting.
 
-### Intelligent Organization Features
-- **📅 Smart Date Sorting**: Chronological organization via metadata
-- **🗺️ Location Intelligence**: GPS clustering and reverse geocoding
-- **👤 Face Recognition**: Train AI to recognize people
-- **🔄 Dynamic Filtering**: Real-time, responsive search
-- **📊 Analytics**: Insights into your photo collection
+### Core Features
+- **🔒 100% Offline AI**: All facial recognition and analysis runs on your hardware.
+- **👤 Face Recognition**: Train the AI to recognize friends and family.
+- **🗺️ Location Intelligence**: Visualizes where your photos were taken (GPS clustering).
+- **📅 Smart Timeline**: Auto-sorts messy folders into chronological order.
+- **⚡ Lightning Search**: Dynamic filtering by date, location, or person.
+- **🔄 Non-Destructive**: Your original files are never modified; we only organize.
 
-### Enterprise-Grade Safety & Reliability
-- **💾 Data Integrity**: Multiple validation layers for safety
-- **🔄 Non-Destructive**: Originals untouched, smart duplicate management
-- **📋 Logging**: Complete audit trail
-- **⚠️ Robust Error Handling**: Graceful recovery from interruptions
-- **🎯 Precision Accuracy**: Advanced algorithms minimize false positives
+### 🧠 Under the Hood: The "Enhanced Automatic Strategy"
 
-### Advanced Features
-- **👥 Face Enrollment**: Teach AI to recognize specific people
-- **🌍 Cross-Platform**: Native on Windows, macOS, Linux
-- **💾 Persistent Config**: Save/load sorting presets
-- **🔍 Real-Time Preview**: Live analytics and progress
-- **🎨 Modern UI**: Clean interface with React & Tauri
+How do we keep it fast without crashing your PC? Local Lens uses an adaptive, two-pass strategy:
 
-#### 🧠 Enhanced Automatic Strategy (How Local Lens Stays Fast & Accurate)
+1.  **The Speed Pass (HOG)**: We scan images using a lightweight algorithm (Histogram of Oriented Gradients). If a face is clearly visible, we log it.
+2.  **The Precision Pass (CNN)**: If the first pass is unsure, we escalate to a Convolutional Neural Network (CNN) for high-precision detection.
+3.  **Intelligent Fallback**: If your hardware runs out of memory, the system automatically adjusts to a lighter model instantly.
 
-Local Lens uses an adaptive, two-pass face recognition strategy for maximum accuracy and stability:
+*This guarantees the best possible result for every photo, adapting to your specific hardware.*
 
-- **Conservative Start**: Begins with minimal parallel processing for stability on all hardware.
-- **Best-Model First**: Tries the high-accuracy 'cnn' model for each image.
-- **Intelligent Fallback**: If 'cnn' fails (e.g., due to memory limits), it logs a warning and instantly retries with the lighter 'hog' model—ensuring no image is skipped.
-- **Accurate Model Approach**: 
-    - **First Pass**: Runs the fast 'hog' model for initial detection.
-    - **Confidence Check**: If a high-confidence match is found, it's accepted.
-    - **Second Pass**: If not, escalates to the more accurate 'cnn' model for tough cases.
+---
 
-This guarantees the best possible result for every photo, adapting to your hardware and image complexity—never crashing or missing faces.
+## 🖼️ Supported Formats
 
+Whether you shoot on an iPhone or a DSLR, we've got you covered:
 
-### 🖼️ Supported Formats
-
-Local Lens supports a wide range of image formats for both professional and casual users:
-
-`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.heic`, `.heif`, `.dng`, `.cr2`, `.cr3`, `.nef`, `.arw`, `.raf`, `.avif`, `.psd`, `.hdr`
-
-Whether you shoot on a phone or a pro camera, your images are covered.
+`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.webp`, `.heic`, `.heif`  
+**RAW Support:** `.dng`, `.cr2`, `.cr3`, `.nef`, `.arw`, `.raf`, `.avif`, `.psd`
 
 ---
 
