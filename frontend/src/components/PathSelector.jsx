@@ -6,8 +6,8 @@ const FolderIcon = ({ className = "icon" }) => (
     </svg>
 );
 
-const PathSelector = ({ label, path, handleSelectFolder }) => (
-    <div className="form-group">
+const PathSelector = ({ label, path, handleSelectFolder, ...props }) => (
+    <div className="form-group" {...props}>
         <label>{label}</label>
         <div className="input-group">
             <FolderIcon />

@@ -1,20 +1,31 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
+import site
+from pathlib import Path
+import face_recognition_models
+import reverse_geocoder
 
 block_cipher = None
+
+
+model_dir = Path(face_recognition_models.__file__).parent / 'models'
+rg_path = Path(reverse_geocoder.__file__).parent / 'rg_cities1000.csv'
+
+datas = [
+    (str(model_dir), 'face_recognition_models/models'),
+    (str(rg_path), 'reverse_geocoder'),
+]
+
+# Use a platform-neutral base name; PyInstaller adds .exe on Windows automatically.
+exe_name = 'backend_server'
 
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        # This entry is correct, leave it.
-        ('venv\\Lib\\site-packages\\face_recognition_models\\models', 'face_recognition_models/models'),
-        
-        # REMOVE the old reverse_geocoder lines and REPLACE with this one:
-        ('venv\\Lib\\site-packages\\reverse_geocoder\\rg_cities1000.csv', 'reverse_geocoder')
-    ],
+    datas=datas,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -31,7 +42,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='backend_server-x86_64-pc-windows-msvc.exe',
+    name=exe_name,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

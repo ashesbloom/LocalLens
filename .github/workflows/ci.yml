@@ -56,7 +56,7 @@ jobs:
 
       - name: Copy backend executable
         run: |
-          copy backend\dist\backend_server-x86_64-pc-windows-msvc.exe frontend\src-tauri\
+          copy backend\dist\backend_server.exe frontend\src-tauri\backend_server-x86_64-pc-windows-msvc.exe
 
       - name: Test frontend build
         run: |

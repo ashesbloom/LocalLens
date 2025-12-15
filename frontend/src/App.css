@@ -2051,3 +2051,61 @@ p {
 .animate-spin {
   animation: spin 1s linear infinite;
 }
+
+/* ========================================
+   TUTORIAL MENU CONTAINER
+   Position next to UpdateChecker
+   ======================================== */
+.tutorial-menu-container {
+    position: absolute;
+    top: 1.5rem;
+    left: calc(1.5rem + 54px); /* Position next to UpdateChecker (44px button + 10px gap) */
+    z-index: 1000;
+}
+/* ============================================
+   TUTORIAL TEXT SWIPE ANIMATION
+   ============================================ */
+
+/* Text shimmer highlight for Face Enrollment description */
+[data-tutorial-target="face-enrollment-description"].tutorial-highlight {
+    position: relative;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.9) 0%,
+        rgba(255, 255, 255, 0.9) 40%,
+        #fbbf24 50%,
+        rgba(255, 255, 255, 0.9) 60%,
+        rgba(255, 255, 255, 0.9) 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: text-shimmer 3s linear infinite;
+}
+
+[data-tutorial-target="face-enrollment-description"].tutorial-highlight strong {
+    background: linear-gradient(
+        90deg,
+        #f472b6 0%,
+        #f472b6 40%,
+        #fef08a 50%,
+        #f472b6 60%,
+        #f472b6 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: text-shimmer 3s linear infinite;
+    font-weight: bold !important;
+}
+
+@keyframes text-shimmer {
+    0% {
+        background-position: 200% center;
+    }
+    100% {
+        background-position: -200% center;
+    }
+}

@@ -42,10 +42,10 @@ const FaceEnrollment = ({
     const canStartEnrollment = enrollmentQueue.length > 0;
 
     return (
-        <div className={`enrollment-section ${isModalMode ? 'modal-mode' : ''}`}>
+        <div className={`enrollment-section ${isModalMode ? 'modal-mode' : ''}`} data-tutorial-target="face-enrollment">
             <div className="form-group">
                 <h2 className="section-title">Face Enrollment</h2>
-                <p className="description">Add multiple people for face recognition. <strong style={{fontWeight: 'bold', color: 'lightpink'}}> Provide 7-10 close up photos ideally from all angles per person </strong> for best results.</p>
+                <p className="description" data-tutorial-target="face-enrollment-description">Add multiple people for face recognition. <strong style={{fontWeight: 'bold', color: 'lightpink'}}> Provide 7-10 close up photos ideally from all angles per person </strong> for best results.</p>
             </div>
             
             {/* --- Form for adding a new person --- */}
@@ -54,6 +54,7 @@ const FaceEnrollment = ({
                     onClick={handleSelectImages} 
                     disabled={isEnrolling || isProcessing} 
                     className="btn btn-secondary select-photos-btn"
+                    data-tutorial-target="select-photos-btn"
                 >
                     Select Photos
                 </button>
@@ -69,12 +70,14 @@ const FaceEnrollment = ({
                                 placeholder="Enter person's name" 
                                 className="input-field"
                                 disabled={isEnrolling || isProcessing}
+                                data-tutorial-target="person-name-input"
                             />
                         </div>
                         <button 
                             onClick={handleAddToQueue} 
                             disabled={!canAddToQueue || isEnrolling || isProcessing} 
                             className="btn btn-enroll add-person-btn"
+                            data-tutorial-target="add-person-btn"
                         >
                             <AddIcon /> Add Person
                         </button>
@@ -124,6 +127,7 @@ const FaceEnrollment = ({
                     onClick={handleStartBatchEnrollment} 
                     disabled={!canStartEnrollment || isEnrolling || isProcessing} 
                     className="btn btn-primary"
+                    data-tutorial-target="enroll-all-btn"
                 >
                     {isEnrolling ? 'Enrolling...' : `Enroll All (${enrollmentQueue.length})`}
                 </button>
@@ -131,6 +135,7 @@ const FaceEnrollment = ({
                     onClick={onViewEnrolledClick}
                     disabled={isEnrolling || isProcessing}
                     className="btn btn-secondary"
+                    data-tutorial-target="view-enrolled-btn"
                 >
                     View Enrolled Faces
                 </button>

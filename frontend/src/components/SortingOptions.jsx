@@ -31,7 +31,7 @@ const SortingOptions = ({ sortMethod, setSortMethod, isProcessing, isEnrolled, e
         if (enrolledCount === 1) {
             return (
                 <div className="people-description">
-                    <span className="neural-status">
+                    <span className="neural-status" data-tutorial-target="neural-status">
                         Neural network trained on <span className="highlight-count">1</span> person
                     </span>
                     <div className="ai-metrics">
@@ -58,7 +58,7 @@ const SortingOptions = ({ sortMethod, setSortMethod, isProcessing, isEnrolled, e
         
         return (
             <div className="people-description">
-                <span className="neural-status">
+                <span className="neural-status" data-tutorial-target="neural-status">
                     Neural network trained on <span className="highlight-count">{enrolledCount}</span> people
                 </span>
                 <div className="ai-metrics">
@@ -74,7 +74,7 @@ const SortingOptions = ({ sortMethod, setSortMethod, isProcessing, isEnrolled, e
                         <span className="metric-label">Learning Status:</span>
                         <span className={`speed-status ${speedStatus.toLowerCase().replace(' ', '-')}`}>{speedStatus}</span>
                     </div>
-                    <div className="metric-row">
+                    <div className="metric-row" data-tutorial-target="model-strength">
                         <span className="metric-label">Model Strength:</span>
                         <div className="model-strength">
                             {Array.from({ length: Math.min(enrolledCount, 10) }, (_, i) => (
@@ -141,6 +141,7 @@ const SortingOptions = ({ sortMethod, setSortMethod, isProcessing, isEnrolled, e
                         key={option.id}
                         className={`sorting-card ${sortMethod === option.id ? 'selected' : ''} ${option.disabled || isProcessing ? 'disabled' : ''}`}
                         data-type={option.id}
+                        data-tutorial-target={option.id === 'People' ? 'sort-by-faces' : undefined}
                         title={option.tooltip || option.title}
                     >
                         <input
@@ -164,7 +165,7 @@ const SortingOptions = ({ sortMethod, setSortMethod, isProcessing, isEnrolled, e
 
             {/* Neural Network Settings */}
             {sortMethod === 'People' && isEnrolled && (
-                <div className="face-mode-selector form-group">
+                <div className="face-mode-selector form-group" data-tutorial-target="face-mode-selector">
                     <label htmlFor="face-mode">🧠 Neural Network Mode</label>
                     <select
                         id="face-mode"
@@ -172,10 +173,11 @@ const SortingOptions = ({ sortMethod, setSortMethod, isProcessing, isEnrolled, e
                         onChange={(e) => setFaceMode(e.target.value)}
                         disabled={isProcessing}
                         className="input-field"
+                        data-tutorial-target="face-mode-dropdown"
                     >
-                        <option value="fast">Fast - Recommended for large sets of photos</option>
-                        <option value="balanced">Balanced - Almost similar to fast mode (slightly more accurate)</option>
-                        <option value="accurate">Accurate - For intensive face detection only</option>
+                        <option value="fast" data-tutorial-target="face-mode-fast">Fast - Recommended for large sets of photos</option>
+                        <option value="balanced" data-tutorial-target="face-mode-balanced">Balanced - Almost similar to fast mode (slightly more accurate)</option>
+                        <option value="accurate" data-tutorial-target="face-mode-accurate">Accurate - For intensive face detection only</option>
                     </select>
                     <p className="description">
                         {faceMode === 'accurate' && "Best for finding small or distant faces in group photos (⏱️ Very slow processing)"}

@@ -5,6 +5,23 @@ All notable changes to Local Lens will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-12-16
+
+### Added
+
+- Tutorial and walkthrough for new users.
+- Support for more RAW image formats on macOS and Linux via ImageMagick.
+- Dynamic logic in the build process to handle backend executables for different OS and architectures.
+
+### Changed
+
+- Replaced deprecated `pkg_resources` with `setuptools<81` for `face_recognition_models`.
+
+### Fixed
+
+- Critical bug with 'Find and Group' dialog not showing correct information.
+- App crash when selecting a preset with a missing folder path.
+
 ## [2.0.6] - 2025-12-04
 
 ### Added

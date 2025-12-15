@@ -1,0 +1,369 @@
+/* ============================================
+   TUTORIAL MENU - Step Selection Dropdown
+   ============================================ */
+
+.tutorial-menu-container {
+    position: relative;
+}
+
+.tutorial-start-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    /* Glassmorphism effect - matching UpdateChecker */
+    background: linear-gradient(
+        135deg, 
+        rgba(255, 255, 255, 0.15) 0%, 
+        rgba(255, 255, 255, 0.05) 100%
+    );
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.12),
+        0 2px 8px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    
+    color: rgba(255, 255, 255, 0.8);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tutorial-start-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 
+        0 12px 40px rgba(var(--color-primary-rgb), 0.25),
+        0 4px 12px rgba(var(--color-primary-rgb), 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    border-color: rgba(var(--color-primary-rgb), 0.4);
+    color: white;
+}
+
+.tutorial-start-btn:active {
+    transform: translateY(0);
+}
+
+.tutorial-start-btn.active {
+    background: linear-gradient(
+        135deg, 
+        rgba(59, 130, 246, 0.3) 0%, 
+        rgba(59, 130, 246, 0.15) 100%
+    );
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 
+        0 0 20px rgba(59, 130, 246, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.tutorial-start-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* ============================================
+   DROPDOWN PANEL
+   ============================================ */
+
+.tutorial-menu-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: 280px;
+    max-height: 450px;
+    overflow-y: auto;
+    
+    background: linear-gradient(
+        145deg, 
+        rgba(30, 41, 59, 0.98) 0%, 
+        rgba(15, 23, 42, 0.98) 100%
+    );
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.4),
+        0 8px 16px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    z-index: 9998;
+    animation: menu-enter 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes menu-enter {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Scrollbar styling */
+.tutorial-menu-dropdown::-webkit-scrollbar {
+    width: 6px;
+}
+
+.tutorial-menu-dropdown::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.tutorial-menu-dropdown::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.tutorial-menu-dropdown::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* ============================================
+   HEADER
+   ============================================ */
+
+.tutorial-menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tutorial-menu-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tutorial-menu-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tutorial-menu-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* ============================================
+   START FROM BEGINNING BUTTON
+   ============================================ */
+
+.tutorial-menu-start-fresh {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: calc(100% - 24px);
+    margin: 12px;
+    padding: 12px 14px;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.1) 100%);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    color: #60a5fa;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tutorial-menu-start-fresh:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0.15) 100%);
+    border-color: rgba(59, 130, 246, 0.5);
+    transform: translateY(-1px);
+}
+
+.tutorial-menu-start-fresh svg {
+    flex-shrink: 0;
+}
+
+/* ============================================
+   DIVIDER
+   ============================================ */
+
+.tutorial-menu-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    margin: 4px 0 8px;
+}
+
+.tutorial-menu-divider::before,
+.tutorial-menu-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.tutorial-menu-divider span {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+/* ============================================
+   GROUP SECTIONS
+   ============================================ */
+
+.tutorial-menu-groups {
+    padding: 4px 8px 12px;
+}
+
+.tutorial-menu-group {
+    margin-bottom: 4px;
+}
+
+.tutorial-menu-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tutorial-menu-group-header:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.tutorial-menu-group-header.expanded {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.group-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.group-name {
+    flex: 1;
+    text-align: left;
+}
+
+.group-count {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 6px;
+    border-radius: 10px;
+}
+
+.group-chevron {
+    color: rgba(255, 255, 255, 0.4);
+    transition: transform 0.2s ease;
+}
+
+.tutorial-menu-group-header.expanded .group-chevron {
+    transform: rotate(180deg);
+}
+
+/* ============================================
+   STEP ITEMS
+   ============================================ */
+
+.tutorial-menu-steps {
+    padding: 4px 0 4px 32px;
+    animation: steps-expand 0.2s ease;
+}
+
+@keyframes steps-expand {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tutorial-menu-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    border-left: 2px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tutorial-menu-step:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-left-color: rgba(59, 130, 246, 0.5);
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.tutorial-menu-step.flagship {
+    border-left-color: rgba(251, 191, 36, 0.3);
+}
+
+.tutorial-menu-step.flagship:hover {
+    border-left-color: rgba(251, 191, 36, 0.6);
+}
+
+.step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+}
+
+.step-title {
+    flex: 1;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.step-flagship-badge {
+    font-size: 10px;
+    color: #fbbf24;
+}

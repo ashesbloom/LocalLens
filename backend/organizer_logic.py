@@ -11,6 +11,7 @@
 # ==============================================================================
 
 import os
+import sys
 import shutil
 from datetime import datetime
 import logging
@@ -46,14 +47,32 @@ except ImportError:
 
 import reverse_geocoder as rg
 
-# ADD THIS BLOCK
+# RAW Image Support Logic
+rawpy = None
+WandImage = None
+
+# 1. Try rawpy (Preferred for Windows, optional for others)
 try:
     import rawpy
     print("Raw image format support (DNG, CR2, etc.) enabled via rawpy.")
 except ImportError:
-    rawpy = None
-    print("Warning: 'rawpy' not installed. Raw files will be scanned for EXIF but not for faces.")
+    pass
 
+# 2. Try Wand (Preferred for macOS/Linux if rawpy is missing)
+try:
+    from wand.image import Image as WandImage
+    print("Wand (ImageMagick) support enabled.")
+except ImportError:
+    pass
+
+# 3. Log status based on platform expectations
+if sys.platform == 'win32':
+    if not rawpy:
+        print("Warning: 'rawpy' is missing on Windows. RAW face recognition will be disabled.")
+elif sys.platform == 'darwin': # macOS
+    if not WandImage and not rawpy:
+        print("Warning: Neither 'Wand' nor 'rawpy' found. RAW face recognition will be disabled.")
+        print("  -> Install ImageMagick (`brew install imagemagick`) and reinstall requirements.")
 
 
 # --- Global State for Libraries ---
@@ -438,19 +457,31 @@ def recognize_faces(image_path, known_encodings, known_names, mode='balanced'):
         pil_image = Image.open(image_path)
     
     except Exception as e:
-        # If Pillow fails, check if it's a Raw file we can handle with rawpy.
-        if file_ext in RAW_EXTENSIONS and rawpy:
-            try:
-                with rawpy.imread(image_path) as raw:
-                    # postprocess() creates a standard, viewable image array
-                    rgb_array = raw.postprocess()
-                pil_image = Image.fromarray(rgb_array)
-                logging.info(f"Successfully decoded Raw file '{os.path.basename(image_path)}' for face recognition.")
-            except Exception as raw_e:
-                logging.warning(f"Could not process Raw file {os.path.basename(image_path)} with rawpy: {raw_e}")
-                return None
-        else:
-            # If it's not a known Raw file or rawpy isn't installed, log the original Pillow error.
+        # If Pillow fails, check if it's a Raw file we can handle with rawpy or Wand.
+        if file_ext in RAW_EXTENSIONS:
+            # Try rawpy first (preferred)
+            if rawpy:
+                try:
+                    with rawpy.imread(image_path) as raw:
+                        # postprocess() creates a standard, viewable image array
+                        rgb_array = raw.postprocess()
+                    pil_image = Image.fromarray(rgb_array)
+                    logging.info(f"Successfully decoded Raw file '{os.path.basename(image_path)}' via rawpy.")
+                except Exception as raw_e:
+                    logging.warning(f"Could not process Raw file {os.path.basename(image_path)} with rawpy: {raw_e}")
+
+            # Try Wand if rawpy failed or is missing
+            if not pil_image and WandImage:
+                try:
+                    with WandImage(filename=image_path) as img:
+                        img_blob = img.make_blob(format='RGB')
+                        pil_image = Image.frombytes('RGB', (img.width, img.height), img_blob)
+                    logging.info(f"Successfully decoded Raw file '{os.path.basename(image_path)}' via Wand.")
+                except Exception as wand_e:
+                    logging.warning(f"Could not process Raw file {os.path.basename(image_path)} with Wand: {wand_e}")
+
+        if not pil_image:
+            # If it's not a known Raw file or neither library worked, log the original Pillow error.
             logging.warning(f"Pillow could not open {os.path.basename(image_path)}: {e}")
             return None
 

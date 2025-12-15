@@ -78,6 +78,34 @@ if ! check_command cargo; then
     exit 1
 fi
 
+# macOS-specific: Check for Homebrew dependencies
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    print_status "Detected macOS. Checking Homebrew dependencies..."
+    
+    if ! check_command brew; then
+        print_error "Homebrew is required on macOS. Install from https://brew.sh/"
+        exit 1
+    fi
+    
+    # Check for required Homebrew packages
+    REQUIRED_BREW_PACKAGES=("cmake" "dlib" "imagemagick")
+    MISSING_PACKAGES=()
+    
+    for pkg in "${REQUIRED_BREW_PACKAGES[@]}"; do
+        if ! brew list "$pkg" &>/dev/null; then
+            MISSING_PACKAGES+=("$pkg")
+        fi
+    done
+    
+    if [ ${#MISSING_PACKAGES[@]} -ne 0 ]; then
+        print_warning "Missing Homebrew packages: ${MISSING_PACKAGES[*]}"
+        print_status "Installing missing packages..."
+        brew install "${MISSING_PACKAGES[@]}"
+    else
+        print_success "All required Homebrew packages are installed"
+    fi
+fi
+
 # Check Python version
 PYTHON_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 print_status "Python version: $PYTHON_VER"
@@ -139,11 +167,18 @@ mkdir -p src-tauri/binaries
 
 # Detect platform and copy appropriate binary
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    cp "../backend/dist/backend_server-x86_64-pc-windows-msvc.exe" "src-tauri/binaries/backend_server-x86_64-unknown-linux-gnu"
+    cp "../backend/dist/backend_server" "src-tauri/binaries/backend_server-x86_64-unknown-linux-gnu"
     PLATFORM="linux-gnu"
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    cp "../backend/dist/backend_server" "src-tauri/binaries/backend_server-x86_64-apple-darwin"
-    PLATFORM="darwin"
+    # Detect architecture for macOS
+    ARCH=$(uname -m)
+    if [[ "$ARCH" == "arm64" ]]; then
+        cp "../backend/dist/backend_server" "src-tauri/binaries/backend_server-aarch64-apple-darwin"
+        PLATFORM="darwin-arm64"
+    else
+        cp "../backend/dist/backend_server" "src-tauri/binaries/backend_server-x86_64-apple-darwin"
+        PLATFORM="darwin-x64"
+    fi
 elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
     cp "../backend/dist/backend_server.exe" "src-tauri/binaries/backend_server-x86_64-pc-windows-msvc.exe"
     PLATFORM="windows"

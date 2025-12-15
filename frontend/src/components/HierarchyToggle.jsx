@@ -1,6 +1,6 @@
 import React from 'react';
 
-const HierarchyToggle = ({ maintainHierarchy, setMaintainHierarchy, isProcessing }) => {
+const HierarchyToggle = ({ maintainHierarchy, setMaintainHierarchy, isProcessing, ...props }) => {
     const toggleState = () => {
         if (!isProcessing) {
             setMaintainHierarchy(!maintainHierarchy);
@@ -10,7 +10,7 @@ const HierarchyToggle = ({ maintainHierarchy, setMaintainHierarchy, isProcessing
     const currentModeText = maintainHierarchy ? "Recreate Structure" : "Flat Output";
 
     return (
-        <div className="hierarchy-toggle-section">
+        <div className="hierarchy-toggle-section" {...props}>
             <div className="form-group">
                 <label>Output Folder Structure</label>
                 <p className="description">"Recreate" keeps original subfolders. "Flat" places all photos at the top level.</p>

@@ -148,83 +148,27 @@ Local Lens uses a hybrid architecture combining the best of web and desktop tech
 - **Image Processing**:
   - `Pillow` - Python Imaging Library
   - `Pillow-HEIF` - HEIF/HEIC format support
-  - `rawpy` - RAW image format support
+  - `rawpy` - RAW image format support (Windows)
+  - `Wand` - ImageMagick binding for RAW support (macOS/Linux)
 - **Geolocation**: `reverse_geocoder` for location data
 - **Server**: `uvicorn` ASGI server
 
 ### Build & Distribution
+
 - **Python Bundling**: PyInstaller for creating standalone executables
 - **Desktop Packaging**: Tauri for cross-platform application packaging
 - **Installer Generation**: Platform-specific installers (.msi, .dmg, .deb, .AppImage)
 
 ## 📋 Prerequisites
 
-
 ### For Normal Users
+
 - **No prerequisites** - The distributed application includes all dependencies
-
-## 🚀 Quick Start
-
-### Option 1: Download Pre-built Release (Recommended)
-1. Visit the [Releases page](https://github.com/ashesbloom/LocalLens/releases)
-2. Download the installer for your platform:
-   - Windows: `Local_Lens_x.x.x_x64_en-US.msi`
-   - macOS: _Releasing soon_
-   - Linux: _Releasing soon_
-3. Run the installer and follow the setup wizard
-4. Launch Local Lens from your applications menu
-
-### Option 2: Running from Source (For Developers)
-
-This method is for developers who want to run the latest code or contribute to the project. It enables hot-reloading for both the frontend and backend.
-
-#### 1. Setup
-First, ensure you have all the [required software](#for-development) installed.
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/ashesbloom/LocalLens.git
-cd LocalLens
-
-# 2. Set up the Python backend
-cd backend
-python -m venv venv
-# On Windows
-venv\Scripts\activate
-# On macOS/Linux
-# source venv/bin/activate
-pip install -r requirements.txt
-cd ..
-
-# 3. Set up the Node.js frontend
-cd frontend
-npm install
-cd ..
-```
-
-#### 2. Run the Application
-You will need two separate terminals to run the application in development mode.
-
-**Terminal 1: Start the Backend Server**
-```bash
-cd backend
-# Activate your virtual environment if not already active
-venv\Scripts\activate
-# Start the server with hot-reloading
-uvicorn main:app --reload
-```
-The backend will be running on `http://127.0.0.1:8000`.
-
-**Terminal 2: Start the Frontend Application**
-```bash
-cd frontend
-npm run tauri dev
-```
-This will open the Local Lens desktop application, which will automatically connect to your running backend server. Changes to the Python code will auto-reload the backend, and changes to the React code will auto-reload the frontend.
 
 ### For Development
 
 #### Required Software
+
 - **Node.js** (v18 or higher) - [Download](https://nodejs.org/)
 - **Rust** (latest stable) - [Install via rustup](https://rustup.rs/)
 - **Python** (3.11 or higher) - [Download](https://python.org/)
@@ -234,19 +178,31 @@ This will open the Local Lens desktop application, which will automatically conn
 #### Platform-Specific Requirements
 
 ##### Windows
+
 - **Visual Studio Build Tools** or **Visual Studio Community**
     - Install "C++ CMake tools for Visual Studio" workload
     - Or install standalone: [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
 - **CMake** - [Download](https://cmake.org/download/)
 
 ##### macOS
+
 - **Xcode Command Line Tools** - [Install](https://developer.apple.com/xcode/downloads/)
 - **CMake** - [Install via Homebrew](https://brew.sh/)
+- **dlib** - Pre-compiled library (required for face recognition)
+- **ImageMagick** - For RAW image processing (alternative to rawpy)
+
 ```bash
-brew install cmake
+# Install Xcode Command Line Tools
+xcode-select --install
+
+# Install required Homebrew packages
+brew install cmake dlib imagemagick
 ```
 
+> **Note for Apple Silicon (M1/M2/M3) Macs**: The `dlib` library must be installed via Homebrew first due to compatibility issues with newer Python versions. This is handled automatically when you follow the installation steps above.
+
 ##### Linux (Ubuntu/Debian)
+
 - **Build essentials and development tools**
 ```bash
 sudo apt update
@@ -255,6 +211,7 @@ sudo apt install python3-dev python3-venv pkg-config
 ```
 
 ##### Linux (CentOS/RHEL/Fedora)
+
 - **Development tools and dependencies**
 ```bash
 # CentOS/RHEL

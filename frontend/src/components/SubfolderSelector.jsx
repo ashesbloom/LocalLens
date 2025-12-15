@@ -54,7 +54,7 @@ const FolderTreeItem = ({ folder, ignoredSubfolders, onToggle, isProcessing }) =
     );
 };
 
-const SubfolderSelector = ({ subfolders, ignoredSubfolders, setIgnoredSubfolders, isProcessing, stats, className = '', onAnimationEnd }) => {
+const SubfolderSelector = ({ subfolders, ignoredSubfolders, setIgnoredSubfolders, isProcessing, stats, className = '', onAnimationEnd, ...props }) => {
     if (subfolders.length === 0 && !stats) {
         return null;
     }
@@ -93,7 +93,7 @@ const SubfolderSelector = ({ subfolders, ignoredSubfolders, setIgnoredSubfolders
     };
 
     return (
-        <div className={`subfolder-selector-section ${className}`} onAnimationEnd={onAnimationEnd}>
+        <div className={`subfolder-selector-section ${className}`} onAnimationEnd={onAnimationEnd} {...props}>
             <div className="subfolder-header">
                 <div className="form-group">
                     <label>Source Folder Contents</label>
@@ -116,7 +116,7 @@ const SubfolderSelector = ({ subfolders, ignoredSubfolders, setIgnoredSubfolders
             </div>
 
             {subfolders.length > 0 && (
-                <div className="subfolder-list tree-view">
+                <div className="subfolder-list tree-view" data-tutorial-target="subfolder-list">
                     {subfolders.map(folder => (
                         <FolderTreeItem
                             key={folder.path}

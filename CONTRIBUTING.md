@@ -31,13 +31,45 @@ cd LocalLens
    - Platform-specific build tools (CMake, Visual Studio Build Tools, etc.)
 
 3. **Set up the development environment**:
+
+**Windows:**
 ```bash
 # Backend setup
 cd backend
 python -m venv venv
-# Windows
 .\venv\Scripts\activate
-# macOS/Linux
+pip install -r requirements.txt
+
+# Frontend setup
+cd ../frontend
+npm install
+```
+
+**macOS (Intel & Apple Silicon):**
+```bash
+# Install required system dependencies first
+brew install cmake dlib imagemagick
+
+# Backend setup
+cd backend
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+
+# Frontend setup
+cd ../frontend
+npm install
+```
+
+**Linux:**
+```bash
+# Install system dependencies (Ubuntu/Debian)
+sudo apt install build-essential cmake libopenblas-dev liblapack-dev imagemagick
+
+# Backend setup
+cd backend
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 

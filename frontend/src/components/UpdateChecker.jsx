@@ -328,7 +328,7 @@ function UpdateChecker({ currentVersion }) {
 
     // Always show the icon, but style differently based on update availability
     return (
-        <div className="update-checker" ref={panelRef}>
+        <div className="update-checker" ref={panelRef} data-tutorial-target="notification-panel">
             {/* Notification Icon - Always visible */}
             <button 
                 className={`update-icon-btn ${updateAvailable ? 'has-update' : ''} ${isExpanded ? 'active' : ''}`}

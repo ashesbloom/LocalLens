@@ -34,6 +34,7 @@ const SortingModeSelector = ({ operationMode, setOperationMode, onEnrollClick })
             title={mode.description} // Description now appears on hover
             role="tab"
             aria-selected={operationMode === mode.key}
+            data-tutorial-target={`mode-${mode.key}`}
           >
             {mode.icon}
             <span>{mode.title}</span>

@@ -73,7 +73,7 @@ const LogConsole = React.forwardRef(({ logs }, ref) => {
     };
 
     return (
-        <div className="log-console-container">
+        <div className="log-console-container" data-tutorial-target="operation-terminal">
             {/* Enhanced Header */}
             <div className="terminal-header">
                 <div className="terminal-title">

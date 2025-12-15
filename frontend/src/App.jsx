@@ -22,11 +22,15 @@ import FindGroupResultModal from './components/FindGroupResultModal';
 import MoveCompleteModal from './components/MoveCompleteModal'; // <-- ADD THIS
 import ConfirmationModal from './components/ConfirmationModal'; 
 import UpdateChecker from './components/UpdateChecker'; // <-- ADD: Auto-update notification
+import TutorialOverlay from './components/TutorialOverlay'; // <-- ADD THIS
+import TutorialMenu from './components/TutorialMenu'; // <-- ADD THIS
+import { useTutorial } from './context/TutorialContext'; // <-- ADD THIS
 import { version } from '../package.json';
 
 import './App.css';
 
 function App() {
+    const { startTutorial: startTutorialBase, isDemoMode, currentStep } = useTutorial();
     // --- State Management ---
     // Use localStorage to avoid UI flash on reload
     const getInitialOperationMode = () => {
@@ -38,6 +42,34 @@ function App() {
     const setOperationMode = (mode) => {
         setOperationModeRaw(mode);
         localStorage.setItem('operation_mode', mode);
+    };
+
+    // Tutorial handler - ensures standard mode before starting (without saving to localStorage)
+    const handleStartTutorial = () => {
+        if (operationMode !== 'standard') {
+            setOperationModeRaw('standard');
+            // Small delay to allow mode switch animation to complete
+            setTimeout(() => startTutorialBase(), 300);
+        } else {
+            startTutorialBase();
+        }
+    };
+
+    // Check if this is the user's first time opening the app
+    const checkFirstTimeUser = () => {
+        const hasSeenTutorial = localStorage.getItem('has_seen_tutorial');
+        if (!hasSeenTutorial) {
+            // Mark as seen so it doesn't auto-start again
+            localStorage.setItem('has_seen_tutorial', 'true');
+            // Auto-start tutorial after a brief delay for UI to settle
+            // Use handleStartTutorial to ensure standard mode is set
+            setTimeout(() => {
+                handleStartTutorial();
+            }, 800);
+            // Return true to signal that we are in a first-time tutorial session
+            return true;
+        }
+        return false;
     };
 
     const [sourceFolder, setSourceFolder] = useState('');
@@ -76,6 +108,368 @@ function App() {
     const [subfolders, setSubfolders] = useState([]);
     const [ignoredSubfolders, setIgnoredSubfolders] = useState([]);
     const [folderStats, setFolderStats] = useState(null);
+    const [demoIgnoredSubfolders, setDemoIgnoredSubfolders] = useState([]);
+
+    // --- Demo data for tutorial ---
+    const demoSubfolders = [
+        {
+            name: 'Family Photos',
+            path: '/demo/Family Photos',
+            children: [
+                { name: 'Summer Vacation 2024', path: '/demo/Family Photos/Summer Vacation 2024', children: [] },
+                { name: 'Birthday Party', path: '/demo/Family Photos/Birthday Party', children: [] }
+            ]
+        },
+        {
+            name: 'Work Events',
+            path: '/demo/Work Events',
+            children: [
+                { name: 'Conference 2024', path: '/demo/Work Events/Conference 2024', children: [] }
+            ]
+        },
+        {
+            name: 'Random Screenshots',
+            path: '/demo/Random Screenshots',
+            children: []
+        }
+    ];
+    const demoFolderStats = { file_count: 247, folder_count: 6 };
+
+    // Use demo data when tutorial requires it
+    const showDemoSubfolders = isDemoMode && currentStep?.requiresDemoData === 'subfolders';
+    const effectiveSubfolders = showDemoSubfolders ? demoSubfolders : subfolders;
+    const effectiveFolderStats = showDemoSubfolders ? demoFolderStats : folderStats;
+    const effectiveIgnoredSubfolders = showDemoSubfolders ? demoIgnoredSubfolders : ignoredSubfolders;
+    const setEffectiveIgnoredSubfolders = showDemoSubfolders ? setDemoIgnoredSubfolders : setIgnoredSubfolders;
+
+    // --- Demo animation for subfolder toggle ---
+    useEffect(() => {
+        if (!isDemoMode || currentStep?.demoAnimation !== 'subfolder-toggle') {
+            // Reset demo state when not in demo animation
+            if (demoIgnoredSubfolders.length > 0) {
+                setDemoIgnoredSubfolders([]);
+            }
+            return;
+        }
+
+        // Demo sequence: Check parent -> Check child -> Uncheck parent (child stays)
+        const parentPath = '/demo/Family Photos';
+        const childPath = '/demo/Family Photos/Summer Vacation 2024';
+        const allChildPaths = [
+            '/demo/Family Photos/Summer Vacation 2024',
+            '/demo/Family Photos/Birthday Party'
+        ];
+
+        let step = 0;
+        const runDemoStep = () => {
+            step++;
+            switch (step) {
+                case 1:
+                    // Step 1: Check parent (this checks parent and all children)
+                    setDemoIgnoredSubfolders([parentPath, ...allChildPaths]);
+                    break;
+                case 2:
+                    // Step 2: Uncheck parent but keep one child checked
+                    setDemoIgnoredSubfolders([childPath]);
+                    break;
+                case 3:
+                    // Step 3: Uncheck everything
+                    setDemoIgnoredSubfolders([]);
+                    break;
+                case 4:
+                    // Reset and loop
+                    step = 0;
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        // Initial delay before starting
+        const initialTimeout = setTimeout(() => {
+            runDemoStep();
+        }, 800);
+
+        // Run the demo loop
+        const interval = setInterval(runDemoStep, 1500);
+
+        return () => {
+            clearTimeout(initialTimeout);
+            clearInterval(interval);
+        };
+    }, [isDemoMode, currentStep?.demoAnimation]);
+
+    // --- Demo state for hierarchy toggle ---
+    const [demoMaintainHierarchy, setDemoMaintainHierarchy] = useState(false);
+    const showDemoHierarchy = isDemoMode && currentStep?.demoAnimation === 'hierarchy-toggle';
+    const effectiveMaintainHierarchy = showDemoHierarchy ? demoMaintainHierarchy : maintainHierarchy;
+    const setEffectiveMaintainHierarchy = showDemoHierarchy ? setDemoMaintainHierarchy : setMaintainHierarchy;
+
+    // --- Demo animation for hierarchy toggle ---
+    useEffect(() => {
+        if (!isDemoMode || currentStep?.demoAnimation !== 'hierarchy-toggle') {
+            return;
+        }
+
+        let isOn = false;
+        const toggleDemo = () => {
+            isOn = !isOn;
+            setDemoMaintainHierarchy(isOn);
+        };
+
+        // Initial delay before starting
+        const initialTimeout = setTimeout(toggleDemo, 800);
+
+        // Toggle every 1.5 seconds
+        const interval = setInterval(toggleDemo, 1500);
+
+        return () => {
+            clearTimeout(initialTimeout);
+            clearInterval(interval);
+            setDemoMaintainHierarchy(false);
+        };
+    }, [isDemoMode, currentStep?.demoAnimation]);
+
+    // --- Highlight description for face-enrollment tutorial step ---
+    useEffect(() => {
+        if (!isDemoMode || !currentStep?.highlightDescription) {
+            // Remove highlight if not in demo mode or step doesn't need it
+            const el = document.querySelector('[data-tutorial-target="face-enrollment-description"]');
+            if (el) el.classList.remove('tutorial-highlight');
+            return;
+        }
+
+        const el = document.querySelector('[data-tutorial-target="face-enrollment-description"]');
+        if (el) {
+            el.classList.add('tutorial-highlight');
+        }
+
+        return () => {
+            if (el) el.classList.remove('tutorial-highlight');
+        };
+    }, [isDemoMode, currentStep?.highlightDescription]);
+
+    // --- Demo state for face enrollment workflow ---
+    const [demoSelectedImages, setDemoSelectedImages] = useState([]);
+    const [demoPersonName, setDemoPersonName] = useState('');
+    const [demoEnrollmentQueue, setDemoEnrollmentQueue] = useState([]);
+    const [demoIsEnrolled, setDemoIsEnrolled] = useState(false);
+    const [demoEnrolledCount, setDemoEnrolledCount] = useState(0);
+    const [showDemoEnrolledModal, setShowDemoEnrolledModal] = useState(false);
+
+    // --- State for restoring config after first-time tutorial ---
+    const [stashedConfig, setStashedConfig] = useState(null);
+    const [isFirstTimeTutorial, setIsFirstTimeTutorial] = useState(false);
+
+    // --- Demo state for operation terminal/footer section ---
+    const showDemoFooter = isDemoMode && (
+        currentStep?.requiresDemoData === 'show-footer' ||
+        currentStep?.requiresDemoData === 'show-abort-btn'
+    );
+    const showDemoAbortBtn = isDemoMode && currentStep?.requiresDemoData === 'show-abort-btn';
+
+    // Demo enrolled faces data
+    const demoEnrolledFaces = [
+        { name: 'Person A', count: 8 },
+        { name: 'Person B', count: 10 },
+        { name: 'Person C', count: 7 }
+    ];
+
+    // Check if we should use demo enrollment data
+    const isEnrollmentDemoStep = isDemoMode && (
+        currentStep?.demoAnimation === 'select-photos-demo' ||
+        currentStep?.requiresDemoData === 'enrollment-name' ||
+        currentStep?.demoAnimation === 'add-person-demo' ||
+        currentStep?.demoAnimation === 'show-enrolled-modal' ||
+        currentStep?.requiresDemoData === 'enrolled-faces-demo'
+    );
+
+    // --- Demo animation for select photos ---
+    useEffect(() => {
+        if (!isDemoMode || currentStep?.demoAnimation !== 'select-photos-demo') {
+            setDemoSelectedImages([]);
+            return;
+        }
+
+        // Simulate selecting photos
+        const timeout = setTimeout(() => {
+            setDemoSelectedImages([
+                'photo1.jpg', 'photo2.jpg', 'photo3.jpg', 'photo4.jpg',
+                'photo5.jpg', 'photo6.jpg', 'photo7.jpg', 'photo8.jpg'
+            ]);
+        }, 600);
+
+        return () => {
+            clearTimeout(timeout);
+            setDemoSelectedImages([]);
+        };
+    }, [isDemoMode, currentStep?.demoAnimation]);
+
+    // --- Demo data for person name input ---
+    useEffect(() => {
+        if (!isDemoMode || currentStep?.requiresDemoData !== 'enrollment-name') {
+            return;
+        }
+
+        // Type out the demo name character by character
+        const demoName = 'Person A';
+        let index = 0;
+        setDemoPersonName('');
+
+        const typeInterval = setInterval(() => {
+            if (index < demoName.length) {
+                setDemoPersonName(demoName.substring(0, index + 1));
+                index++;
+            } else {
+                clearInterval(typeInterval);
+            }
+        }, 100);
+
+        return () => {
+            clearInterval(typeInterval);
+        };
+    }, [isDemoMode, currentStep?.requiresDemoData]);
+
+    // --- Demo animation for add person ---
+    useEffect(() => {
+        if (!isDemoMode || currentStep?.demoAnimation !== 'add-person-demo') {
+            return;
+        }
+
+        // Show a person being added to queue
+        const timeout = setTimeout(() => {
+            setDemoEnrollmentQueue([
+                { personName: 'Person A', imagePaths: ['p1.jpg', 'p2.jpg', 'p3.jpg', 'p4.jpg', 'p5.jpg', 'p6.jpg', 'p7.jpg', 'p8.jpg'] }
+            ]);
+        }, 500);
+
+        return () => {
+            clearTimeout(timeout);
+        };
+    }, [isDemoMode, currentStep?.demoAnimation]);
+
+    // --- Demo animation for showing enrolled modal ---
+    useEffect(() => {
+        if (!isDemoMode || currentStep?.demoAnimation !== 'show-enrolled-modal') {
+            setShowDemoEnrolledModal(false);
+            return;
+        }
+
+        // Open the demo modal after a delay
+        const timeout = setTimeout(() => {
+            setShowDemoEnrolledModal(true);
+        }, 800);
+
+        return () => {
+            clearTimeout(timeout);
+            setShowDemoEnrolledModal(false);
+        };
+    }, [isDemoMode, currentStep?.demoAnimation]);
+
+    // --- Reset demo enrollment state when tutorial ends ---
+    useEffect(() => {
+        if (!isDemoMode) {
+            setDemoSelectedImages([]);
+            setDemoPersonName('');
+            setDemoEnrollmentQueue([]);
+            setDemoIsEnrolled(false);
+            setDemoEnrolledCount(0);
+            setShowDemoEnrolledModal(false);
+        }
+    }, [isDemoMode]);
+
+    // --- Demo state for sort method and face mode ---
+    const [demoSortMethod, setDemoSortMethod] = useState('Date');
+    const [demoFaceMode, setDemoFaceMode] = useState('fast');
+
+    // Check if we should use demo sort/faceMode data
+    const isSortDemoStep = isDemoMode && (
+        currentStep?.demoAnimation === 'select-sort-by-faces' ||
+        currentStep?.requiresDemoData === 'enrolled-faces-demo'
+    );
+    const isFaceModeDemoStep = isDemoMode && (
+        currentStep?.demoAnimation === 'show-face-mode-fast' ||
+        currentStep?.demoAnimation === 'show-face-mode-balanced' ||
+        currentStep?.demoAnimation === 'show-face-mode-accurate'
+    );
+
+    // Effective sort method - use demo when in sort demo steps
+    const effectiveSortMethod = isSortDemoStep ? demoSortMethod : sortMethod;
+    const effectiveFaceMode = isFaceModeDemoStep ? demoFaceMode : faceMode;
+
+    // --- Demo animation for selecting Sort by Faces ---
+    useEffect(() => {
+        if (!isDemoMode || currentStep?.demoAnimation !== 'select-sort-by-faces') {
+            return;
+        }
+
+        // Select "People" sorting method after a delay
+        const timeout = setTimeout(() => {
+            setDemoSortMethod('People');
+        }, 500);
+
+        return () => {
+            clearTimeout(timeout);
+        };
+    }, [isDemoMode, currentStep?.demoAnimation]);
+
+    // --- Demo animation for face mode dropdown ---
+    useEffect(() => {
+        if (!isDemoMode) {
+            setDemoFaceMode('fast');
+            return;
+        }
+
+        if (currentStep?.demoAnimation === 'show-face-mode-fast') {
+            setDemoFaceMode('fast');
+        } else if (currentStep?.demoAnimation === 'show-face-mode-balanced') {
+            setDemoFaceMode('balanced');
+        } else if (currentStep?.demoAnimation === 'show-face-mode-accurate') {
+            setDemoFaceMode('accurate');
+        }
+    }, [isDemoMode, currentStep?.demoAnimation]);
+
+    // --- Keep demo sort method as People when in enrolled-faces-demo steps ---
+    useEffect(() => {
+        if (isDemoMode && currentStep?.requiresDemoData === 'enrolled-faces-demo') {
+            setDemoSortMethod('People');
+        }
+    }, [isDemoMode, currentStep?.requiresDemoData]);
+
+    // --- Reset demo sort state and restore operation mode when tutorial ends ---
+    useEffect(() => {
+        if (!isDemoMode) {
+            setDemoSortMethod('Date');
+            setDemoFaceMode('fast');
+            // Restore the user's saved operation mode from localStorage
+            const savedMode = localStorage.getItem('operation_mode');
+            if (savedMode && ['standard', 'hybrid', 'find'].includes(savedMode)) {
+                setOperationMode(savedMode);
+            }
+        }
+    }, [isDemoMode]);
+
+    // --- Demo animation for selecting Hybrid/Find mode (uses Raw setter to avoid saving to localStorage) ---
+    useEffect(() => {
+        if (!isDemoMode) return;
+        
+        if (currentStep?.demoAnimation === 'select-hybrid-mode') {
+            // Select Hybrid mode after a short delay for visual effect
+            const timeout = setTimeout(() => {
+                setOperationModeRaw('hybrid');
+            }, 400);
+            return () => clearTimeout(timeout);
+        } else if (currentStep?.demoAnimation === 'select-find-mode') {
+            // Select Find mode after a short delay for visual effect
+            const timeout = setTimeout(() => {
+                setOperationModeRaw('find');
+            }, 400);
+            return () => clearTimeout(timeout);
+        } else if (operationMode === 'hybrid' || operationMode === 'find') {
+            // If we moved away from an advanced mode step, reset to standard
+            setOperationModeRaw('standard');
+        }
+    }, [isDemoMode, currentStep?.demoAnimation]);
 
     // --- NEW: State for Hybrid & Find Modes ---
     const [metadata, setMetadata] = useState(null);
@@ -103,6 +497,13 @@ function App() {
     const [selectedImages, setSelectedImages] = useState([]);
     const [personName, setPersonName] = useState("");
     const [enrollmentQueue, setEnrollmentQueue] = useState([]);
+
+    // Effective values - use demo data when in enrollment demo steps
+    const effectiveSelectedImages = isEnrollmentDemoStep ? demoSelectedImages : selectedImages;
+    const effectivePersonName = isEnrollmentDemoStep ? demoPersonName : personName;
+    const effectiveEnrollmentQueue = isEnrollmentDemoStep ? demoEnrollmentQueue : enrollmentQueue;
+    const effectiveIsEnrolled = (isDemoMode && currentStep?.requiresDemoData === 'enrolled-faces-demo') ? true : isEnrolled;
+    const effectiveEnrolledCount = (isDemoMode && currentStep?.requiresDemoData === 'enrolled-faces-demo') ? 3 : enrolledCount;
 
     // --- NEW State for Enrollment Progress ---
     const [enrollmentProgress, setEnrollmentProgress] = useState(null);
@@ -179,13 +580,50 @@ function App() {
         // We check both isBackendReady and that startup hasn't run yet.
         if (isBackendReady && !startupRan.current) {
             console.log("STEP 4: Backend is ready! Running startup checks...");
-            runStartupChecks();
-            loadPresets();
-            loadLastConfig();
+            
+            const runAsyncStartup = async () => {
+                runStartupChecks();
+                await loadPresets();
+                
+                const isFirstTime = checkFirstTimeUser();
+                if (isFirstTime) {
+                    setIsFirstTimeTutorial(true);
+                    // Stash the config but don't apply it, so we start fresh.
+                    try {
+                        const config = await apiCall('/api/config/load');
+                        if (Object.keys(config).length > 0) {
+                            setStashedConfig(config);
+                            logToConsole("Stashed previous session settings for after the tutorial.", "info");
+                        }
+                    } catch (error) {
+                        // It's okay if this fails, means no config to stash.
+                        console.error("No previous config to stash:", error.message);
+                    }
+                } else {
+                    // Not the first time, load config as normal.
+                    await loadLastConfig();
+                }
+            };
+
+            runAsyncStartup();
             // Mark startup as complete to prevent re-running
             startupRan.current = true;
         }
     }, [isBackendReady]); // This effect depends ONLY on isBackendReady.
+
+    // --- NEW: Effect to restore stashed config after first-time tutorial ---
+    useEffect(() => {
+        const restoreConfig = async () => {
+            if (!isDemoMode && isFirstTimeTutorial && stashedConfig) {
+                logToConsole("Tutorial finished. Restoring previous session settings...", "info");
+                await applyConfig(stashedConfig);
+                // Clear the stash and flag so this doesn't run again.
+                setStashedConfig(null);
+                setIsFirstTimeTutorial(false);
+            }
+        };
+        restoreConfig();
+    }, [isDemoMode, isFirstTimeTutorial, stashedConfig]);
 
     // Effect 3: Log scrolling effect
     useEffect(() => {
@@ -660,35 +1098,40 @@ function App() {
     const loadLastConfig = async () => {
         try {
             const config = await apiCall('/api/config/load');
-            if (Object.keys(config).length > 0) {
-                // Validate folder paths before setting them to prevent crashes
-                if (config.source_folder) {
-                    const sourceValid = await validatePath(config.source_folder);
-                    if (sourceValid) {
-                        setSourceFolder(config.source_folder);
-                    } else {
-                        logToConsole(`Previous source folder no longer exists: ${config.source_folder}`, "warning");
-                    }
-                }
-                if (config.destination_folder) {
-                    const destValid = await validatePath(config.destination_folder);
-                    if (destValid) {
-                        setDestinationFolder(config.destination_folder);
-                    } else {
-                        logToConsole(`Previous destination folder no longer exists: ${config.destination_folder}`, "warning");
-                    }
-                }
-                if (config.sort_method) setSortMethod(config.sort_method);
-                if (config.face_mode) setFaceMode(config.face_mode);
-                if (config.file_operation_mode) setFileOperationMode(config.file_operation_mode); // <-- ADD THIS
-                if (typeof config.maintain_hierarchy === 'boolean') setMaintainHierarchy(config.maintain_hierarchy);
-                if (config.ignored_subfolders) setIgnoredSubfolders(config.ignored_subfolders);
-                if (config.operation_mode) setOperationMode(config.operation_mode); // Use helper
-                logToConsole("Loaded previous session settings.", "success");
-            }
+            await applyConfig(config);
         } catch (error) {
             console.error("Could not load previous configuration:", error.message);
             logToConsole("Could not load previous session settings.", "warning");
+        }
+    };
+
+    // NEW: Helper function to apply a config object to the state
+    const applyConfig = async (config) => {
+        if (config && Object.keys(config).length > 0) {
+            // Validate folder paths before setting them to prevent crashes
+            if (config.source_folder) {
+                const sourceValid = await validatePath(config.source_folder);
+                if (sourceValid) {
+                    setSourceFolder(config.source_folder);
+                } else {
+                    logToConsole(`Previous source folder no longer exists: ${config.source_folder}`, "warning");
+                }
+            }
+            if (config.destination_folder) {
+                const destValid = await validatePath(config.destination_folder);
+                if (destValid) {
+                    setDestinationFolder(config.destination_folder);
+                } else {
+                    logToConsole(`Previous destination folder no longer exists: ${config.destination_folder}`, "warning");
+                }
+            }
+            if (config.sort_method) setSortMethod(config.sort_method);
+            if (config.face_mode) setFaceMode(config.face_mode);
+            if (config.file_operation_mode) setFileOperationMode(config.file_operation_mode);
+            if (typeof config.maintain_hierarchy === 'boolean') setMaintainHierarchy(config.maintain_hierarchy);
+            if (config.ignored_subfolders) setIgnoredSubfolders(config.ignored_subfolders);
+            if (config.operation_mode) setOperationMode(config.operation_mode);
+            logToConsole("Loaded session settings.", "success");
         }
     };
 
@@ -1153,8 +1596,21 @@ function App() {
                 {/* Update Checker - Top Left Notification */}
                 <UpdateChecker currentVersion={version} />
 
+                {/* Tutorial Menu - with step selection dropdown */}
+                <TutorialMenu 
+                    onStartFromStep={(stepIndex) => {
+                        if (operationMode !== 'standard') {
+                            setOperationMode('standard');
+                            setTimeout(() => startTutorialBase(stepIndex), 300);
+                        } else {
+                            startTutorialBase(stepIndex);
+                        }
+                    }}
+                    onStartFromScratch={handleStartTutorial}
+                />
+
                 {/* Exit Button */}
-                <button onClick={handleExit} className="btn-exit" aria-label="Kill Backend" title="Kill Backend">
+                <button onClick={handleExit} className="btn-exit" aria-label="Kill Backend" title="Kill Backend" data-tutorial-target="kill-backend-btn">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <circle cx="12" cy="12" r="10"></circle>
                         <line x1="15" y1="9" x2="9" y2="15"></line>
@@ -1167,6 +1623,7 @@ function App() {
                     className="btn-reload"
                     onClick={handleReload}
                     title="Reload Application"
+                    data-tutorial-target="reload-btn"
                 >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <polyline points="23,4 23,10 17,10"></polyline>
@@ -1266,24 +1723,29 @@ function App() {
             <main className="app-main">
                 <div className="setup-grid">
                     <div className="setup-column">
-                        <PathSelector
-                            label="Source Folder"
-                            path={sourceFolder}
-                            handleSelectFolder={() => handleBrowseFolder('source')}
-                        />
-                        <PathSelector
-                            label="Destination Folder"
-                            path={destinationFolder}
-                            handleSelectFolder={() => handleBrowseFolder('destination')}
-                        />
-                        <PresetManager
-                            presets={presets}
-                            selectedPreset={selectedPreset}
-                            handleSelectPreset={handlePresetChange}
-                            handleSavePreset={handleSavePreset}
-                            onRequestDelete={(presetName) => setDeletePresetConfirm({ show: true, presetName })}
-                            showSaveButton={showSaveButton}
-                        />
+                        <div data-tutorial-target="path-preset-group">
+                            <PathSelector
+                                label="Source Folder"
+                                path={sourceFolder}
+                                handleSelectFolder={() => handleBrowseFolder('source')}
+                                data-tutorial-target="source-selector"
+                            />
+                            <PathSelector
+                                label="Destination Folder"
+                                path={destinationFolder}
+                                handleSelectFolder={() => handleBrowseFolder('destination')}
+                                data-tutorial-target="destination-selector"
+                            />
+                            <PresetManager
+                                presets={presets}
+                                selectedPreset={selectedPreset}
+                                handleSelectPreset={handlePresetChange}
+                                handleSavePreset={handleSavePreset}
+                                onRequestDelete={(presetName) => setDeletePresetConfirm({ show: true, presetName })}
+                                showSaveButton={showSaveButton}
+                                data-tutorial-target="preset-manager"
+                            />
+                        </div>
                         {/* --- ADD THIS COMPONENT --- */}
                         {operationMode !== 'find' && (
                             <OperationModeToggle
@@ -1306,11 +1768,11 @@ function App() {
                                 <FaceEnrollment
                                     isEnrolling={isEnrolling}
                                     isProcessing={isProcessing}
-                                    selectedImages={selectedImages}
-                                    personName={personName}
+                                    selectedImages={isEnrollmentDemoStep ? effectiveSelectedImages : selectedImages}
+                                    personName={isEnrollmentDemoStep ? effectivePersonName : personName}
                                     handleSelectImages={handleSelectImages}
-                                    setPersonName={setPersonName}
-                                    enrollmentQueue={enrollmentQueue}
+                                    setPersonName={isEnrollmentDemoStep ? setDemoPersonName : setPersonName}
+                                    enrollmentQueue={isEnrollmentDemoStep ? effectiveEnrollmentQueue : enrollmentQueue}
                                     handleAddToQueue={handleAddToQueue}
                                     handleRemoveFromQueue={handleRemoveFromQueue}
                                     handleStartBatchEnrollment={handleStartBatchEnrollment}
@@ -1345,26 +1807,28 @@ function App() {
                 </div>
 
                 {/* For standard mode, SubfolderSelector is rendered outside the grid to take full width */}
-                {operationMode === 'standard' && subfolderSelectorDisplay !== 'hidden' && (
+                {operationMode === 'standard' && (subfolderSelectorDisplay !== 'hidden' || showDemoSubfolders) && (
                     <SubfolderSelector
-                        subfolders={subfolders}
-                        ignoredSubfolders={ignoredSubfolders}
-                        setIgnoredSubfolders={setIgnoredSubfolders}
+                        subfolders={effectiveSubfolders}
+                        ignoredSubfolders={effectiveIgnoredSubfolders}
+                        setIgnoredSubfolders={setEffectiveIgnoredSubfolders}
                         isProcessing={isProcessing || isEnrolling}
-                        stats={folderStats}
-                        className={subfolderSelectorDisplay}
+                        stats={effectiveFolderStats}
+                        className={showDemoSubfolders ? 'visible' : subfolderSelectorDisplay}
                         onAnimationEnd={() => {
                             if (subfolderSelectorDisplay === 'exiting') setSubfolderSelectorDisplay('hidden');
                             if (subfolderSelectorDisplay === 'entering') setSubfolderSelectorDisplay('visible');
                         }}
+                        data-tutorial-target="subfolder-selector"
                     />
                 )}
 
                 {operationMode !== 'find' && (
                     <HierarchyToggle
-                        maintainHierarchy={maintainHierarchy}
-                        setMaintainHierarchy={setMaintainHierarchy}
+                        maintainHierarchy={effectiveMaintainHierarchy}
+                        setMaintainHierarchy={setEffectiveMaintainHierarchy}
                         isProcessing={isProcessing || isEnrolling}
+                        data-tutorial-target="hierarchy-toggle"
                     />
                 )}
 
@@ -1375,13 +1839,13 @@ function App() {
                     {operationMode === 'standard' && (
                         <div className="mode-content">
                             <SortingOptions
-                                sortMethod={sortMethod}
-                                setSortMethod={setSortMethod}
+                                sortMethod={isSortDemoStep ? effectiveSortMethod : sortMethod}
+                                setSortMethod={isSortDemoStep ? setDemoSortMethod : setSortMethod}
                                 isProcessing={isProcessing || isEnrolling}
-                                isEnrolled={isEnrolled}
-                                enrolledCount={enrolledCount}
-                                faceMode={faceMode}
-                                setFaceMode={setFaceMode}
+                                isEnrolled={effectiveIsEnrolled}
+                                enrolledCount={effectiveEnrolledCount}
+                                faceMode={isFaceModeDemoStep ? effectiveFaceMode : faceMode}
+                                setFaceMode={isFaceModeDemoStep ? setDemoFaceMode : setFaceMode}
                             />
                         </div>
                     )}
@@ -1422,19 +1886,25 @@ function App() {
                 </div>
             </main>
 
-            {(isProcessing || logs.length > 1) && (
+            {(isProcessing || logs.length > 1 || showDemoFooter) && (
                 <footer ref={footerRef} className="app-footer">
                     <ProgressTracker 
-                        progress={progress} 
-                        progressLabel={progressLabel} 
-                        isProcessing={isProcessing}
+                        progress={showDemoFooter ? 45 : progress} 
+                        progressLabel={showDemoFooter ? 'Processing photos...' : progressLabel} 
+                        isProcessing={isProcessing || showDemoAbortBtn}
                         onAbort={handleAbortProcess}
-                        analytics={analytics} // Pass analytics down
+                        analytics={showDemoFooter ? { processed: 127, total: 283, speed: '2.3 photos/sec' } : analytics}
                     />
-                    <LogConsole ref={logConsoleRef} logs={logs} />
+                    <LogConsole ref={logConsoleRef} logs={showDemoFooter ? [
+                        { time: '10:23:45', message: 'Starting photo organization...', type: 'info' },
+                        { time: '10:23:46', message: 'Scanning source folder for images...', type: 'info' },
+                        { time: '10:23:48', message: 'Found 283 photos to process', type: 'success' },
+                        { time: '10:24:12', message: 'Processing: IMG_2024_0127.jpg', type: 'info' },
+                        { time: '10:24:13', message: 'Moved to: 2024/January/', type: 'success' }
+                    ] : logs} />
                     <div className="footer-actions">
                         {!isProcessing && <button onClick={resetUi} className="btn btn-danger">Start Over</button>}
-                        <button onClick={handleOpenDestination} className="btn btn-secondary">
+                        <button onClick={handleOpenDestination} className="btn btn-secondary" data-tutorial-target="open-destination-btn">
                             Open "{getFolderName(destinationFolder) || 'Destination'}"
                         </button>
                     </div>
@@ -1443,12 +1913,16 @@ function App() {
 
             {/* NEW: Enrolled Faces Modal */}
             <EnrolledFacesModal
-                isVisible={showEnrolledFacesModal}
-                onClose={() => setShowEnrolledFacesModal(false)}
+                isVisible={showEnrolledFacesModal || showDemoEnrolledModal}
+                onClose={() => {
+                    setShowEnrolledFacesModal(false);
+                    setShowDemoEnrolledModal(false);
+                }}
                 onOpenFolder={handleOpenEnrolledFolder}
                 apiCall={apiCall}
                 logToConsole={logToConsole}
                 onFaceDeleted={handleFaceDeleted}
+                demoFaces={showDemoEnrolledModal ? demoEnrolledFaces : null}
             />
 
             <FaceEnrollmentModal
@@ -1492,6 +1966,7 @@ function App() {
                     handleOpenDestination();
                 }}
             />
+            <TutorialOverlay />
         </div>
     );
 }

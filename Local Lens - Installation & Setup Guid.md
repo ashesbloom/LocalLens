@@ -23,12 +23,15 @@
 # Install Xcode Command Line Tools
 xcode-select --install
 
-# Install CMake via Homebrew
-brew install cmake
-
-# For Apple Silicon Macs, you may need additional setup for dlib
-export CMAKE_OSX_ARCHITECTURES=arm64
+# Install required Homebrew packages
+# dlib: Required for face recognition (pre-compiled, avoids build issues)
+# imagemagick: Required for RAW image processing on macOS
+brew install cmake dlib imagemagick
 ```
+
+> **Important for Apple Silicon (M1/M2/M3) Macs with Python 3.12+**:
+> The `dlib` library cannot be built from source on newer macOS/Python combinations due to SDK changes.
+> Installing `dlib` via Homebrew first resolves this issue. The Python package will then link against the system library.
 
 ##### Linux (Ubuntu/Debian)
 ```bash
@@ -102,14 +105,23 @@ pip install dlib
 pip install face_recognition
 ```
 
-*macOS (especially Apple Silicon):*
+*macOS (especially Apple Silicon M1/M2/M3):*
 ```bash
-# Set architecture for Apple Silicon
-export CMAKE_OSX_ARCHITECTURES=arm64
-pip install cmake
-pip install dlib
-pip install face_recognition
+# Step 1: Install system dependencies via Homebrew (REQUIRED)
+brew install cmake dlib imagemagick
+
+# Step 2: Create and activate a Python 3.11 virtual environment
+# (Python 3.11 is recommended for best compatibility)
+python3.11 -m venv .venv
+source .venv/bin/activate
+
+# Step 3: Upgrade pip and install the rest
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
 ```
+
+> **Note**: If you're using Python 3.12+, you MUST install `dlib` via Homebrew first.
+> The `rawpy` library is replaced by `Wand` (ImageMagick) on macOS for RAW image support.
 
 *Linux:*
 ```bash
@@ -191,28 +203,26 @@ venv\Scripts\activate  # Windows
 # source venv/bin/activate  # macOS/Linux
 
 # Create standalone executable with PyInstaller
-python -m PyInstaller --name="backend_server" --onefile \
-  --manifest="long_path_manifest.xml" \
-  --add-data="venv/Lib/site-packages/face_recognition_models/models;face_recognition_models/models" \
-  --add-data="venv/Lib/site-packages/reverse_geocoder/rg_cities1000.csv;reverse_geocoder" \
-  main.py
+python -m PyInstaller backend_server.spec
 ```
-
-**Platform-specific notes:**
-- **Windows**: Use semicolon (`;`) as path separator in `--add-data`
-- **macOS/Linux**: Use colon (`:`) as path separator in `--add-data`
 
 The executable will be created in `backend/dist/backend_server.exe` (Windows) or `backend/dist/backend_server` (macOS/Linux).
 
 ### Step 2: Copy Backend to Tauri
 
-```bash
-# Windows
-copy "backend\dist\backend_server.exe" "frontend\src-tauri\"
+We have automated this step with a helper script that detects your platform and renames the binary correctly.
 
-# macOS/Linux
-cp backend/dist/backend_server frontend/src-tauri/
+```bash
+cd frontend
+node ensure-backend.js
 ```
+
+This script will:
+1. Find the built `backend_server` executable in `../backend/dist/`
+2. Copy it to `src-tauri/`
+3. Rename it to the correct target triple (e.g., `backend_server-x86_64-pc-windows-msvc.exe` or `backend_server-aarch64-apple-darwin`)
+
+> **Note:** If you skip this step, the Tauri build will fail because it won't find the sidecar executable.
 
 ### Step 3: Build Desktop Application
 

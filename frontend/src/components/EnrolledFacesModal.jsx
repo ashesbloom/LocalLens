@@ -2,13 +2,17 @@ import React, { useState, useEffect } from 'react';
 import './EnrolledFacesModal.css';
 import ConfirmationModal from './ConfirmationModal'; // Import the new component
 
-const EnrolledFacesModal = ({ isVisible, onClose, onOpenFolder, apiCall, logToConsole, onFaceDeleted }) => {
+const EnrolledFacesModal = ({ isVisible, onClose, onOpenFolder, apiCall, logToConsole, onFaceDeleted, demoFaces = null }) => {
     const [enrolledFaces, setEnrolledFaces] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [personToDelete, setPersonToDelete] = useState(null); // State to manage which person to delete
 
+    // Use demo faces if provided (for tutorial)
+    const displayFaces = demoFaces || enrolledFaces;
+    const isDemoMode = demoFaces !== null;
+
     useEffect(() => {
-        if (isVisible) {
+        if (isVisible && !isDemoMode) {
             setIsLoading(true);
             const fetchEnrolledFaces = async () => {
                 try {
@@ -22,8 +26,10 @@ const EnrolledFacesModal = ({ isVisible, onClose, onOpenFolder, apiCall, logToCo
                 }
             };
             fetchEnrolledFaces();
+        } else if (isDemoMode) {
+            setIsLoading(false);
         }
-    }, [isVisible, apiCall]);
+    }, [isVisible, apiCall, isDemoMode]);
 
     const initiateDelete = (personName) => {
         setPersonToDelete(personName); // Set the person to be deleted, which shows the modal
@@ -99,8 +105,8 @@ const EnrolledFacesModal = ({ isVisible, onClose, onOpenFolder, apiCall, logToCo
                         </div>
                     ) : (
                         <ul className="enrolled-faces-list">
-                            {enrolledFaces.length > 0 ? (
-                                enrolledFaces.map((face, index) => (
+                            {displayFaces.length > 0 ? (
+                                displayFaces.map((face, index) => (
                                     <li key={index} className="enrolled-face-item">
                                         <div className="face-info">
                                             <span className="face-name">{face.name}</span>
@@ -109,15 +115,17 @@ const EnrolledFacesModal = ({ isVisible, onClose, onOpenFolder, apiCall, logToCo
                                         <div className="face-actions">
                                             <button
                                                 className="btn-open-location"
-                                                onClick={() => onOpenFolder(face.name)}
+                                                onClick={() => !isDemoMode && onOpenFolder(face.name)}
                                                 title={`Open folder for ${face.name}`}
+                                                disabled={isDemoMode}
                                             >
                                                 Open Location
                                             </button>
                                             <button
                                                 className="btn-delete-face"
-                                                onClick={() => initiateDelete(face.name)}
+                                                onClick={() => !isDemoMode && initiateDelete(face.name)}
                                                 title={`Delete '${face.name}'`}
+                                                disabled={isDemoMode}
                                             >
                                                 Delete Face
                                             </button>

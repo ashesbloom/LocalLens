@@ -1,9 +1,9 @@
 import React from 'react';
 import './PresetManager.css';
 
-const PresetManager = ({ presets, selectedPreset, handleSelectPreset, handleSavePreset, onRequestDelete, showSaveButton }) => {
+const PresetManager = ({ presets, selectedPreset, handleSelectPreset, handleSavePreset, onRequestDelete, showSaveButton, ...props }) => {
     return (
-        <div className="form-group">
+        <div className="form-group" {...props}>
             <label htmlFor="presets">Configuration Preset</label>
             <div className="preset-selector">
                 <div className="preset-dropdown-container">

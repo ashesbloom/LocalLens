@@ -1,0 +1,633 @@
+/* ============================================
+   TUTORIAL OVERLAY - Modern Glassmorphism UI
+   ============================================ */
+
+.tutorial-overlay-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+/* SVG Overlay */
+.tutorial-svg-overlay {
+    width: 100%;
+    height: 100%;
+    pointer-events: auto;
+}
+
+.tutorial-overlay-path {
+    fill: rgba(15, 23, 42, 0.55);
+}
+
+/* Spotlight border glow effect */
+.tutorial-spotlight-border {
+    fill: none;
+    stroke: var(--color-primary, #3b82f6);
+    stroke-width: 2;
+    filter: drop-shadow(0 0 6px var(--color-primary, #3b82f6)) 
+            drop-shadow(0 0 12px rgba(59, 130, 246, 0.3));
+    animation: spotlight-pulse 2s ease-in-out infinite;
+}
+@keyframes spotlight-pulse {
+    0%, 100% { 
+        opacity: 1;
+        stroke-width: 2;
+    }
+    50% { 
+        opacity: 0.6;
+        stroke-width: 2.5;
+    }
+}
+/* Flagship spotlight - subtle warm glow */
+.tutorial-spotlight-border.flagship {
+    stroke: #fbbf24;
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.5));
+    animation: spotlight-pulse 2s ease-in-out infinite;
+}
+
+/* Mode-themed spotlight - Hybrid GREEN */
+.tutorial-spotlight-border.mode-hybrid {
+    stroke: #4ade80;
+    filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.6)) 
+            drop-shadow(0 0 16px rgba(22, 163, 74, 0.4));
+}
+
+/* Mode-themed spotlight - Find RED */
+.tutorial-spotlight-border.mode-find {
+    stroke: #f87171;
+    filter: drop-shadow(0 0 8px rgba(248, 113, 113, 0.6)) 
+            drop-shadow(0 0 16px rgba(220, 38, 38, 0.4));
+}
+
+/* ============================================
+   TOOLTIP CARD - Bluish Glassmorphism
+   ============================================ */
+
+.tutorial-tooltip {
+    position: fixed;
+    width: 340px;
+    
+    /* True glassmorphism - translucent with blur */
+    background: linear-gradient(
+        145deg, 
+        rgba(59, 100, 150, 0.45) 0%, 
+        rgba(40, 60, 90, 0.5) 50%,
+        rgba(30, 50, 80, 0.55) 100%
+    );
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.35),
+        0 8px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        inset 0 0 20px rgba(255, 255, 255, 0.05);
+    pointer-events: auto;
+    z-index: 10000;
+    overflow: hidden;
+    animation: tooltip-enter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tutorial-tooltip.transitioning {
+    animation: none;
+}
+
+.tutorial-tooltip.no-enter-animation {
+    animation: none;
+}
+
+@keyframes tooltip-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Placement variations for smooth positioning */
+.tutorial-tooltip--top {
+    transform-origin: bottom center;
+}
+
+.tutorial-tooltip--bottom {
+    transform-origin: top center;
+}
+
+.tutorial-tooltip--left {
+    transform-origin: right center;
+}
+
+.tutorial-tooltip--right {
+    transform-origin: left center;
+}
+
+/* ============================================
+   PROGRESS INDICATOR
+   ============================================ */
+
+.tutorial-progress {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 14px 20px 10px;
+    background: linear-gradient(
+        to bottom,
+        rgba(100, 150, 255, 0.12),
+        transparent
+    );
+}
+
+.tutorial-step-counter {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.3px;
+}
+
+/* ============================================
+   CONTENT AREA
+   ============================================ */
+
+.tutorial-content {
+    padding: 4px 20px 20px;
+}
+
+.tutorial-step-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.2);
+    padding: 4px 10px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+}
+
+/* Flagship Feature Badge - subtle warm tint */
+.tutorial-step-badge.flagship {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fcd34d;
+}
+
+.tutorial-content p {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 450;
+}
+
+/* Danger text styling - for emergency/warning elements */
+.tutorial-danger-text {
+    color: #ef4444;
+    font-weight: 600;
+    text-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+/* Flagship content styling */
+.tutorial-tooltip.flagship .tutorial-content p {
+    font-size: 14.5px;
+}
+
+.tutorial-tooltip.flagship .tutorial-content p strong {
+    color: #fcd34d;
+    font-weight: 600;
+}
+
+/* Flagship tooltip - subtle warm border */
+.tutorial-tooltip.flagship {
+    border: 1px solid rgba(251, 191, 36, 0.25);
+}
+
+/* ============================================
+   CONTROLS
+   ============================================ */
+
+.tutorial-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: rgba(20, 40, 70, 0.35);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.tutorial-nav {
+    display: flex;
+    gap: 8px;
+}
+
+/* Base Button Styles */
+.tutorial-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tutorial-btn svg {
+    flex-shrink: 0;
+}
+
+/* Skip Button - Subtle */
+.tutorial-btn--skip {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    padding: 8px 4px;
+}
+
+.tutorial-btn--skip:hover {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Secondary Button - Prev */
+.tutorial-btn--secondary {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+    padding: 8px 14px;
+}
+
+.tutorial-btn--secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.tutorial-btn--secondary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Primary Button - Next/Finish */
+.tutorial-btn--primary {
+    background: var(--color-gradient, linear-gradient(135deg, #3b82f6, #06b6d4));
+    border: none;
+    color: white;
+    padding: 8px 18px;
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.05),
+        0 4px 12px rgba(var(--color-primary-rgb, 59, 130, 246), 0.25);
+}
+
+.tutorial-btn--primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        0 8px 16px rgba(var(--color-primary-rgb, 59, 130, 246), 0.3);
+}
+
+.tutorial-btn--primary:active {
+    transform: translateY(0);
+}
+
+/* Keyboard key hint styling */
+.tutorial-key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 26px;
+    padding: 0 8px;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    box-shadow: 
+        0 2px 0 rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.tutorial-btn--primary .tutorial-key {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.tutorial-btn:disabled .tutorial-key {
+    opacity: 0.4;
+}
+
+/* ============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+@media (max-width: 480px) {
+    .tutorial-tooltip {
+        width: calc(100vw - 32px);
+        max-width: 340px;
+    }
+    
+    .tutorial-controls {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .tutorial-nav {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .tutorial-btn--skip {
+        order: 1;
+    }
+}
+
+/* ============================================
+   DARK MODE SUPPORT - Already dark themed
+   ============================================ */
+
+/* Tooltip is already styled with dark bluish glass theme,
+   no additional dark mode overrides needed */
+
+/* ============================================
+   EXPANDED CARD - For Mode Explanations
+   ============================================ */
+
+.tutorial-expanded-card {
+    position: fixed;
+    left: 42%;
+    transform: translateX(-50%);
+    width: calc(100vw - 160px);
+    max-width: 580px;
+    max-height: calc(100vh - 230px);
+    overflow-y: auto;
+    z-index: 10000;
+    pointer-events: auto;
+    animation: expanded-card-enter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    margin: 0 40px;
+}
+
+.tutorial-expanded-card.no-enter-animation {
+    animation: none;
+}
+
+@keyframes expanded-card-enter {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
+}
+
+.expanded-card-inner {
+    background: linear-gradient(
+        160deg, 
+        rgba(30, 41, 59, 0.75) 0%, 
+        rgba(15, 23, 42, 0.8) 100%
+    );
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    backdrop-filter: blur(40px) saturate(200%);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 
+        0 20px 50px rgba(0, 0, 0, 0.4),
+        0 8px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15),
+        inset 0 0 40px rgba(255, 255, 255, 0.03);
+    overflow: hidden;
+}
+
+/* Hybrid Mode Theme - GREEN */
+.tutorial-expanded-card.theme-hybrid .expanded-card-inner {
+    background: linear-gradient(
+        160deg, 
+        rgba(22, 163, 74, 0.12) 0%,
+        rgba(30, 41, 59, 0.75) 25%, 
+        rgba(15, 23, 42, 0.8) 100%
+    );
+    border-color: rgba(74, 222, 128, 0.25);
+    box-shadow: 
+        0 20px 50px rgba(0, 0, 0, 0.4),
+        0 8px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(74, 222, 128, 0.2),
+        inset 0 0 60px rgba(22, 163, 74, 0.05);
+}
+
+.tutorial-expanded-card.theme-hybrid .expanded-card-headline {
+    background: linear-gradient(135deg, #4ade80, #16a34a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.tutorial-expanded-card.theme-hybrid .tutorial-btn--primary {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.4);
+}
+
+.tutorial-expanded-card.theme-hybrid .tutorial-btn--primary:hover {
+    box-shadow: 0 6px 24px rgba(22, 163, 74, 0.5);
+}
+
+.tutorial-expanded-card.theme-hybrid .feature-label {
+    color: #4ade80;
+}
+
+.tutorial-expanded-card.theme-hybrid .expanded-card-step {
+    background: rgba(22, 163, 74, 0.2);
+    color: #86efac;
+}
+
+/* Find Mode Theme - RED */
+.tutorial-expanded-card.theme-find .expanded-card-inner {
+    background: linear-gradient(
+        160deg, 
+        rgba(220, 38, 38, 0.1) 0%,
+        rgba(30, 41, 59, 0.75) 25%, 
+        rgba(15, 23, 42, 0.8) 100%
+    );
+    border-color: rgba(248, 113, 113, 0.25);
+    box-shadow: 
+        0 20px 50px rgba(0, 0, 0, 0.4),
+        0 8px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(248, 113, 113, 0.2),
+        inset 0 0 60px rgba(220, 38, 38, 0.05);
+}
+
+.tutorial-expanded-card.theme-find .expanded-card-headline {
+    background: linear-gradient(135deg, #f87171, #dc2626);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.tutorial-expanded-card.theme-find .tutorial-btn--primary {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.4);
+}
+
+.tutorial-expanded-card.theme-find .tutorial-btn--primary:hover {
+    box-shadow: 0 6px 24px rgba(220, 38, 38, 0.5);
+}
+
+.tutorial-expanded-card.theme-find .feature-label {
+    color: #f87171;
+}
+
+.tutorial-expanded-card.theme-find .expanded-card-step {
+    background: rgba(220, 38, 38, 0.2);
+    color: #fca5a5;
+}
+
+/* Header */
+.expanded-card-header {
+    padding: 16px 24px 12px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.expanded-card-step {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 5px 12px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+}
+
+.expanded-card-headline {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 4px 0;
+    letter-spacing: -0.3px;
+}
+
+.expanded-card-tagline {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.65);
+    margin: 0;
+}
+
+/* Body */
+.expanded-card-body {
+    padding: 14px 24px;
+}
+
+.expanded-card-description {
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0 0 14px 0;
+    text-align: center;
+}
+
+/* Features Grid */
+.expanded-card-features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.feature-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.feature-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #60a5fa;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.feature-detail {
+    font-size: 11px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+/* Use Case Section */
+.expanded-card-usecase {
+    background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.02) 100%
+    );
+    border-radius: 8px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.usecase-title {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0 0 6px 0;
+}
+
+.usecase-text {
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0;
+    font-style: italic;
+}
+
+/* Controls */
+.expanded-card-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background: rgba(0, 0, 0, 0.15);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .tutorial-expanded-card {
+        width: calc(100vw - 32px);
+    }
+    
+    .expanded-card-features {
+        grid-template-columns: 1fr;
+    }
+    
+    .expanded-card-header,
+    .expanded-card-body,
+    .expanded-card-controls {
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+    
+    .expanded-card-headline {
+        font-size: 24px;
+    }
+}
+

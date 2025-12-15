@@ -62,16 +62,17 @@ jobs:
           cd frontend
           npm install
 
+      # Run ensure-backend.js to copy and rename the backend executable
+      - name: Copy and rename backend executable
+        run: |
+          cd frontend
+          node ensure-backend.js
+
       - name: Install Tauri requirements
         run: |
           cd frontend/src-tauri
           # Install any additional Tauri-specific requirements if needed
           # Currently using npm install from frontend folder covers this
-
-      # Copy the exact file you get from PyInstaller to src-tauri
-      - name: Copy backend executable to Tauri
-        run: |
-          copy backend\dist\backend_server-x86_64-pc-windows-msvc.exe frontend\src-tauri\
 
      
       # Build the final application
