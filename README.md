@@ -1,9 +1,9 @@
 # Local Lens
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-blue.svg)](https://github.com/ashesbloom/LocalLens/releases/latest)
 [![GitHub release](https://img.shields.io/github/v/release/ashesbloom/LocalLens)](https://github.com/ashesbloom/LocalLens/releases)
-[![GitHub downloads](https://img.shields.io/github/downloads/ashesbloom/LocalLens/total?color=success&label=Downloads&logo=windows)](https://github.com/ashesbloom/LocalLens/releases/latest)
+[![GitHub downloads](https://img.shields.io/github/downloads/ashesbloom/LocalLens/total?color=success&label=Downloads)](https://github.com/ashesbloom/LocalLens/releases/latest)
 
 ![GitHub stars ](https://img.shields.io/github/stars/ashesbloom/LocalLens?style=social&cacheSeconds=60)
 ![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social&cacheSeconds=60)
@@ -19,9 +19,13 @@
   <p><strong>Local Lens</strong> is the AI-powered home for your photos. Sort by face, location, and date entirely offline.</p>
   
   <h3>
-    <a href="https://github.com/ashesbloom/LocalLens/releases/latest">📥 Download Latest Version (Windows)</a>
+    <a href="https://github.com/ashesbloom/LocalLens/releases/latest">📥 Download Latest Version</a>
   </h3>
-  <p><em>macOS and Linux support coming soon</em></p>
+  <p>
+    <a href="https://github.com/ashesbloom/LocalLens/releases/latest"><img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows"/></a>
+    <a href="https://github.com/ashesbloom/LocalLens/releases/latest"><img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS"/></a>
+  </p>
+  <p><em>Linux support coming soon</em></p>
 </div>
 <br />
 
