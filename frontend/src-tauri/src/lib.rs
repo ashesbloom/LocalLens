@@ -40,29 +40,52 @@ pub fn run() {
                 let app_handle = app_handle.clone();
 
                 tauri::async_runtime::spawn(async move {
-                    let (mut rx, child) = app_handle.shell()
-                        .command("backend_server")
-                        .spawn()
-                        .expect("Failed to spawn backend server");
+                    let sidecar_cmd = app_handle.shell()
+                        .sidecar("backend_server")
+                        .expect("Failed to create sidecar command");
+                    
+                    println!("Attempting to spawn sidecar...");
+                    
+                    let (mut rx, child) = match sidecar_cmd.spawn() {
+                        Ok(result) => {
+                            println!("Sidecar spawned successfully!");
+                            result
+                        },
+                        Err(e) => {
+                            eprintln!("Failed to spawn sidecar: {:?}", e);
+                            return;
+                        }
+                    };
 
                     *child_clone.lock().unwrap() = Some(child);
 
                     while let Some(event) = rx.recv().await {
-                        if let CommandEvent::Stdout(bytes) = event {
-                            // Convert the byte vector to a string.
-                            let line = String::from_utf8_lossy(&bytes);
-                            println!("Backend: {}", line); // Print backend logs to console
+                        match event {
+                            CommandEvent::Stdout(bytes) => {
+                                let line = String::from_utf8_lossy(&bytes);
+                                println!("Backend stdout: {}", line);
 
-                            if line.starts_with("PYTHON_BACKEND_PORT:") {
-                                if let Some(port_str) = line.strip_prefix("PYTHON_BACKEND_PORT:") {
-                                    // Now that port_str is a &str, we can trim and parse it.
-                                    if let Ok(port) = port_str.trim().parse::<u16>() {
-                                        println!("Backend sidecar running on port: {}", port);
-                                        *port_clone.lock().unwrap() = Some(port);
-                                        let _ = app_handle.emit("backend-ready", port);
+                                if line.starts_with("PYTHON_BACKEND_PORT:") {
+                                    if let Some(port_str) = line.strip_prefix("PYTHON_BACKEND_PORT:") {
+                                        if let Ok(port) = port_str.trim().parse::<u16>() {
+                                            println!("Backend sidecar running on port: {}", port);
+                                            *port_clone.lock().unwrap() = Some(port);
+                                            let _ = app_handle.emit("backend-ready", port);
+                                        }
                                     }
                                 }
-                            }
+                            },
+                            CommandEvent::Stderr(bytes) => {
+                                let line = String::from_utf8_lossy(&bytes);
+                                eprintln!("Backend stderr: {}", line);
+                            },
+                            CommandEvent::Error(err) => {
+                                eprintln!("Backend error: {}", err);
+                            },
+                            CommandEvent::Terminated(payload) => {
+                                println!("Backend terminated with code: {:?}, signal: {:?}", payload.code, payload.signal);
+                            },
+                            _ => {}
                         }
                     }
                 });

@@ -5,6 +5,41 @@ All notable changes to Local Lens will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-12-24
+
+### Added
+
+- **macOS Support (Apple Silicon)**: Full native support for M1/M2/M3 Macs
+  - DMG installer for easy installation
+  - Auto-updater support for macOS
+- **Cross-Platform GitHub Actions**: Automated CI/CD builds for both Windows and macOS
+- Custom save preset modal dialog (replaces browser prompt that didn't work on macOS)
+- Health check endpoint for reliable backend startup detection
+
+### Changed
+
+- **macOS Build Architecture**: 
+  - PyInstaller now uses one-folder mode on macOS for faster startup (avoids extracting 140MB on every launch)
+  - Smart wrapper script detects development vs production environment
+  - Backend bundle stored in app Resources folder
+- RAW image processing now uses ImageMagick (Wand) on macOS/Linux instead of rawpy
+- Improved backend startup with retry logic and health checks
+- Updated Tauri configuration for cross-platform resource handling
+
+### Fixed
+
+- Fixed "With Others" folder incorrectly created when photos only contained unknown faces
+- Fixed face enrollment not loading on app startup
+- Fixed save preset dialog not appearing on macOS (Tauri doesn't support browser `prompt()`)
+- Fixed multiprocessing freeze issue in PyInstaller builds (added `freeze_support()`)
+- Fixed sidecar executable not found in macOS .app bundle
+
+### Technical Notes
+
+- Python 3.11 required (dlib compatibility)
+- macOS users: First launch requires right-click → Open to bypass Gatekeeper
+- Windows build process unchanged - existing installations will auto-update normally
+
 ## [2.1.0] - 2025-12-16
 
 ### Added

@@ -8,6 +8,12 @@
 #
 # ==============================================================================
 
+#! CRITICAL: This MUST be at the very top before any other imports
+# Required for PyInstaller to work correctly with multiprocessing on macOS/Windows
+import multiprocessing
+if __name__ == "__main__":
+    multiprocessing.freeze_support()
+
 import os
 import asyncio
 import json
@@ -26,11 +32,10 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional
 from starlette.responses import StreamingResponse
 import asyncio
-import os
-import shutil
-import json
-import multiprocessing # <-- ADD THIS
-import signal # <-- ADD THIS
+# import os
+# import shutil
+# import json
+# import signal
 import uvicorn
 from asyncio import Queue, CancelledError # FIX: Import the asyncio Queue and CancelledError
 
@@ -526,6 +531,11 @@ async def abort_process():
         "source": "system" # Use a neutral source
     })
     return {"status": "success", "message": "Abort signal sent to all running tasks."}
+
+@app.get("/api/health")
+async def health_check():
+    """Simple health check endpoint to verify the server is ready to accept requests."""
+    return {"status": "ok"}
 
 @app.get("/api/check-dependencies")
 async def check_dependencies():

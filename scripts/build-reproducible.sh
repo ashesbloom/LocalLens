@@ -144,14 +144,24 @@ pip install pyinstaller
 
 # Build backend executable
 print_status "Building backend executable with PyInstaller..."
-pyinstaller backend_server.spec
+pyinstaller backend_server.spec --clean
 
-if [ ! -f "dist/backend_server-x86_64-pc-windows-msvc.exe" ]; then
-    print_error "Backend build failed - executable not found"
-    exit 1
+# Check build success based on platform
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS uses one-folder mode for faster startup
+    if [ ! -f "dist/backend_server/backend_server" ]; then
+        print_error "Backend build failed - executable not found at dist/backend_server/backend_server"
+        exit 1
+    fi
+    print_success "Backend built successfully (one-folder mode)"
+else
+    # Windows/Linux use one-file mode
+    if [ ! -f "dist/backend_server" ] && [ ! -f "dist/backend_server.exe" ]; then
+        print_error "Backend build failed - executable not found"
+        exit 1
+    fi
+    print_success "Backend built successfully (one-file mode)"
 fi
-
-print_success "Backend built successfully"
 
 # Build frontend
 print_status "Building frontend..."
@@ -162,29 +172,25 @@ print_status "Installing Node.js dependencies..."
 npm ci
 
 # Copy backend executable to Tauri binaries
-print_status "Copying backend executable to Tauri..."
-mkdir -p src-tauri/binaries
+print_status "Setting up backend for Tauri..."
 
-# Detect platform and copy appropriate binary
+# Use ensure-backend.js to handle platform-specific setup
+print_status "Running ensure-backend.js..."
+node ensure-backend.js
+
+# Detect platform for logging
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    cp "../backend/dist/backend_server" "src-tauri/binaries/backend_server-x86_64-unknown-linux-gnu"
     PLATFORM="linux-gnu"
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    # Detect architecture for macOS
     ARCH=$(uname -m)
     if [[ "$ARCH" == "arm64" ]]; then
-        cp "../backend/dist/backend_server" "src-tauri/binaries/backend_server-aarch64-apple-darwin"
         PLATFORM="darwin-arm64"
     else
-        cp "../backend/dist/backend_server" "src-tauri/binaries/backend_server-x86_64-apple-darwin"
         PLATFORM="darwin-x64"
     fi
 elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
-    cp "../backend/dist/backend_server.exe" "src-tauri/binaries/backend_server-x86_64-pc-windows-msvc.exe"
     PLATFORM="windows"
 else
-    print_warning "Unknown platform: $OSTYPE - trying generic Linux build"
-    cp "../backend/dist/backend_server" "src-tauri/binaries/backend_server-x86_64-unknown-linux-gnu"
     PLATFORM="unknown"
 fi
 

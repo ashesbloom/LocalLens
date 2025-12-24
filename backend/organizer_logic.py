@@ -541,12 +541,16 @@ def get_date_path(date_obj):
 def get_people_dest_paths(base_dir, names):
     """
     Determines the correct destination folder(s) when sorting by people.
+    Only counts known enrolled people for "With Others" decision - unknown faces are ignored.
     """
     dest_paths, known_in_photo = [], sorted([n for n in names if n != "Unknown"])
     if not known_in_photo:
         return [os.path.join(base_dir, UNKNOWN_PEOPLE_FOLDER_NAME)]
-    if len(names) == 1 and len(known_in_photo) == 1:
+    # FIX: Only check known_in_photo count, not names count (which includes "Unknown")
+    # This ensures photos with 1 known person + unknown strangers go to PersonName/, not "With Others"
+    if len(known_in_photo) == 1:
         return [os.path.join(base_dir, known_in_photo[0])]
+    # Multiple known people in photo - put in "With Others" subfolder for each
     for person in known_in_photo:
         dest_paths.append(os.path.join(base_dir, person, "With Others"))
     return dest_paths
@@ -759,9 +763,14 @@ def _get_hybrid_sort_paths(dest_dir, sort_options, exif_data, date_obj, names, m
         if filter_type == 'People':
             # Create subfolders for each matched person inside the special folder.
             selected_people_in_photo = [p for p in custom_filter.get('people', []) if p in names]
+            # FIX: Count only known people (exclude "Unknown") for "With Others" decision
+            known_in_photo = [n for n in names if n != "Unknown"]
             for person in selected_people_in_photo:
-                # If it's a group photo, put it in a "With Others" subfolder.
-                dest_paths.append(os.path.join(base_path, person, "With Others") if len(names) > 1 else os.path.join(base_path, person))
+                # If there are multiple KNOWN people in photo, put in "With Others" subfolder
+                if len(known_in_photo) > 1:
+                    dest_paths.append(os.path.join(base_path, person, "With Others"))
+                else:
+                    dest_paths.append(os.path.join(base_path, person))
         
         elif filter_type == 'Location':
             # The UI doesn't have a "sub-sort by date" for the custom filter, so we place it in the root of the special folder.

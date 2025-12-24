@@ -26,7 +26,14 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=datas,
-    hiddenimports=[],
+    hiddenimports=[
+        'multiprocessing',
+        'multiprocessing.pool',
+        'multiprocessing.process',
+        'multiprocessing.synchronize',
+        'multiprocessing.resource_tracker',
+        '_multiprocessing',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -36,24 +43,59 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.datas,
-    [],
-    name=exe_name,
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
-    console=True,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    manifest='long_path_manifest.xml',
-)
+import sys as _sys
+
+# Platform-specific configuration
+if _sys.platform == 'darwin':
+    # macOS: Use one-folder mode for faster startup
+    # (avoids extracting 140MB on every run)
+    exe = EXE(
+        pyz,
+        a.scripts,
+        [],  # Don't bundle into EXE
+        exclude_binaries=True,
+        name=exe_name,
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=False,  # UPX not reliable on macOS
+        runtime_tmpdir=None,
+        console=True,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+    )
+    
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=False,
+        name=exe_name,
+    )
+else:
+    # Windows/Linux: Use one-file mode (simpler distribution)
+    exe = EXE(
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.datas,
+        [],
+        name=exe_name,
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        runtime_tmpdir=None,
+        console=True,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+        manifest='long_path_manifest.xml',
+    )

@@ -21,6 +21,7 @@ import FaceEnrollmentModal from './components/FaceEnrollmentModal';
 import FindGroupResultModal from './components/FindGroupResultModal';
 import MoveCompleteModal from './components/MoveCompleteModal'; // <-- ADD THIS
 import ConfirmationModal from './components/ConfirmationModal'; 
+import InputModal from './components/InputModal';
 import UpdateChecker from './components/UpdateChecker'; // <-- ADD: Auto-update notification
 import TutorialOverlay from './components/TutorialOverlay'; // <-- ADD THIS
 import TutorialMenu from './components/TutorialMenu'; // <-- ADD THIS
@@ -525,6 +526,9 @@ function App() {
     // --- NEW State for Delete Preset Confirmation Modal ---
     const [deletePresetConfirm, setDeletePresetConfirm] = useState({ show: false, presetName: '' });
 
+    // --- NEW State for Save Preset Input Modal ---
+    const [showSavePresetModal, setShowSavePresetModal] = useState(false);
+
     // --- NEW State for Move Complete Modal ---
     const [showMoveCompleteModal, setShowMoveCompleteModal] = useState(false);
 
@@ -868,8 +872,30 @@ function App() {
 
     // --- UI Handlers & Backend Integrations ---
 
+    // Helper function to wait for backend to be truly ready (not just port assigned)
+    const waitForBackendReady = async (maxRetries = 10, delayMs = 500) => {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                await apiCall('/api/health');
+                return true; // Backend is ready
+            } catch (e) {
+                console.log(`Waiting for backend... attempt ${i + 1}/${maxRetries}`);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+        }
+        return false; // Backend never became ready
+    };
+
     const runStartupChecks = async () => {
         logToConsole("System Initialized. Connecting to backend services...");
+        
+        // Wait for the backend to be truly ready (not just port printed)
+        const backendReady = await waitForBackendReady();
+        if (!backendReady) {
+            logToConsole("Backend connection failed. Please ensure the server is running and refresh.", 'error');
+            return;
+        }
+        
         try {
             const status = await apiCall('/api/check-dependencies');
             logToConsole("Backend connected. Verifying component status...");
@@ -1170,7 +1196,13 @@ function App() {
             await message('Please select both source and destination folders before saving.', { title: 'Missing Information', kind: 'warning' });
             return;
         }
-        const name = prompt('Enter a name for this preset:');
+        // Show the input modal instead of browser's prompt()
+        setShowSavePresetModal(true);
+    };
+
+    // Callback when user confirms preset name in the modal
+    const handleConfirmSavePreset = async (name) => {
+        setShowSavePresetModal(false);
         if (name) {
             try {
                 await apiCall('/api/presets/paths', {
@@ -1179,7 +1211,9 @@ function App() {
                 });
                 logToConsole(`Preset '${name}' saved successfully.`, 'success');
                 await loadPresets();
-            } catch (error) { }
+            } catch (error) {
+                logToConsole(`Failed to save preset: ${error.message}`, 'error');
+            }
         }
     };
 
@@ -1719,6 +1753,18 @@ function App() {
                     This action cannot be undone.
                 </p>
             </ConfirmationModal>
+
+            {/* Save Preset Input Modal */}
+            <InputModal
+                isVisible={showSavePresetModal}
+                title="Save Preset"
+                placeholder="Enter preset name..."
+                onConfirm={handleConfirmSavePreset}
+                onCancel={() => setShowSavePresetModal(false)}
+                confirmText="Save"
+                cancelText="Cancel"
+                icon="save"
+            />
 
             <main className="app-main">
                 <div className="setup-grid">

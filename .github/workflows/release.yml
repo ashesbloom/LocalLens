@@ -1,4 +1,4 @@
-name: Windows Release Build
+name: Release Build
 
 on:
   push:
@@ -16,6 +16,133 @@ env:
   NODE_VERSION: '18'
 
 jobs:
+  # ============================================================================
+  # macOS Build (Apple Silicon)
+  # ============================================================================
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies (Homebrew)
+        run: |
+          brew install cmake dlib imagemagick
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Create Python virtual environment
+        run: |
+          cd backend
+          python -m venv .venv
+
+      - name: Install backend requirements
+        run: |
+          cd backend
+          source .venv/bin/activate
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install pyinstaller==6.11.1
+
+      - name: Build Python backend with PyInstaller
+        run: |
+          cd backend
+          source .venv/bin/activate
+          python -m PyInstaller backend_server.spec
+
+      - name: Install frontend requirements
+        run: |
+          cd frontend
+          npm install
+
+      - name: Copy backend bundle for Tauri
+        run: |
+          cd frontend
+          node ensure-backend.js
+
+      - name: Build Tauri application
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: |
+          cd frontend
+          npm run tauri build
+
+      - name: Find macOS build artifacts
+        id: find_files
+        run: |
+          cd frontend/src-tauri/target/release/bundle
+          
+          # Find the DMG file
+          DMG_FILE=$(find dmg -name "*.dmg" 2>/dev/null | head -1)
+          if [ -n "$DMG_FILE" ]; then
+            DMG_PATH="$(pwd)/$DMG_FILE"
+            DMG_NAME=$(basename "$DMG_FILE")
+            echo "dmg_path=$DMG_PATH" >> $GITHUB_OUTPUT
+            echo "dmg_name=$DMG_NAME" >> $GITHUB_OUTPUT
+            echo "Found DMG: $DMG_PATH"
+          fi
+          
+          # Find the .app.tar.gz file (for updater)
+          TARBALL=$(find macos -name "*.app.tar.gz" 2>/dev/null | head -1)
+          if [ -n "$TARBALL" ]; then
+            TARBALL_PATH="$(pwd)/$TARBALL"
+            TARBALL_NAME=$(basename "$TARBALL")
+            echo "tarball_path=$TARBALL_PATH" >> $GITHUB_OUTPUT
+            echo "tarball_name=$TARBALL_NAME" >> $GITHUB_OUTPUT
+            echo "Found tarball: $TARBALL_PATH"
+          fi
+          
+          # Find the signature file
+          SIG_FILE=$(find macos -name "*.app.tar.gz.sig" 2>/dev/null | head -1)
+          if [ -n "$SIG_FILE" ]; then
+            SIG_PATH="$(pwd)/$SIG_FILE"
+            SIGNATURE=$(cat "$SIG_PATH")
+            echo "sig_path=$SIG_PATH" >> $GITHUB_OUTPUT
+            echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
+            echo "Found signature: $SIG_PATH"
+          fi
+
+      - name: Generate macOS checksums
+        run: |
+          cd frontend/src-tauri/target/release/bundle
+          
+          # Generate checksums for DMG (in dmg folder so artifact upload finds it)
+          if [ -f "${{ steps.find_files.outputs.dmg_path }}" ]; then
+            shasum -a 256 "${{ steps.find_files.outputs.dmg_path }}" | awk '{print $1 "  " FILENAME}' FILENAME="${{ steps.find_files.outputs.dmg_name }}" > dmg/checksums-macos.txt
+            echo "Generated checksums:"
+            cat dmg/checksums-macos.txt
+          else
+            echo "No DMG found for checksums"
+          fi
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            frontend/src-tauri/target/release/bundle/dmg/*.dmg
+            frontend/src-tauri/target/release/bundle/dmg/checksums-macos.txt
+            frontend/src-tauri/target/release/bundle/macos/*.app.tar.gz
+            frontend/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
+          retention-days: 5
+
+  # ============================================================================
+  # Windows Build
+  # ============================================================================
   build-windows:
     runs-on: windows-latest
     steps:
@@ -103,145 +230,136 @@ jobs:
           Write-Output "Generated checksums:"
           Get-Content "checksums-windows.txt"
 
-      # Find the generated installer files and signature
-      - name: Find installer files
-        id: find_files
-        run: |
-          cd frontend\src-tauri\target\release\bundle
-          
-          $msiFile = Get-ChildItem -Path "msi" -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $msiSigFile = Get-ChildItem -Path "msi" -Filter "*.msi.sig" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $exeFile = Get-ChildItem -Path "nsis" -Filter "*.exe" -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch "\.sig$" } | Select-Object -First 1
-          $exeSigFile = Get-ChildItem -Path "nsis" -Filter "*.exe.sig" -ErrorAction SilentlyContinue | Select-Object -First 1
-          
-          if ($msiFile) {
-            $msiPath = $msiFile.FullName
-            echo "msi_path=$msiPath" >> $env:GITHUB_OUTPUT
-            echo "msi_name=$($msiFile.Name)" >> $env:GITHUB_OUTPUT
-            Write-Output "Found MSI: $msiPath"
-          }
-          if ($msiSigFile) {
-            $msiSigPath = $msiSigFile.FullName
-            $msiSignature = Get-Content $msiSigPath -Raw
-            echo "msi_sig_path=$msiSigPath" >> $env:GITHUB_OUTPUT
-            echo "msi_signature=$msiSignature" >> $env:GITHUB_OUTPUT
-            Write-Output "Found MSI signature: $msiSigPath"
-          }
-          if ($exeFile) {
-            $exePath = $exeFile.FullName
-            echo "exe_path=$exePath" >> $env:GITHUB_OUTPUT
-            echo "exe_name=$($exeFile.Name)" >> $env:GITHUB_OUTPUT
-            Write-Output "Found EXE: $exePath"
-          }
-          if ($exeSigFile) {
-            $exeSigPath = $exeSigFile.FullName
-            $exeSignature = Get-Content $exeSigPath -Raw
-            echo "exe_sig_path=$exeSigPath" >> $env:GITHUB_OUTPUT
-            echo "exe_signature=$exeSignature" >> $env:GITHUB_OUTPUT
-            Write-Output "Found EXE signature: $exeSigPath"
-          }
-          
-          $checksumPath = "checksums-windows.txt"
-          if (Test-Path $checksumPath) {
-            $fullChecksumPath = Resolve-Path $checksumPath
-            echo "checksum_path=$fullChecksumPath" >> $env:GITHUB_OUTPUT
-            Write-Output "Found checksums: $fullChecksumPath"
-          }
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            frontend/src-tauri/target/release/bundle/msi/*.msi
+            frontend/src-tauri/target/release/bundle/msi/*.msi.sig
+            frontend/src-tauri/target/release/bundle/nsis/*.exe
+            frontend/src-tauri/target/release/bundle/nsis/*.exe.sig
+            frontend/src-tauri/target/release/bundle/checksums-windows.txt
+          retention-days: 5
 
-      # Get version from tag
+      - name: Build Summary
+        run: |
+          Write-Output "✅ Windows build completed successfully!"
+          Write-Output "📦 Artifacts uploaded for release job"
+
+  # ============================================================================
+  # Create GitHub Release (after both builds complete)
+  # ============================================================================
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-macos]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: artifacts/windows
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-artifacts
+          path: artifacts/macos
+
+      - name: List downloaded artifacts
+        run: |
+          echo "=== Windows Artifacts ==="
+          find artifacts/windows -type f
+          echo ""
+          echo "=== macOS Artifacts ==="
+          find artifacts/macos -type f
+
       - name: Get version
         id: get_version
         run: |
-          $tag = "${{ github.ref_name }}"
-          $version = $tag -replace '^v', ''
-          echo "version=$version" >> $env:GITHUB_OUTPUT
+          tag="${{ github.ref_name }}"
+          version="${tag#v}"
+          echo "version=$version" >> $GITHUB_OUTPUT
           echo "Version: $version"
 
-      # Extract release notes from CHANGELOG.md
       - name: Extract release notes
         id: release_notes
         run: |
-          $version = "${{ steps.get_version.outputs.version }}"
-          $changelogPath = "CHANGELOG.md"
+          version="${{ steps.get_version.outputs.version }}"
+          changelog_path="CHANGELOG.md"
           
-          if (Test-Path $changelogPath) {
-            $content = Get-Content $changelogPath -Raw
-            
-            # Match the section for this version (## [X.Y.Z] until next ## [ or end)
-            $pattern = "(?s)## \[$version\][^\r\n]*\r?\n(.*?)(?=\r?\n## \[|$)"
-            $match = [regex]::Match($content, $pattern)
-            
-            if ($match.Success) {
-              $notes = $match.Groups[1].Value.Trim()
-              # Escape for GitHub Actions output
-              $notes = $notes -replace '%', '%25'
-              $notes = $notes -replace "`n", '%0A'
-              $notes = $notes -replace "`r", '%0D'
-              echo "notes=$notes" >> $env:GITHUB_OUTPUT
-              Write-Output "Found release notes for version $version"
-            } else {
-              $defaultNotes = "Release $version - See CHANGELOG.md for details"
-              echo "notes=$defaultNotes" >> $env:GITHUB_OUTPUT
-              Write-Output "No specific notes found for $version, using default"
-            }
-          } else {
-            $defaultNotes = "Release $version"
-            echo "notes=$defaultNotes" >> $env:GITHUB_OUTPUT
-            Write-Output "CHANGELOG.md not found, using default notes"
-          }
+          if [ -f "$changelog_path" ]; then
+            # Extract notes for this version
+            notes=$(awk "/^## \[$version\]/{flag=1; next} /^## \[/{flag=0} flag" "$changelog_path" | sed '/^$/d')
+            if [ -n "$notes" ]; then
+              echo "Found release notes for version $version"
+              # Use delimiter for multiline output
+              echo "notes<<EOF" >> $GITHUB_OUTPUT
+              echo "$notes" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            else
+              echo "No specific notes found, using default"
+              echo "notes=Release $version - See CHANGELOG.md for details" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "CHANGELOG.md not found, using default notes"
+            echo "notes=Release $version" >> $GITHUB_OUTPUT
+          fi
 
-      # Generate latest.json for Tauri updater
-      - name: Generate latest.json
-        id: generate_latest
+      - name: Find artifact files
+        id: find_files
         run: |
-          $version = "${{ steps.get_version.outputs.version }}"
-          $tag = "${{ github.ref_name }}"
-          $repo = "${{ github.repository }}"
-          $pubDate = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+          # Windows artifacts
+          MSI_FILE=$(find artifacts/windows -name "*.msi" ! -name "*.sig" 2>/dev/null | head -1)
+          MSI_SIG=$(find artifacts/windows -name "*.msi.sig" 2>/dev/null | head -1)
+          EXE_FILE=$(find artifacts/windows -name "*.exe" ! -name "*.sig" 2>/dev/null | head -1)
+          CHECKSUMS_WIN=$(find artifacts/windows -name "checksums-windows.txt" 2>/dev/null | head -1)
           
-          # Try to read signature directly from file (more reliable than output variable)
-          $sigPath = "frontend\src-tauri\target\release\bundle\msi\*.sig"
-          $sigFiles = Get-ChildItem -Path $sigPath -ErrorAction SilentlyContinue
+          # macOS artifacts
+          DMG_FILE=$(find artifacts/macos -name "*.dmg" 2>/dev/null | head -1)
+          TARBALL=$(find artifacts/macos -name "*.app.tar.gz" 2>/dev/null | head -1)
+          TARBALL_SIG=$(find artifacts/macos -name "*.app.tar.gz.sig" 2>/dev/null | head -1)
+          CHECKSUMS_MAC=$(find artifacts/macos -name "checksums-macos.txt" 2>/dev/null | head -1)
           
-          $msiSignature = ""
-          if ($sigFiles) {
-            $msiSignature = (Get-Content $sigFiles[0].FullName -Raw).Trim()
-            Write-Output "Found signature in file: $($sigFiles[0].FullName)"
-            Write-Output "Signature (first 50 chars): $($msiSignature.Substring(0, [Math]::Min(50, $msiSignature.Length)))..."
-          } else {
-            Write-Output "WARNING: No .sig file found! Auto-update will NOT work."
-            Write-Output "Make sure TAURI_SIGNING_PRIVATE_KEY secret is set in GitHub repository settings."
-          }
+          echo "msi_path=$MSI_FILE" >> $GITHUB_OUTPUT
+          echo "msi_sig_path=$MSI_SIG" >> $GITHUB_OUTPUT
+          echo "exe_path=$EXE_FILE" >> $GITHUB_OUTPUT
+          echo "checksums_win_path=$CHECKSUMS_WIN" >> $GITHUB_OUTPUT
+          echo "dmg_path=$DMG_FILE" >> $GITHUB_OUTPUT
+          echo "tarball_path=$TARBALL" >> $GITHUB_OUTPUT
+          echo "tarball_sig_path=$TARBALL_SIG" >> $GITHUB_OUTPUT
+          echo "checksums_mac_path=$CHECKSUMS_MAC" >> $GITHUB_OUTPUT
           
-          # Get release notes (unescape the GitHub Actions encoding)
-          $releaseNotes = "${{ steps.release_notes.outputs.notes }}"
-          $releaseNotes = $releaseNotes -replace '%0A', "`n"
-          $releaseNotes = $releaseNotes -replace '%0D', "`r"
-          $releaseNotes = $releaseNotes -replace '%25', '%'
-          
-          # URL for the MSI installer (standard naming)
-          $downloadUrl = "https://github.com/$repo/releases/download/$tag/Local_Lens_${tag}_x64_en-US.msi"
-          
-          $latestJson = @{
-            version = $version
-            notes = $releaseNotes
-            pub_date = $pubDate
-            platforms = @{
-              "windows-x86_64" = @{
-                signature = $msiSignature.Trim()
-                url = $downloadUrl
-              }
-            }
-          } | ConvertTo-Json -Depth 4
-          
-          $latestJson | Out-File -FilePath "latest.json" -Encoding utf8
-          Write-Output "Generated latest.json:"
-          Get-Content "latest.json"
-          
-          $latestPath = Resolve-Path "latest.json"
-          echo "latest_json_path=$latestPath" >> $env:GITHUB_OUTPUT
+          # Read signatures for latest.json
+          if [ -n "$MSI_SIG" ] && [ -f "$MSI_SIG" ]; then
+            WIN_SIG=$(cat "$MSI_SIG")
+            echo "win_signature=$WIN_SIG" >> $GITHUB_OUTPUT
+          fi
+          if [ -n "$TARBALL_SIG" ] && [ -f "$TARBALL_SIG" ]; then
+            MAC_SIG=$(cat "$TARBALL_SIG")
+            echo "mac_signature=$MAC_SIG" >> $GITHUB_OUTPUT
+          fi
 
-      # Create GitHub release
+      - name: Generate latest.json for Tauri updater
+        run: |
+          version="${{ steps.get_version.outputs.version }}"
+          tag="${{ github.ref_name }}"
+          repo="${{ github.repository }}"
+          pub_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          win_sig="${{ steps.find_files.outputs.win_signature }}"
+          mac_sig="${{ steps.find_files.outputs.mac_signature }}"
+          
+          # Generate latest.json using printf to avoid heredoc YAML issues
+          printf '{\n  "version": "%s",\n  "notes": "See release notes on GitHub",\n  "pub_date": "%s",\n  "platforms": {\n    "windows-x86_64": {\n      "signature": "%s",\n      "url": "https://github.com/%s/releases/download/%s/Local_Lens_%s_x64_en-US.msi"\n    },\n    "darwin-aarch64": {\n      "signature": "%s",\n      "url": "https://github.com/%s/releases/download/%s/Local_Lens.app.tar.gz"\n    }\n  }\n}\n' \
+            "$version" "$pub_date" "$win_sig" "$repo" "$tag" "$tag" "$mac_sig" "$repo" "$tag" > latest.json
+          
+          echo "Generated latest.json:"
+          cat latest.json
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -261,34 +379,46 @@ jobs:
             
             ### 🔒 Security & Verification
             
-            This Windows release was built automatically using GitHub Actions:
+            This release was built automatically using GitHub Actions for Windows and macOS:
             
             - **Source Code**: Available in this repository at tag `${{ github.ref_name }}`
             - **Build Process**: View the complete build log in the [Actions tab](https://github.com/${{ github.repository }}/actions)
-            - **Checksums**: SHA256 checksums provided below for file verification
+            - **Checksums**: SHA256 checksums provided for file verification
             
             ### 📥 Downloads
             
-            Choose your preferred installer format:
+            **Windows:**
             - **MSI Installer**: Recommended for enterprise/managed environments
             - **EXE Installer**: Recommended for individual users
             
+            **macOS (Apple Silicon):**
+            - **DMG**: Drag and drop to Applications folder
+            
             ### ✅ File Verification
             
-            After downloading, verify file integrity:
+            **Windows:**
             ```cmd
             certutil -hashfile "installer_name" SHA256
             ```
-            Compare the output with the checksums in `checksums-windows.txt`.
+            
+            **macOS:**
+            ```bash
+            shasum -a 256 "Local Lens.dmg"
+            ```
             
             ### 🚀 Installation
             
+            **Windows:**
             1. Download your preferred installer format
-            2. Run the installer as Administrator (recommended)
-            3. Follow the installation wizard
-            4. Launch Local Lens from Start Menu or Desktop shortcut
+            2. Run the installer (Admin recommended for MSI)
+            3. Launch Local Lens from Start Menu
+            
+            **macOS:**
+            1. Download the DMG file
+            2. Open the DMG and drag Local Lens to Applications
+            3. First launch: Right-click → Open (to bypass Gatekeeper)
 
-      # Upload MSI installer
+      # Upload Windows artifacts
       - name: Upload MSI installer
         if: steps.find_files.outputs.msi_path
         uses: actions/upload-release-asset@v1
@@ -300,7 +430,6 @@ jobs:
           asset_name: Local_Lens_${{ github.ref_name }}_x64_en-US.msi
           asset_content_type: application/x-msi
 
-      # Upload EXE installer
       - name: Upload EXE installer
         if: steps.find_files.outputs.exe_path
         uses: actions/upload-release-asset@v1
@@ -312,40 +441,67 @@ jobs:
           asset_name: Local_Lens_${{ github.ref_name }}_x64-setup.exe
           asset_content_type: application/x-msdownload
 
-      # Upload checksums
-      - name: Upload checksums
-        if: steps.find_files.outputs.checksum_path
+      - name: Upload Windows checksums
+        if: steps.find_files.outputs.checksums_win_path
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_files.outputs.checksum_path }}
+          asset_path: ${{ steps.find_files.outputs.checksums_win_path }}
           asset_name: checksums-windows.txt
+          asset_content_type: text/plain
+
+      # Upload macOS artifacts
+      - name: Upload DMG
+        if: steps.find_files.outputs.dmg_path
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.find_files.outputs.dmg_path }}
+          asset_name: Local_Lens_${{ github.ref_name }}_aarch64.dmg
+          asset_content_type: application/x-apple-diskimage
+
+      - name: Upload macOS app tarball (for updater)
+        if: steps.find_files.outputs.tarball_path
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.find_files.outputs.tarball_path }}
+          asset_name: Local_Lens.app.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload macOS checksums
+        if: steps.find_files.outputs.checksums_mac_path
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.find_files.outputs.checksums_mac_path }}
+          asset_name: checksums-macos.txt
           asset_content_type: text/plain
 
       # Upload latest.json for Tauri auto-updater
       - name: Upload latest.json
-        if: steps.generate_latest.outputs.latest_json_path
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.generate_latest.outputs.latest_json_path }}
+          asset_path: latest.json
           asset_name: latest.json
           asset_content_type: application/json
 
-      # Print summary
-      - name: Build Summary
+      - name: Release Summary
         run: |
-          Write-Output "✅ Build completed successfully!"
-          Write-Output "📦 Generated installers:"
-          if ("${{ steps.find_files.outputs.msi_name }}" -ne "") {
-            Write-Output "   - MSI: ${{ steps.find_files.outputs.msi_name }}"
-          }
-          if ("${{ steps.find_files.outputs.exe_name }}" -ne "") {
-            Write-Output "   - EXE: ${{ steps.find_files.outputs.exe_name }}"
-          }
-          Write-Output "📋 Generated latest.json for auto-updater"
-          Write-Output "🔒 Release created as draft - review and publish manually"
+          echo "✅ Release created successfully!"
+          echo "📦 Uploaded artifacts:"
+          echo "   Windows: MSI, EXE, checksums"
+          echo "   macOS: DMG, app tarball, checksums"
+          echo "📋 latest.json generated for auto-updater (Windows + macOS)"
+          echo "🔒 Release created as draft - review and publish manually"
