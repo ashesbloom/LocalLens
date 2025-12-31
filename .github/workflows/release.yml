@@ -1,4 +1,4 @@
-name: Release Build
+﻿name: Release Build
 
 on:
   push:
@@ -416,8 +416,11 @@ jobs:
           win_sig="${{ steps.find_files.outputs.win_signature }}"
           mac_sig="${{ steps.find_files.outputs.mac_signature }}"
           
-          # Get release notes
-          notes="${{ steps.release_notes.outputs.notes }}"
+          # Get release notes using heredoc to avoid backtick interpretation
+          cat > /tmp/notes.txt << 'NOTES_EOF'
+          ${{ steps.release_notes.outputs.notes }}
+          NOTES_EOF
+          notes=$(cat /tmp/notes.txt)
           
           # Use jq to generate valid JSON with proper escaping
           jq -n \
@@ -510,58 +513,45 @@ jobs:
             
             ---
             
-            ### � Installation
+            ### Installation
             
-            #### 🍺 macOS via Homebrew (Recommended)
-            ```bash
-            brew install ashesbloom/locallens/local-lens
-            ```
-            > Homebrew automatically handles Gatekeeper - no extra steps needed!
+            #### macOS via Homebrew (Recommended)
             
-            #### 🪟 Windows
-            1. Download the `.msi` (enterprise) or `.exe` (individual) installer
+                brew install ashesbloom/locallens/local-lens
+            
+            Homebrew automatically handles Gatekeeper - no extra steps needed!
+            
+            #### Windows
+            1. Download the .msi (enterprise) or .exe (individual) installer
             2. Run the installer
             3. Launch Local Lens from the Start Menu
             
-            #### 🍎 macOS Manual Install (DMG)
-            1. Download `Local_Lens_${{ github.ref_name }}_aarch64.dmg`
-            2. Open the DMG and drag **Local Lens** to Applications
-            3. **Fix Gatekeeper block** (choose one):
-               - **Easy:** Download and double-click `Fix_Local_Lens.command`
-               - **Manual:** Right-click the app → Open → Click "Open" in the dialog
-               - **Terminal:**
-                 ```bash
-                 xattr -cr "/Applications/Local Lens.app" && codesign --force --deep --sign - "/Applications/Local Lens.app"
-                 ```
+            #### macOS Manual Install (DMG)
+            1. Download the DMG file from this release
+            2. Open the DMG and drag Local Lens to Applications
+            3. Fix Gatekeeper block (choose one):
+               - Download and double-click Fix_Local_Lens.command
+               - Right-click the app, Open, click Open in the dialog
+               - Terminal: xattr -cr "/Applications/Local Lens.app"
             
             ---
             
-            ### ⚠️ macOS Security Note
+            ### macOS Security Note
             
-            Local Lens is **not notarized** with Apple (requires $99/year developer fee).
-            macOS may show a "damaged" or "unidentified developer" warning - this is normal for open-source apps.
+            Local Lens is not notarized with Apple (requires $99/year developer fee).
+            macOS may show a damaged or unidentified developer warning.
+            This is normal for open-source apps.
             
-            The `Fix_Local_Lens.command` script automatically:
-            - Removes the quarantine flag
-            - Applies an ad-hoc code signature
-            - Sets correct executable permissions
+            The Fix_Local_Lens.command script automatically removes quarantine,
+            applies an ad-hoc signature, and sets permissions.
             
             ---
             
-            ### 🔒 Security & Verification
+            ### Security and Verification
             
-            - **Source Code**: Available at tag `${{ github.ref_name }}`
-            - **Build Process**: [View build logs](https://github.com/${{ github.repository }}/actions)
-            - **Checksums**: SHA256 checksums provided for verification
-            
-            **Verify downloads:**
-            ```bash
-            # macOS
-            shasum -a 256 "Local_Lens_${{ github.ref_name }}_aarch64.dmg"
-            
-            # Windows
-            certutil -hashfile "Local_Lens_${{ github.ref_name }}_x64-setup.exe" SHA256
-            ```
+            - Source Code: Available at this tag
+            - Build Process: See Actions tab for build logs
+            - Checksums: SHA256 checksums provided for verification
 
       # Upload Windows artifacts
       - name: Upload MSI installer
