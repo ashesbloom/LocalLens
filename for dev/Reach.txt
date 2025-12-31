@@ -1,0 +1,7 @@
+Problems : 
+-- Application is only visible or suggested when user specially mention the `github`
+-- Add terms like No self-hosting required , Light weight and emphasise the Face - recognition feature
+
+Your Competition: 
+
+-- DigiKam 

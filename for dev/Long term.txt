@@ -1,0 +1,85 @@
+# Module Name: Local Lens Vision Core v2.0
+
+To maintain your "Technical Specializations," I recommend avoiding generic API calls and instead implementing a **Hybrid Semantic-Object Pipeline**. This will allow your app to not just "detect objects" (e.g., "dog"), but "understand scenes" (e.g., "golden retriever running on the beach").
+
+---
+
+## 1. The Core Technology Stack (Additions)
+These packages integrate seamlessly with your existing Python FastAPI backend.
+
+| Technology | Purpose | Why this fits your project |
+| :--- | :--- | :--- |
+| **YOLOv11 (via ultralytics)** | Real-time Object Detection | The current state-of-the-art (SOTA) for speed/accuracy on CPUs. Faster and more accurate than `dlib` MMOD. |
+| **ONNX Runtime** | Inference Accelerator | Critical for your "Consumer-grade hardware" goal. It runs models 2-3x faster on CPU than standard PyTorch. |
+| **CLIP (OpenAI/OpenCLIP)** | Zero-Shot / Semantic Search | The "Innovation" piece. Allows users to search for things you never explicitly trained for (e.g., "vintage car" or "sad clown"). |
+| **SAHI (Slicing Aided Hyper Inference)** | Small Object Detection | A niche library that "slices" high-res images (like your supported RAW files) into smaller tiles so YOLO can detect tiny objects effectively. |
+| **FAISS (CPU version)** | Vector Search Engine | Extremely fast similarity search to store and retrieve the "semantic meaning" of images locally. |
+
+---
+
+## 2. The "Innovation" Architecture: Hybrid Cascade Pipeline
+Instead of just running a heavy model on every image, build a **"Context-Aware Cascade"** similar to your existing CNN/HOG strategy.
+
+### Phase 1: The "Glance" (Fast Detection)
+* **Algorithm:** `YOLOv11-Nano` (Quantized to INT8).
+* **Function:** Scans the image in milliseconds to find common objects (Person, Car, Dog, Chair).
+* **Optimization:** Run this via **ONNX Runtime** on the CPU. It is lightweight (~6MB model size) and won't bog down the system.
+
+### Phase 2: The "Inspector" (Semantic Analysis)
+* **Trigger:** If Phase 1 finds a significant object (e.g., "Dog"), crop that object and pass it to **CLIP**.
+* **Innovation:** CLIP converts that image crop into a mathematical vector (embedding).
+* **Result:** You don't just store "Tag: Dog". You store a vector that represents the *visual features* of that specific dog.
+* **User Value:** Later, if the user types "brown puppy," you convert that text to a vector and match it against your stored image vectors using FAISS. This is **Zero-Shot Detection**.
+
+### Phase 3: The "Zoom" (High-Res Slicing)
+* **Trigger:** If the image is 4K+ or RAW (which you support).
+* **Niche Algorithm:** **SAHI (Slicing Aided Hyper Inference)**.
+* **How it works:** Instead of shrinking the 4K image to 640x640 (losing all detail), SAHI cuts it into overlapping 640x640 tiles, runs detection on each, and intelligently merges the results.
+* **Why:** This ensures you detect small faces or objects in the background of professional landscape shots.
+
+---
+
+## 3. Niche Algorithms to "Research & Implement"
+To impress technical evaluators (or just yourself), look into these specific algorithmic concepts:
+
+* **Non-Maximum Suppression (NMS) vs. WBF (Weighted Boxes Fusion):**
+    * Standard YOLO uses NMS to remove duplicate boxes.
+    * **Innovation:** Implement **WBF**. It averages the coordinates of overlapping boxes rather than discarding them, often resulting in slightly higher accuracy for your "Precision" metrics.
+* **Post-Training Quantization (PTQ):**
+    * Your project mentions "Memory Efficient."
+    * Research how to convert your PyTorch models to **INT8 format** using OpenVINO or ONNX. This reduces model size by 4x (e.g., 50MB -> 12MB) with <1% accuracy loss, essential for local apps.
+* **Cosine Similarity (for Search):**
+    * The core math behind "Semantic Search." You will need to write a custom function (or use FAISS) to calculate the angle between the "User Search Vector" and your "Image Database Vectors."
+
+---
+
+## 4. How to Structure the "New Feature" (Project Plan)
+
+### A. New Dependency Injection (Backend)
+Add these to your `requirements.txt` (bundled via PyInstaller):
+```text
+ultralytics>=8.3.0
+onnxruntime>=1.16.0
+sahi>=0.11.14
+faiss-cpu>=1.7.4
+clip-by-openai  # or open_clip_torch
+
+B. Data Flow Update
+Ingest: New Image lands in folder.
+
+Existing: face_recognition runs (Sidecar Thread A).
+
+New: YOLOv11n-ONNX runs (Sidecar Thread B).
+
+Logic:
+
+Objects found? -> Save JSON metadata {"objects": ["laptop", "cup"]}.
+
+Generate CLIP Embedding -> Save to local Vector Store (e.g., a binary file or SQLite with sqlite-vss).
+
+C. Frontend (React/Tauri) Update
+UI: Add a "Smart Search Bar" (distinct from your current keyword filter).
+
+User types: "Camping trip with blue tent".
+
+Backend: Converts text to vector -> finds nearest image vectors -> returns results.

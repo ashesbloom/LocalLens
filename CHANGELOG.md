@@ -5,6 +5,29 @@ All notable changes to Local Lens will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2025-12-31
+
+### Added
+
+- **Homebrew Cask Support**: macOS users can now install via `brew install ashesbloom/locallens/local-lens`
+  - Homebrew automatically handles Gatekeeper - no manual steps needed
+  - Auto-generated cask formula included in each release
+- **macOS Gatekeeper Fix Script**: `Fix_Local_Lens.command` included in releases
+  - Double-click to automatically remove quarantine, apply ad-hoc signature, and set permissions
+  - Supports both `/Applications` and `~/Applications` install locations
+- Improved release notes with clear macOS installation instructions
+
+### Changed
+
+- Updated README with Quick Install section for all platforms
+- Release workflow now generates Homebrew cask formula automatically
+- Enhanced macOS installation documentation with multiple fix options
+
+### Fixed
+
+- Fixed macOS "App is damaged" error by providing proper workarounds
+- Fixed path escaping issues in terminal commands (use quotes instead of backslashes)
+
 ## [2.2.0] - 2025-12-24
 
 ### Added

@@ -29,6 +29,30 @@
 </div>
 <br />
 
+## � Quick Install
+
+### macOS (Homebrew) — Recommended
+```bash
+brew install ashesbloom/locallens/local-lens
+```
+> Homebrew handles Gatekeeper automatically — no extra steps needed!
+
+### macOS (Manual DMG)
+1. Download the `.dmg` from [Releases](https://github.com/ashesbloom/LocalLens/releases/latest)
+2. Drag **Local Lens** to Applications
+3. **Fix Gatekeeper** (required for unsigned apps):
+   - Download and double-click `Fix_Local_Lens.command` from the release
+   - Or: Right-click the app → Open → Click "Open"
+   - Or run in Terminal:
+     ```bash
+     xattr -cr "/Applications/Local Lens.app" && codesign --force --deep --sign - "/Applications/Local Lens.app"
+     ```
+
+### Windows
+Download and run the `.msi` or `.exe` installer from [Releases](https://github.com/ashesbloom/LocalLens/releases/latest).
+
+<br />
+
 ## 🖥️ Software Preview
 
 See how Local Lens organizes thousands of photos in seconds:
