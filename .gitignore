@@ -227,3 +227,13 @@ backend_server-aarch64-unknown-linux-gnu
 backend_server-aarch64-apple-darwin
 backend_server-x86_64-apple-darwin
 backend_server-i686-unknown-linux-gnu
+
+# Keep only the placeholder in the source-controlled backend bundle directory.
+/frontend/src-tauri/backend_server_bundle/*
+!/frontend/src-tauri/backend_server_bundle/.gitkeep
+
+# Ignore generated package metadata/data files from bundled Python environments.
+**/*.dist-info/
+**/RECORD
+**/METADATA
+**/rg_cities1000.csv

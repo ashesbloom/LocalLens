@@ -33,6 +33,12 @@ a = Analysis(
         'multiprocessing.synchronize',
         'multiprocessing.resource_tracker',
         '_multiprocessing',
+        # NumPy hidden imports for PyInstaller compatibility
+        'numpy._core._exceptions',
+        'numpy._core._methods',
+        'numpy._core._dtype_ctypes',
+        'numpy._core._internal',
+        'numpy._core.multiarray',
     ],
     hookspath=[],
     hooksconfig={},
