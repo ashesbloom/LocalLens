@@ -5,6 +5,25 @@ All notable changes to Local Lens will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.2] - 2025-03-28
+
+### Fixed
+
+- **macOS ARM Backend Crash**: Fixed critical bug where backend failed to start on Apple Silicon Macs (M1/M2/M3/M4)
+  - Error: `ModuleNotFoundError: No module named 'numpy._core._exceptions'`
+  - Root cause: NumPy 2.x incompatibility with PyInstaller bundling
+  - Solution: Pinned numpy<2.0 and added hidden imports for PyInstaller
+- Fixed requirements.txt encoding issue (UTF-16 → UTF-8)
+
+### Changed
+
+- Updated Tauri plugin dependencies to latest compatible versions:
+  - @tauri-apps/plugin-dialog: 2.2.2 → 2.6.0
+  - @tauri-apps/plugin-opener: 2.0 → 2.5.3
+  - @tauri-apps/plugin-shell: 2.2.2 → 2.3.5
+  - @tauri-apps/plugin-updater: 2.9.0 → 2.10.0
+- Updated Rust crates to match NPM package versions (resolves version mismatch build errors)
+
 ## [2.2.1] - 2025-12-31
 
 ### Added
