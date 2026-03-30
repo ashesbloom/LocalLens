@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 numpy<2.0
+scipy<1.14
 pydantic
 Pillow
 face_recognition
