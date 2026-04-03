@@ -72,7 +72,7 @@ jobs:
         run: |
           cd frontend
           
-          # Disable updater artifacts to avoid signing requirement in CI
+          # Disable updater artifacts and resources to avoid signing/missing files in CI
           Write-Output "Disabling createUpdaterArtifacts for CI build..."
           $configPath = "src-tauri/tauri.conf.json"
           $json = Get-Content $configPath -Raw | ConvertFrom-Json
@@ -81,13 +81,17 @@ jobs:
             $json.bundle.createUpdaterArtifacts = $false
             $updated = $true
           }
+          if ($json.bundle -and $json.bundle.resources) {
+            $json.bundle.resources = @()
+            $updated = $true
+          }
           if ($json.plugins -and $json.plugins.updater) {
             $json.plugins.PSObject.Properties.Remove('updater')
             $updated = $true
           }
           if ($updated) {
             $json | ConvertTo-Json -Depth 20 | Set-Content $configPath
-            Write-Output "Updated tauri.conf.json to disable signing and remove updater config."
+            Write-Output "Updated tauri.conf.json to disable signing, resources, and updater config."
           }
           
           pnpm run tauri build --debug
