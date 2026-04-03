@@ -532,14 +532,11 @@ jobs:
           echo "Generated Homebrew Cask formula:"
           cat local-lens.rb
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          release_name: Local Lens ${{ github.ref_name }}
+          name: Local Lens ${{ github.ref_name }}
           draft: true
           prerelease: false
           body: |
@@ -589,106 +586,16 @@ jobs:
             - Source Code: Available at this tag
             - Build Process: See Actions tab for build logs
             - Checksums: SHA256 checksums provided for verification
-
-      # Upload Windows artifacts
-      - name: Upload MSI installer
-        if: steps.find_files.outputs.msi_path
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_files.outputs.msi_path }}
-          asset_name: Local_Lens_${{ github.ref_name }}_x64_en-US.msi
-          asset_content_type: application/x-msi
-
-      - name: Upload EXE installer
-        if: steps.find_files.outputs.exe_path
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_files.outputs.exe_path }}
-          asset_name: Local_Lens_${{ github.ref_name }}_x64-setup.exe
-          asset_content_type: application/x-msdownload
-
-      - name: Upload Windows checksums
-        if: steps.find_files.outputs.checksums_win_path
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_files.outputs.checksums_win_path }}
-          asset_name: checksums-windows.txt
-          asset_content_type: text/plain
-
-      # Upload macOS artifacts
-      - name: Upload DMG
-        if: steps.find_files.outputs.dmg_path
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_files.outputs.dmg_path }}
-          asset_name: Local_Lens_${{ github.ref_name }}_aarch64.dmg
-          asset_content_type: application/x-apple-diskimage
-
-      - name: Upload macOS app tarball (for updater)
-        if: steps.find_files.outputs.tarball_path
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_files.outputs.tarball_path }}
-          asset_name: Local_Lens.app.tar.gz
-          asset_content_type: application/gzip
-
-      - name: Upload macOS checksums
-        if: steps.find_files.outputs.checksums_mac_path
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_files.outputs.checksums_mac_path }}
-          asset_name: checksums-macos.txt
-          asset_content_type: text/plain
-
-      - name: Upload macOS fix script
-        if: steps.find_files.outputs.fix_script_path
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_files.outputs.fix_script_path }}
-          asset_name: Fix_Local_Lens.command
-          asset_content_type: application/x-sh
-
-      - name: Upload Homebrew Cask formula
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: local-lens.rb
-          asset_name: local-lens.rb
-          asset_content_type: text/x-ruby
-
-      # Upload latest.json for Tauri auto-updater
-      - name: Upload latest.json
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: latest.json
-          asset_name: latest.json
-          asset_content_type: application/json
+          files: |
+            ${{ steps.find_files.outputs.msi_path }}
+            ${{ steps.find_files.outputs.exe_path }}
+            ${{ steps.find_files.outputs.checksums_win_path }}
+            ${{ steps.find_files.outputs.dmg_path }}
+            ${{ steps.find_files.outputs.tarball_path }}
+            ${{ steps.find_files.outputs.checksums_mac_path }}
+            ${{ steps.find_files.outputs.fix_script_path }}
+            local-lens.rb
+            latest.json
 
       - name: Release Summary
         run: |
