@@ -95,7 +95,8 @@ jobs:
       - name: Install frontend requirements
         run: |
           cd frontend
-          pnpm install
+          rm -rf node_modules
+          pnpm install --force
 
       - name: Copy backend bundle for Tauri
         run: |
@@ -274,7 +275,8 @@ jobs:
       - name: Install frontend requirements
         run: |
           cd frontend
-          pnpm install
+          rm -rf node_modules
+          pnpm install --force
 
       # Run ensure-backend.js to copy and rename the backend executable
       - name: Copy and rename backend executable

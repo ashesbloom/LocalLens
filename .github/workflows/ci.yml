@@ -56,7 +56,8 @@ jobs:
       - name: Install frontend requirements
         run: |
           cd frontend
-          pnpm install
+          rm -rf node_modules
+          pnpm install --force
 
       - name: Copy backend executable
         run: |
