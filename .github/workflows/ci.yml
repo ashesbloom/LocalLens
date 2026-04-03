@@ -90,4 +90,4 @@ jobs:
             Write-Output "Updated tauri.conf.json to disable signing and remove updater config."
           }
           
-          pnpm run tauri build -- --debug
+          pnpm run tauri build --debug
