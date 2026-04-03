@@ -42,7 +42,7 @@ pip install -r requirements.txt
 
 # Frontend setup
 cd ../frontend
-npm install
+pnpm install
 ```
 
 **macOS (Intel & Apple Silicon):**
@@ -59,7 +59,7 @@ pip install -r requirements.txt
 
 # Frontend setup
 cd ../frontend
-npm install
+pnpm install
 ```
 
 **Linux:**
@@ -75,7 +75,7 @@ pip install -r requirements.txt
 
 # Frontend setup
 cd ../frontend
-npm install
+pnpm install
 ```
 
 4. **Run the application in development mode**:
@@ -86,7 +86,7 @@ python main.py
 
 # Terminal 2: Start frontend
 cd frontend
-npm run tauri dev
+pnpm run tauri dev
 ```
 
 ## 🤝 How to Contribute
@@ -139,10 +139,10 @@ python -m pytest tests/
 
 # Run frontend tests
 cd frontend
-npm test
+pnpm test
 
 # Test the full application
-npm run tauri dev
+pnpm run tauri dev
 ```
 
 #### Step 4: Commit and Push

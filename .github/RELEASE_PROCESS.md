@@ -17,7 +17,7 @@ This document outlines the complete release process for Local Lens, ensuring tra
    ```bash
    # Update package.json
    cd frontend
-   npm version patch|minor|major --no-git-tag-version
+   pnpm version patch|minor|major --no-git-tag-version
    
    # Update Cargo.toml
    cd src-tauri
@@ -132,8 +132,8 @@ git checkout v1.2.3
 ```yaml
 # In .github/workflows/release.yml
 env:
-  TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-  TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+   TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 ```
 
 #### macOS (Requires Apple Developer Account)

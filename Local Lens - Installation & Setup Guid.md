@@ -123,7 +123,6 @@ pip install -r requirements.txt
 > **Note**: If you're using Python 3.12+, you MUST install `dlib` via Homebrew first.
 > The `rawpy` library is replaced by `Wand` (ImageMagick) on macOS for RAW image support.
 
-*Linux:*
 ```bash
 # Ensure development packages are installed
 sudo apt install build-essential cmake libopenblas-dev liblapack-dev
@@ -135,7 +134,7 @@ pip install face_recognition
 
 ```bash
 cd ../frontend
-npm install
+pnpm install
 ```
 
 ### 4. Development Workflow
@@ -157,7 +156,7 @@ The backend will start on `http://127.0.0.1:8000`
 **Terminal 2: Frontend & Tauri**
 ```bash
 cd frontend
-npm run tauri dev
+pnpm run tauri dev
 ```
 This will:
 - Start the Vite development server
@@ -170,10 +169,10 @@ Force Tauri to launch the bundled `backend_server` executable (sidecar) instead 
 **Terminal:**
 ```powershell
 # Windows PowerShell
-$env:USE_SIDECAR="true"; npm run tauri dev
+$env:USE_SIDECAR="true"; pnpm run tauri dev
 
 # macOS/Linux
-USE_SIDECAR=true npm run tauri dev
+USE_SIDECAR=true pnpm run tauri dev
 ```
 
 ## 🔧 Building for Production
@@ -230,7 +229,7 @@ This script will:
 cd frontend
 
 # Build production version
-npm run tauri build
+pnpm run tauri build
 ```
 
 This will create:
@@ -281,11 +280,11 @@ python -m PyInstaller --hidden-import=missing_module_name ...
 #### Tauri Build Issues
 ```bash
 # Clear Tauri build cache
-npm run tauri clean
+pnpm run tauri clean
 
 # Rebuild node modules if needed
-rm -rf node_modules package-lock.json
-npm install
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
 ```
 
 #### Face Recognition Issues

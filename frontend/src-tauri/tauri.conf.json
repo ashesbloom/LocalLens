@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Local Lens",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "identifier": "ashes.locallens",
   "build": {
-    "beforeDevCommand": "npm run dev:pre && npm run dev",
+    "beforeDevCommand": "pnpm run dev:pre && pnpm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "pnpm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -57,7 +57,7 @@
       "endpoints": [
         "https://github.com/ashesbloom/LocalLens/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFOTI4RDBEODlBNTFERjUKUldUMUhhV0pEWTJTcnUreGZtb2pSYkl5ejAyYWdNa2Fhalc1c212S2pvWlpYYUtOMXRzcndhZmUK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUwMDk5NkVGQTZENDU4OEEKUldTS1dOU203NVlKNEtIK3BKQ0hueXdsc1ZRemg3S01tVEFRa0N1c1loZXhtT2NPZFlaNGVOSzcK"
     }
   }
 }

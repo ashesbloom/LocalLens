@@ -68,8 +68,8 @@ if ! check_command node; then
     exit 1
 fi
 
-if ! check_command npm; then
-    print_error "npm is required. Please install npm"
+if ! check_command pnpm; then
+    print_error "pnpm is required. Please install pnpm"
     exit 1
 fi
 
@@ -169,7 +169,7 @@ cd "$FRONTEND_DIR"
 
 # Install Node dependencies
 print_status "Installing Node.js dependencies..."
-npm ci
+pnpm install --frozen-lockfile
 
 # Copy backend executable to Tauri binaries
 print_status "Setting up backend for Tauri..."
@@ -198,7 +198,7 @@ print_status "Platform detected: $PLATFORM"
 
 # Build Tauri application
 print_status "Building Tauri application..."
-npm run tauri build
+pnpm run tauri build
 
 if [ $? -eq 0 ]; then
     print_success "Frontend built successfully"

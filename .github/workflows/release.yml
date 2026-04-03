@@ -39,6 +39,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -55,7 +60,6 @@ jobs:
           source .venv/bin/activate
           python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
-          pip install pyinstaller==6.11.1
 
       - name: Build Python backend with PyInstaller
         run: |
@@ -63,10 +67,35 @@ jobs:
           source .venv/bin/activate
           python -m PyInstaller backend_server.spec
 
+      - name: Smoke test backend startup (macOS)
+        run: |
+          cd backend
+          source .venv/bin/activate
+          ./dist/backend_server/backend_server > backend-smoke.log 2>&1 &
+          backend_pid=$!
+          sleep 10
+
+          echo "=== backend smoke log ==="
+          cat backend-smoke.log
+
+          if grep -E "(ModuleNotFoundError|ImportError|Failed to execute script)" backend-smoke.log; then
+            echo "Backend smoke test failed: startup import error detected"
+            kill "$backend_pid" 2>/dev/null || true
+            exit 1
+          fi
+
+          if ! kill -0 "$backend_pid" 2>/dev/null; then
+            echo "Backend smoke test failed: backend process exited early"
+            exit 1
+          fi
+
+          echo "Backend smoke test passed: process is running without import errors"
+          kill "$backend_pid" 2>/dev/null || true
+
       - name: Install frontend requirements
         run: |
           cd frontend
-          npm install
+          pnpm install --frozen-lockfile
 
       - name: Copy backend bundle for Tauri
         run: |
@@ -76,10 +105,10 @@ jobs:
       - name: Build Tauri application
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           cd frontend
-          npm run tauri build
+          pnpm run tauri build
 
       - name: Find macOS build artifacts
         id: find_files
@@ -213,6 +242,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -228,7 +262,6 @@ jobs:
           .\venv\Scripts\activate
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
 
       # Backend: Build with PyInstaller using your spec file
       - name: Build Python backend with PyInstaller
@@ -241,7 +274,7 @@ jobs:
       - name: Install frontend requirements
         run: |
           cd frontend
-          npm install
+          pnpm install --frozen-lockfile
 
       # Run ensure-backend.js to copy and rename the backend executable
       - name: Copy and rename backend executable
@@ -253,20 +286,18 @@ jobs:
         run: |
           cd frontend/src-tauri
           # Install any additional Tauri-specific requirements if needed
-          # Currently using npm install from frontend folder covers this
+          # Currently using pnpm install from frontend folder covers this
 
      
       # Build the final application
       - name: Build Tauri application
         env:
-          # Pass the Base64 secret DIRECTLY here. 
-          # Tauri will handle the decoding automatically.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
         run: |
           cd frontend
-          npm run tauri build
+          pnpm run tauri build
 
 
 
@@ -531,6 +562,7 @@ jobs:
             2. Open the DMG and drag Local Lens to Applications
             3. Fix Gatekeeper block (choose one):
                - Download and double-click Fix_Local_Lens.command
+               - If blocked: run `bash ~/Downloads/Fix_Local_Lens.command`
                - Right-click the app, Open, click Open in the dialog
                - Terminal: xattr -cr "/Applications/Local Lens.app"
             

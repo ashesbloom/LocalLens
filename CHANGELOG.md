@@ -5,6 +5,18 @@ All notable changes to Local Lens will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-04-03
+
+### Fixed
+
+- Fixed critical backend crash on macOS Apple Silicon (M-series) caused by `numpy` dependency incompatibility.
+- Resolved Tauri auto-updater code signing failures during the build process.
+- Hardened PyInstaller build spec to properly bundle native C-extensions.
+
+### Added
+
+- Added background backend smoke tests in CI/CD pipeline to verify build integrity prior to packaging.
+
 ## [2.2.1] - 2025-12-31
 
 ### Added

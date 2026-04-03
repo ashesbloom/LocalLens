@@ -51,4 +51,4 @@ if (fs.existsSync(paths.cargoToml)) {
     console.error(`Could not find ${paths.cargoToml}`);
 }
 
-console.log('Version update complete. Please run "npm install" or "cargo build" if needed to update lockfiles.');
+console.log('Version update complete. Please run "pnpm install" or "cargo build" if needed to update lockfiles.');

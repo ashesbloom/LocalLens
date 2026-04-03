@@ -42,6 +42,7 @@ brew install ashesbloom/locallens/local-lens
 2. Drag **Local Lens** to Applications
 3. **Fix Gatekeeper** (required for unsigned apps):
    - Download and double-click `Fix_Local_Lens.command` from the release
+  - If macOS blocks double-click: `bash ~/Downloads/Fix_Local_Lens.command`
    - Or: Right-click the app → Open → Click "Open"
    - Or run in Terminal:
      ```bash

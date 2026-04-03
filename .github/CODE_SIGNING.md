@@ -46,11 +46,11 @@ Code signing provides:
      
    - name: Build Tauri app (with signing)
      env:
-       TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-       TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
      run: |
        cd frontend
-       npm run tauri build
+          pnpm run tauri build
    ```
 
 ### Option 2: Self-Signed Certificate (For testing/development)

@@ -5,6 +5,7 @@ import site
 from pathlib import Path
 import face_recognition_models
 import reverse_geocoder
+from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
 
 block_cipher = None
 
@@ -17,6 +18,9 @@ datas = [
     (str(rg_path), 'reverse_geocoder'),
 ]
 
+numpy_hiddenimports = collect_submodules('numpy')
+numpy_binaries = collect_dynamic_libs('numpy')
+
 # Use a platform-neutral base name; PyInstaller adds .exe on Windows automatically.
 exe_name = 'backend_server'
 
@@ -24,7 +28,7 @@ exe_name = 'backend_server'
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
+    binaries=numpy_binaries,
     datas=datas,
     hiddenimports=[
         'multiprocessing',
@@ -33,7 +37,7 @@ a = Analysis(
         'multiprocessing.synchronize',
         'multiprocessing.resource_tracker',
         '_multiprocessing',
-    ],
+    ] + numpy_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

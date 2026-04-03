@@ -1,6 +1,6 @@
 [package]
 name = "LocalLens"
-version = "2.2.1"
+version = "2.3.0"
 description = "Application to organize photos using AI with face recognition and object detection."
 authors = ["you"]
 edition = "2021"
@@ -15,19 +15,19 @@ name = "frontend_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.4", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-opener = "2"
-tauri-plugin-dialog = "2"
-tauri-plugin-shell = "2"
+tauri = { version = "2.8", features = [] }
+tauri-plugin-opener = "2.5"
+tauri-plugin-dialog = "2.4"
+tauri-plugin-shell = "2.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.46.0", features = ["time"] }
 tauri-plugin-updater = "2.9.0"
-tauri-plugin-process = "2.3.1"
+tauri-plugin-process = "2.3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
+tauri-plugin-updater = "2.9"
 

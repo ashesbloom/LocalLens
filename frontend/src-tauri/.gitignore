@@ -14,3 +14,4 @@ tauri.conf.json.lock
 # create it by running in (imp: .\venv\Scripts\activate) enviroment : python -m PyInstaller backend_server.spec  (make sure you have the spec file in the backend directory)
 # after this copy it into the frontend/src-tauri directory
 backend_server-x86_64-pc-windows-msvc.exe
+backend_server_bundle

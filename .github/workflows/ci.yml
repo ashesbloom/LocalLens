@@ -27,6 +27,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -41,7 +46,6 @@ jobs:
           .\venv\Scripts\activate
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
 
       - name: Test backend build
         run: |
@@ -52,7 +56,7 @@ jobs:
       - name: Install frontend requirements
         run: |
           cd frontend
-          npm install
+          pnpm install --frozen-lockfile
 
       - name: Copy backend executable
         run: |
@@ -61,7 +65,7 @@ jobs:
       - name: Test frontend build
         run: |
           cd frontend
-          npm run build
+          pnpm run build
 
       - name: Test Tauri build (debug)
         run: |
@@ -85,4 +89,4 @@ jobs:
             Write-Output "Updated tauri.conf.json to disable signing and remove updater config."
           }
           
-          npm run tauri build -- --debug
+          pnpm run tauri build -- --debug

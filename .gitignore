@@ -214,6 +214,7 @@ cython_debug/
 # Ignore the user-specific configuration and path presets.
 # These files store local paths and settings that should not be in version control.
 /backend/presets/
+/.backend/for dev/Reach.txt
 
 # Ignore any log files that might be generated in the backend directory.
 /backend/*.log

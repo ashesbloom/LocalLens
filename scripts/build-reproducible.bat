@@ -44,9 +44,9 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-where npm >nul 2>nul
+where pnpm >nul 2>nul
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] npm is not installed or not in PATH
+    echo [ERROR] pnpm is not installed or not in PATH
     exit /b 1
 )
 
@@ -107,7 +107,7 @@ cd /d "%FRONTEND_DIR%"
 
 REM Install Node dependencies
 echo [INFO] Installing Node.js dependencies...
-npm ci
+pnpm install --frozen-lockfile
 
 REM Copy backend executable to Tauri binaries
 echo [INFO] Copying backend executable to Tauri...
@@ -116,7 +116,7 @@ copy "..\backend\dist\backend_server-x86_64-pc-windows-msvc.exe" "src-tauri\bina
 
 REM Build Tauri application
 echo [INFO] Building Tauri application...
-npm run tauri build
+pnpm run tauri build
 
 if %ERRORLEVEL% equ 0 (
     echo [SUCCESS] Frontend built successfully
