@@ -11,6 +11,9 @@ on:
         required: true
         default: 'v1.0.0'
 
+permissions:
+  contents: write
+
 env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '18'
