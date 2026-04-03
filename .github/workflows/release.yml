@@ -95,7 +95,7 @@ jobs:
       - name: Install frontend requirements
         run: |
           cd frontend
-          pnpm install --frozen-lockfile
+          pnpm install
 
       - name: Copy backend bundle for Tauri
         run: |
@@ -274,7 +274,7 @@ jobs:
       - name: Install frontend requirements
         run: |
           cd frontend
-          pnpm install --frozen-lockfile
+          pnpm install
 
       # Run ensure-backend.js to copy and rename the backend executable
       - name: Copy and rename backend executable

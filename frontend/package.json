@@ -28,5 +28,11 @@
     "@tauri-apps/cli": "2.8.x",
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.3"
+  },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": ["current", "darwin", "win32", "linux"],
+      "cpu": ["current", "x64", "arm64"]
+    }
   }
 }

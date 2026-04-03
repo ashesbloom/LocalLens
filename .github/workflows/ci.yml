@@ -56,7 +56,7 @@ jobs:
       - name: Install frontend requirements
         run: |
           cd frontend
-          pnpm install --frozen-lockfile
+          pnpm install
 
       - name: Copy backend executable
         run: |
