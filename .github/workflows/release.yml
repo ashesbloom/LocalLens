@@ -95,7 +95,7 @@ jobs:
       - name: Install frontend requirements
         run: |
           cd frontend
-          rm -rf node_modules
+          npx rimraf node_modules
           pnpm install --force
 
       - name: Copy backend bundle for Tauri
@@ -275,7 +275,7 @@ jobs:
       - name: Install frontend requirements
         run: |
           cd frontend
-          if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
+          npx rimraf node_modules
           pnpm install --force
 
       # Run ensure-backend.js to copy and rename the backend executable
