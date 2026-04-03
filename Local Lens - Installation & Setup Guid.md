@@ -228,6 +228,9 @@ This script will:
 ```bash
 cd frontend
 
+# For local builds you need to load the `.eve` first:
+source .env && pnpm run tauri build
+
 # Build production version
 pnpm run tauri build
 ```
