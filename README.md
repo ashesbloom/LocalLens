@@ -29,11 +29,11 @@
 </div>
 <br />
 
-## � Quick Install
+## Quick Install ⇣
 
 ### macOS (Homebrew) — Recommended
 ```bash
-brew install ashesbloom/locallens/local-lens
+brew install local-lens
 ```
 > Homebrew handles Gatekeeper automatically — no extra steps needed!
 
