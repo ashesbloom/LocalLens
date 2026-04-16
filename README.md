@@ -33,7 +33,7 @@
 
 ### macOS (Homebrew) — Recommended
 ```bash
-brew install local-lens
+brew install ashesbloom/locallens/local-lens
 ```
 > Homebrew handles Gatekeeper automatically — no extra steps needed!
 
