@@ -228,3 +228,5 @@ backend_server-aarch64-unknown-linux-gnu
 backend_server-aarch64-apple-darwin
 backend_server-x86_64-apple-darwin
 backend_server-i686-unknown-linux-gnu
+website/
+about/
