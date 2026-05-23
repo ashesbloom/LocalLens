@@ -1,0 +1,81 @@
+# LocalLens Backend — MCP API Surface
+
+## Overview
+The LocalLens MCP (Model Context Protocol) agent allows large language models (LLMs) to directly execute photo organizational tasks natively inside the LocalLens platform on the user's local machine.
+
+## Integration Architecture
+To maintain AGPL-3.0 compliance for the primary LocalLens codebase, the MCP implementation acts as a purely separate 100% external HTTP client.
+The LocalLens FastAPI backend in `backend/main.py` explicitly exports its dynamically bound network port to an application cache configuration (`~/.config/LocalLens/port.txt` or APPDATA). 
+
+The standalone MCP Server (`locallens_mcp_agent/`) reads this port file configuration and forwards specific tool executions to it.
+
+## Backend Endpoints Used by MCP Agent
+
+### Status & Health
+| Endpoint | Method | MCP Tool | Description |
+|----------|--------|----------|-------------|
+| `/api/health` | GET | `check_app_status` | Returns `{"status": "ok"}` |
+| `/api/check-dependencies` | GET | `check_app_status` | Checks if `face_recognition` is installed |
+| `/api/stats` | GET | `get_stats` | Returns app_version, enrolled_faces_count, presets_count, uptime, platform info |
+| `/api/job-status` | GET | `get_job_progress` | Returns full job state: job_type, progress, face_mode, total_files, filters_applied, source/dest folders |
+
+### Queries
+| Endpoint | Method | MCP Tool | Description |
+|----------|--------|----------|-------------|
+| `/api/presets/paths` | GET | `get_path_presets` | Returns saved source/destination path presets |
+| `/api/enrolled-faces` | GET | `get_enrolled_faces` | Returns list of enrolled people with image counts |
+| `/api/metadata-overview` | POST | `get_metadata_overview` | Scans a folder and returns locations, dates, people |
+
+### Actions
+| Endpoint | Method | MCP Tool | Tier | Description |
+|----------|--------|----------|------|-------------|
+| `/api/start-sorting` | POST | `start_sorting` | Free | Triggers photo organization (Date/Location/People/Hybrid) |
+| `/api/start-find-group` | POST | `start_find_group` | ⚡ Pro | Finds and groups photos by multi-filter criteria |
+| `/api/abort-process` | POST | `abort_job` | Free | Cancels the active background job |
+| `/api/add-person` | POST | `add_face_enroll` | ⚡ Pro | Enrolls a new person for face recognition |
+| `/api/scheduler/create` | POST | `schedule_auto_organize`, `create_active_folder` | ⚡ Pro | Configures an interval sweep or a real-time active folder monitor. The `mode` field in the request body determines which daemon behavior is activated. |
+| `/api/scheduler/list` | GET | `list_schedules` | ⚡ Pro | Lists all schedules and active folders, showing their `mode` |
+| `/api/scheduler/{id}/pause` | POST | `manage_schedule` | ⚡ Pro | Pauses a schedule or active folder |
+| `/api/scheduler/{id}/resume` | POST | `manage_schedule` | ⚡ Pro | Resumes a schedule or active folder |
+| `/api/scheduler/{id}` | DELETE | `manage_schedule` | ⚡ Pro | Deletes a schedule or active folder |
+| `/api/find-duplicates` | POST | `find_duplicates` | ⚡ Pro | Scan folder for duplicate/near-duplicate photos via perceptual hashing (pHash) |
+| `/api/export-report` | POST | `export_report` | ⚡ Pro | Generate a comprehensive JSON report of folder contents and metadata |
+
+### Scheduler `mode` Field — `/api/scheduler/create`
+
+Both `create_active_folder` and `schedule_auto_organize` call the **same** `/api/scheduler/create` endpoint but pass a different value for the `mode` field in the request body. The daemon reads this field on startup to decide what to launch:
+
+```python
+class ScheduleCreateRequest(BaseModel):
+    source_folder: str
+    destination_folder: str
+    primary_sort: str = "Date"
+    face_mode: str = "balanced"
+    maintain_hierarchy: bool = True
+    operation_mode: str = "copy"
+    ignore_list: Optional[List[str]] = []
+    interval_hours: int = 24
+    debounce_seconds: int = 5
+    mode: str = "scheduled"  # "active" (watchdog + 24h sweep) | "scheduled" (APScheduler only)
+```
+
+| `mode` value | Sent by MCP Tool | Daemon behavior |
+|---|---|---|
+| `"active"` | `create_active_folder` | Starts a `watchdog` Observer on the source folder. Also registers a 24-hour APScheduler fallback sweep. |
+| `"scheduled"` | `schedule_auto_organize` | Registers an APScheduler interval job ONLY. No filesystem watcher. |
+
+## Key Backend Changes Made for MCP
+
+1. **Dynamic port export:** `port.txt` written to `~/.config/LocalLens/` on startup.
+2. **`/api/stats` endpoint:** Returns app_version (from `APP_VERSION` constant), enrolled_faces_count (correctly unpacks the tuple from `load_face_encodings()`), platform info, uptime.
+3. **`/api/job-status` enrichment:** `current_job_state` now includes `job_type`, `operation_mode`, `source_folder`, `destination_folder`, `primary_sort`, `face_mode`, `folder_name`, `filters_applied`, `total_files`, `ignore_list`.
+4. **Job state reset:** Both `run_organization_task` and `run_find_group_task` set `is_active=True, status=running` **before** spawning threads to prevent stale-state polling bugs.
+5. **`_count_source_files()` helper:** Counts supported files in source folder respecting `ignore_list`, using the same `os.walk` logic as the processing functions.
+
+## Maintenance Notes
+- All code for the MCP agent is structurally isolated to `locallens_mcp_agent/` — it will be moved to a separate private repository for commercial distribution.
+- The backend changes documented above are the **only** modifications to the AGPL-licensed LocalLens codebase. They are small, additive API routes that benefit all LocalLens users (not just MCP agent users).
+- The backend requires the `imagehash` pip package for the `/api/find-duplicates` endpoint.
+- Pro scheduler dependencies (`watchdog`, `apscheduler`) are in `backend/requirements_pro.txt`.
+- The scheduler daemon (`backend/scheduler_daemon.py`) runs as a **separate process** from the FastAPI backend. It reads `schedules.json` and acts on the `mode` field stored per-schedule to decide whether to start a watchdog observer or an APScheduler-only job.
+- Placeholder Pro tools remaining: `smart_album_suggestions` (needs LLM pipeline).

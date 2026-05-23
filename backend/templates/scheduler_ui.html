@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalLens Scheduler Dashboard</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --surface2: #263145;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --text: #f8fafc;
+            --text-dim: #94a3b8;
+            --border: rgba(255,255,255,0.08);
+        }
+        * { box-sizing: border-box; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        .container { max-width: 960px; margin: 0 auto; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        h1 { margin: 0; font-size: 1.4rem; display: flex; align-items: center; gap: 0.6rem; }
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .status-running { background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
+        .status-stopped { background: rgba(239,68,68,0.15);  color: var(--danger);  border: 1px solid rgba(239,68,68,0.3); }
+        .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        button {
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.45rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        button:hover  { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+        button:active { transform: scale(0.97); }
+        button.btn-primary { background: var(--primary); border-color: var(--primary); }
+        button.btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+        button.btn-danger  { background: var(--danger);  border-color: var(--danger); }
+        button.btn-danger:hover  { background: var(--danger-hover);  border-color: var(--danger-hover); }
+        button.btn-warning { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.4); color: var(--warning); }
+        button.btn-warning:hover { background: rgba(245,158,11,0.25); }
+        .divider { width: 1px; background: var(--border); margin: 0 0.25rem; align-self: stretch; }
+
+        /* ── Terminal ── */
+        .terminal-wrap {
+            background: #000e1a;
+            border-radius: 0.75rem;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+        .terminal-toolbar {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            gap: 0.5rem;
+        }
+        .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .dot-red    { background: #ff5f57; }
+        .dot-yellow { background: #febc2e; }
+        .dot-green  { background: #28c840; }
+        .terminal-title { font-size: 0.8rem; color: var(--text-dim); margin-left: 0.5rem; }
+        .terminal-actions { margin-left: auto; display: flex; gap: 0.5rem; }
+        .terminal-actions button { padding: 0.25rem 0.6rem; font-size: 0.75rem; }
+        #terminal {
+            background: #000e1a;
+            padding: 1rem 1.25rem;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            height: 520px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .log-line    { padding: 1px 0; }
+        .log-sep     { border-top: 1px solid rgba(255,255,255,0.06); margin: 4px 0; }
+        .dim         { color: var(--text-dim); }
+        .text-success { color: var(--success); }
+        .text-danger  { color: var(--danger); }
+        .text-warning { color: var(--warning); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                🗓 LocalLens Scheduler
+                <span id="statusBadge" class="status-badge status-stopped">Checking...</span>
+            </h1>
+            <div class="controls">
+                <button id="btnStart" class="btn-primary" onclick="sendCommand('start')">▶ Start</button>
+                <button id="btnStop"  class="btn-danger"  onclick="sendCommand('stop')">⏹ Stop</button>
+                <button onclick="sendCommand('restart')">↻ Restart</button>
+                <div class="divider"></div>
+                <button class="btn-warning" onclick="sendCommand('status')">📊 Status</button>
+            </div>
+        </div>
+
+        <div class="terminal-wrap">
+            <div class="terminal-toolbar">
+                <div class="terminal-dot dot-red"></div>
+                <div class="terminal-dot dot-yellow"></div>
+                <div class="terminal-dot dot-green"></div>
+                <span class="terminal-title">scheduler.log</span>
+                <div class="terminal-actions">
+                    <button onclick="clearLogs()" title="Clear the log display">✕ Clear</button>
+                    <button onclick="toggleAutoScroll()" id="btnScroll" title="Toggle auto-scroll">⬇ Auto-scroll: ON</button>
+                </div>
+            </div>
+            <div id="terminal">Loading logs...</div>
+        </div>
+    </div>
+
+    <script>
+        const terminal    = document.getElementById('terminal');
+        const statusBadge = document.getElementById('statusBadge');
+        const btnScroll   = document.getElementById('btnScroll');
+        let isAutoScrolling = true;
+        let lastLogHash     = '';
+
+        // ── Helpers ────────────────────────────────────────────────────
+        function escHtml(s) {
+            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function toggleAutoScroll() {
+            isAutoScrolling = !isAutoScrolling;
+            btnScroll.textContent = `⬇ Auto-scroll: ${isAutoScrolling ? 'ON' : 'OFF'}`;
+            if (isAutoScrolling) terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function clearLogs() {
+            terminal.innerHTML = '<div class="log-line dim">— Log display cleared (file not deleted) —</div>';
+            lastLogHash = '';
+        }
+
+        function scrollIfNeeded() {
+            if (isAutoScrolling) terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // Re-enable auto-scroll when user scrolls back to the bottom
+        terminal.addEventListener('scroll', () => {
+            const atBottom = terminal.scrollHeight - terminal.scrollTop <= terminal.clientHeight + 20;
+            if (!isAutoScrolling && atBottom) {
+                isAutoScrolling = true;
+                btnScroll.textContent = '⬇ Auto-scroll: ON';
+            }
+        });
+
+        // ── Status polling ─────────────────────────────────────────────
+        async function fetchStatus() {
+            try {
+                const res  = await fetch('/api/scheduler/daemon-status');
+                const data = await res.json();
+                if (data.daemon_running) {
+                    statusBadge.textContent  = `Running (PID ${data.daemon_pid})`;
+                    statusBadge.className    = 'status-badge status-running';
+                } else {
+                    statusBadge.textContent  = 'Stopped';
+                    statusBadge.className    = 'status-badge status-stopped';
+                }
+            } catch {
+                statusBadge.textContent = 'Disconnected';
+                statusBadge.className   = 'status-badge status-stopped';
+            }
+        }
+
+        // ── Log polling ────────────────────────────────────────────────
+        async function fetchLogs() {
+            try {
+                const res  = await fetch('/api/scheduler/logs?lines=200');
+                const data = await res.json();
+                if (!data.logs || data.logs.length === 0) return;
+
+                // Skip re-render when content is identical
+                const hash = data.logs.join('|');
+                if (hash === lastLogHash) return;
+                lastLogHash = hash;
+
+                const html = data.logs.map(line => {
+                    // Strip ANSI escape codes
+                    const clean = line
+                        .replace(/\u001b\[[0-9;]*m/g, '')
+                        .replace(/\x1b\[[0-9;]*m/g, '');
+
+                    let cls = 'log-line';
+                    if      (clean.includes('✅') || clean.includes('Done'))                              cls += ' text-success';
+                    else if (clean.includes('❌') || clean.includes('Error') || clean.includes('Fatal')) cls += ' text-danger';
+                    else if (clean.includes('⚠')  || clean.includes('Warning'))                          cls += ' text-warning';
+                    else if (/[─│┌└]/.test(clean))                                                        cls += ' dim';
+
+                    return `<div class="${cls}">${escHtml(clean)}</div>`;
+                }).join('');
+
+                terminal.innerHTML = html;
+                scrollIfNeeded();
+            } catch (e) {
+                console.error('Failed to fetch logs', e);
+            }
+        }
+
+        // ── Command sender ─────────────────────────────────────────────
+        async function sendCommand(cmd) {
+            terminal.innerHTML += `<div class="log-line dim">❯ ${cmd}...</div><div class="log-sep"></div>`;
+            scrollIfNeeded();
+            try {
+                const res  = await fetch('/api/scheduler/daemon-command', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ command: cmd })
+                });
+                const data = await res.json();
+
+                // Show status output inline
+                if (cmd === 'status' && data.output) {
+                    const lines = data.output.split('\n').filter(l => l.trim());
+                    terminal.innerHTML += lines.map(l =>
+                        `<div class="log-line dim">${escHtml(l)}</div>`
+                    ).join('') + '<div class="log-sep"></div>';
+                    scrollIfNeeded();
+                }
+
+                setTimeout(() => { fetchStatus(); fetchLogs(); }, 600);
+            } catch (e) {
+                terminal.innerHTML += `<div class="log-line text-danger">Command failed: ${e}</div>`;
+            }
+        }
+
+        // ── Boot ───────────────────────────────────────────────────────
+        setInterval(fetchStatus, 2000);
+        setInterval(fetchLogs,   1500);
+        fetchStatus();
+        fetchLogs();
+    </script>
+</body>
+</html>

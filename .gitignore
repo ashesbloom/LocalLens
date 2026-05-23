@@ -229,4 +229,10 @@ backend_server-aarch64-apple-darwin
 backend_server-x86_64-apple-darwin
 backend_server-i686-unknown-linux-gnu
 website/
+locallens_mcp_agent/
+backend/launch_daemon.command
 about/
+
+
+#user local profile
+.DS_Store

@@ -5,6 +5,14 @@ All notable changes to Local Lens will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **MCP (Model Context Protocol) Agent Groundwork (Internal)**: Scaffolded a standalone MCP server inside `locallens_mcp_agent/` to enable future local chat tooling (no user-facing UI shipped yet).
+- Added `/api/stats` endpoint to the FastAPI backend to supply summary metrics for internal diagnostics and MCP tool clients.
+- FastAPI backend now exports its bound network port to `APP_DATA_DIR/port.txt` so local tool clients can connect without hardcoded ports.
+
 ## [2.3.0] - 2026-04-03
 
 ### Fixed

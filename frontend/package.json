@@ -1,7 +1,7 @@
 {
   "name": "local-lens",
   "private": true,
-  "version": "2.3.0",
+  "version": "2.4.0",
   "type": "module",
   "scripts": {
     "dev:pre": "node ensure-backend.js",
@@ -31,8 +31,17 @@
   },
   "pnpm": {
     "supportedArchitectures": {
-      "os": ["current", "darwin", "win32", "linux"],
-      "cpu": ["current", "x64", "arm64"]
+      "os": [
+        "current",
+        "darwin",
+        "win32",
+        "linux"
+      ],
+      "cpu": [
+        "current",
+        "x64",
+        "arm64"
+      ]
     }
   }
 }

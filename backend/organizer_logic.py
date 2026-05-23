@@ -18,6 +18,13 @@ import logging
 import json
 import pickle
 import numpy as np
+
+# ── Smart Album Suggestions: Passive metadata capture ─────────────────────
+# Imported lazily so metadata_store failure never breaks the main organizer.
+try:
+    from metadata_store import metadata_store as _metadata_store
+except Exception:
+    _metadata_store = None  # Metadata capture disabled gracefully if store unavailable
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 import tempfile
@@ -579,8 +586,10 @@ def find_and_group_photos(config, update_callback):
     logging.info(f"Filters applied: {json.dumps(find_config, indent=2)}")
 
     # --- NEW: Analytics setup for Find & Group ---
-    # 'fast' mode is used for searching, so quality is fixed.
-    initial_analytics = {"quality": "Fast", "scan_rate": "0.0", "data_flow": "0.0"}
+    face_mode = (find_config.get("face_mode") or "fast").lower()
+    quality_map = {"fast": "Fast", "accurate": "Accurate"}
+    quality_metric = quality_map.get(face_mode, "Fast")
+    initial_analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
     update_callback(0, "Preparing to search for photos...", "running", initial_analytics)
 
     # CORRECTED LOGIC: Filter files to process using the parent folder check.
@@ -626,7 +635,7 @@ def find_and_group_photos(config, update_callback):
         progress = 10 + int(((i + 1) / total_files) * 85)
         
         # --- Analytics Calculation ---
-        analytics = {"quality": "Fast", "scan_rate": "0.0", "data_flow": "0.0"}
+        analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
         try:
             file_size_mb = os.path.getsize(source_path) / (1024 * 1024)
             processed_files_count += 1
@@ -678,18 +687,20 @@ def find_and_group_photos(config, update_callback):
         
         # --- People Filter ---
         if match and find_config.get('people') and known_encodings:
-            # Using 'fast' model as requested, which maps to 'hog'
-            names = recognize_faces(source_path, known_encodings, known_names, mode='fast')
+            # Use requested mode for face recognition when filtering by people.
+            names = recognize_faces(source_path, known_encodings, known_names, mode=face_mode)
             if not names or not any(p in names for p in find_config['people']):
                 match = False
 
         if match:
             date_obj = get_date_taken(exif_data)
             new_filename = f"{date_obj.strftime('%Y-%m-%d_%H%M%S')}_{os.path.basename(source_path)}" if date_obj else os.path.basename(source_path)
-            if handle_file_op(operation_mode, source_path, target_folder, new_filename, date_obj):
+            destination_path = handle_file_op(operation_mode, source_path, target_folder, new_filename, date_obj)
+            if destination_path:
                 found_count += 1
                 verb = "copied" if operation_mode == "copy" else "moved"
                 logging.info(f"Found match: {verb.capitalize()} '{os.path.basename(source_path)}' to '{target_folder_name}'")
+                update_callback(progress, f"{verb.capitalize()} '{os.path.basename(source_path)}' to '{destination_path}'", "running", analytics)
 
     verb = "copied" if operation_mode == "copy" else "moved"
     completion_message = f"Search complete. Found and {verb} {found_count} matching photos to '{target_folder_name}'."
@@ -798,18 +809,39 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
     # Get the full-path ignore list from the options.
     ignore_list = sort_options.get("ignore_list", [])
     ignore_set = set(ignore_list)
+    # Optional: only process files newer than this Unix timestamp (used by the scheduler daemon)
+    mtime_cutoff = sort_options.get("mtime_cutoff", None)
+    specific_files = sort_options.get("specific_files", None)
     
     files_to_process = []
-    # CORRECTED LOGIC: Walk the entire tree, then filter files based on their parent folder.
-    for dirpath, dirnames, filenames in os.walk(work_dir):
-        # If the current directory is in the ignore set, skip its direct files.
-        # os.walk will continue to traverse into subdirectories like 'B' inside 'A'.
-        if dirpath in ignore_set:
-            continue
 
-        for f in filenames:
-            if f.lower().endswith(SUPPORTED_EXTENSIONS):
-                files_to_process.append(os.path.join(dirpath, f))
+    if specific_files is not None:
+        # Use the specific files provided (e.g. from watchdog or daemon)
+        for fp in specific_files:
+            if os.path.exists(fp) and fp.lower().endswith(SUPPORTED_EXTENSIONS):
+                files_to_process.append(fp)
+    else:
+        # Walk the entire tree, then filter files based on their parent folder.
+        for dirpath, dirnames, filenames in os.walk(work_dir):
+            if dirpath in ignore_set:
+                continue
+
+            for f in filenames:
+                if f.lower().endswith(SUPPORTED_EXTENSIONS):
+                    fp = os.path.join(dirpath, f)
+                    if mtime_cutoff is not None:
+                        # Use max(mtime, ctime) to detect files recently placed in the folder.
+                        # mtime = content modification time (preserved from original on macOS copy)
+                        # ctime = metadata/inode change time (updated when file arrives in folder)
+                        # Without ctime, a photo from 2019 copied into the folder TODAY would
+                        # be skipped because its mtime (2019) < cutoff (today).
+                        try:
+                            file_time = max(os.path.getmtime(fp), os.path.getctime(fp))
+                            if file_time < mtime_cutoff:
+                                continue  # Skip files that arrived before last run
+                        except OSError:
+                            pass
+                    files_to_process.append(fp)
 
     total_files = len(files_to_process)
     if total_files == 0:
@@ -940,6 +972,8 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
                     if op == 'move':
                         operation_manifest.append({'source': source_path, 'destination': final_destination})
                     moved_count += 1
+                    op_msg = "Moved" if op == 'move' else "Copied"
+                    update_callback(progress, f"{op_msg} '{os.path.basename(source_path)}' to '{final_destination}'", "running", analytics)
         else:
             # --- STANDARD SORT LOGIC (Unchanged) ---
             for dest_path in dest_paths:
@@ -950,6 +984,32 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
                     if op == 'move':
                         operation_manifest.append({'source': source_path, 'destination': final_destination})
                     moved_count += 1
+                    op_msg = "Moved" if op == 'move' else "Copied"
+                    update_callback(progress, f"{op_msg} '{os.path.basename(source_path)}' to '{final_destination}'", "running", analytics)
+
+                    # ── Smart Album Suggestions: Passive metadata capture ─────────
+                    # Record photo metadata after a successful file operation (first dest only).
+                    if _metadata_store is not None:
+                        try:
+                            # Resolve location string for the record (already computed above)
+                            _loc_raw = get_location(exif_data) if sort_method == 'Location' else None
+                            # Extract camera model from EXIF if available
+                            _camera = exif_data.get('Model') if exif_data else None
+                            _metadata_store.record_photo(
+                                original_path=source_path,
+                                destination_path=final_destination,
+                                date_taken=date_obj,
+                                location=_loc_raw,
+                                people=[n for n in names if n != 'Unknown'] if names else [],
+                                file_type=os.path.splitext(source_path)[1].lower(),
+                                file_size=os.path.getsize(source_path) if os.path.exists(source_path) else None,
+                                sort_type=sort_method,
+                                camera_model=str(_camera).strip() if _camera else None,
+                            )
+                        except Exception:
+                            pass  # Never let metadata capture break a sort job
+                    # ──────────────────────────────────────────────────────────────
+
                     # If we successfully moved the file, we don't need to process it for other destinations
                     if op == 'move':
                         break
@@ -962,8 +1022,9 @@ def process_photos(config, update_callback):
     dest_dir = config["destination_folder"]
     sort_options = config.get("sorting_options", {"primary_sort": config.get("sort_method", "Date"), "maintain_hierarchy": True})
     ignore_list = config.get("ignore_list", [])
-    # FIX: Add ignore_list to sort_options so it can be passed to _core_processing_loop
     sort_options["ignore_list"] = ignore_list
+    if "specific_files" in config:
+        sort_options["specific_files"] = config["specific_files"]
     operation_mode = config.get("operation_mode", "move")
     encodings_path = config.get("encodings_path")
     cancellation_event = config.get("cancellation_event")
@@ -1066,7 +1127,8 @@ def process_photos(config, update_callback):
         completion_message = f"Process complete. {moved_count} files successfully {operation_mode}d."
         logging.info(completion_message)
         update_callback(100, completion_message, "complete", initial_analytics)
-        operation_successful = True # Mark as successful
+        operation_successful = True
+        return moved_count  # Return count so callers (scheduler daemon, API) can track it
 
     except OperationAbortedError as e:
         # Catch the abort error to get the manifest

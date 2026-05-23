@@ -1,0 +1,2 @@
+watchdog>=4.0
+apscheduler>=3.10
