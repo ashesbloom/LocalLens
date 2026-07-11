@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `/api/stats` endpoint to the FastAPI backend to supply summary metrics for internal diagnostics and MCP tool clients.
 - FastAPI backend now exports its bound network port to `APP_DATA_DIR/port.txt` so local tool clients can connect without hardcoded ports.
 
+## [2.4.1] - 2026-07-12
+
+### Fixed
+
+- **Critical Data Loss**: Fixed cross-drive MOVE permanently deleting ignored subfolders. When a MOVE was performed across different drives with a non-empty ignore list, ignored folders were correctly skipped during the copy but then destroyed by a blanket `shutil.rmtree()` when the source was removed — bypassing the Recycle Bin with no undo. The deletion is now ignore-aware and only removes what was actually copied.
+- Fixed silent fallthrough bug where sort method names sent in lowercase by the frontend (e.g. `location`, `people`) did not match the expected title-case values, causing files to be sorted by the default method instead of the one selected.
+
 ## [2.3.0] - 2026-04-03
 
 ### Fixed

@@ -745,6 +745,8 @@ def _get_hybrid_sort_paths(dest_dir, sort_options, exif_data, date_obj, names, m
     """
     custom_filter = sort_options.get('custom_filter', {})
     filter_type = custom_filter.get('filter_type')
+    if filter_type:  # Normalize: 'people' → 'People', 'location' → 'Location', etc.
+        filter_type = filter_type.title()
     
     is_custom_match = False
     if filter_type == 'People':
@@ -793,7 +795,7 @@ def _get_hybrid_sort_paths(dest_dir, sort_options, exif_data, date_obj, names, m
             dest_paths.append(os.path.join(base_path, get_date_path(date_obj) if date_obj else UNKNOWN_DATE_FOLDER_NAME))
 
     # Always add the base sort destination path
-    base_sort_method = sort_options.get('base_sort', 'Date')
+    base_sort_method = sort_options.get('base_sort', 'Date').title()  # Normalize casing
     photo_location = get_location(exif_data)
     base_sort_paths = _get_standard_sort_paths(dest_dir, base_sort_method, date_obj, photo_location, names, multiple_countries_found, sort_options)
     dest_paths.extend(base_sort_paths)
@@ -848,7 +850,7 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
         update_callback(100, "Scan complete. No supported image files found.", "complete")
         return 0
 
-    sort_method = sort_options.get('primary_sort', 'Date')
+    sort_method = sort_options.get('primary_sort', 'Date').title()  # Normalize: 'location' → 'Location'
     face_rec_mode = sort_options.get('face_mode', 'balanced')
     known_encodings, known_names = None, None
 
@@ -1156,8 +1158,75 @@ def process_photos(config, update_callback):
         if delete_original_source_on_success and operation_successful:
             try:
                 update_callback(99, "Finalizing move: Removing original source directory...", "running", initial_analytics)
-                shutil.rmtree(source_dir)
-                logging.info(f"Successfully removed original source directory: {source_dir}")
+
+                # BUG FIX: A blanket shutil.rmtree(source_dir) would permanently destroy any
+                # ignored subfolders that were intentionally skipped during the copy step and
+                # therefore never transferred anywhere. Instead, we perform an ignore-aware
+                # deletion: remove only what was actually copied, and leave ignored subtrees
+                # (plus any ancestor directory that leads to one) intact.
+                if not ignore_set:
+                    # No ignore list — safe to remove the whole tree as before.
+                    shutil.rmtree(source_dir)
+                else:
+                    # Determine every directory that is an ancestor of an ignored path so
+                    # we can keep those directories alive even if they contain no other content.
+                    ancestor_dirs = set()
+                    for ignored_path in ignore_set:
+                        # Walk from source_dir down to the ignored path's parent.
+                        rel = os.path.relpath(ignored_path, source_dir)
+                        parts = rel.split(os.sep)
+                        for i in range(len(parts)):
+                            ancestor_dirs.add(os.path.join(source_dir, *parts[:i]))
+
+                    # Bottom-up walk so we can safely remove empty dirs as we go.
+                    for dirpath, dirnames, filenames in os.walk(source_dir, topdown=False):
+                        # Never touch an ignored subtree.
+                        if dirpath in ignore_set:
+                            continue
+
+                        # Delete individual files that are not inside an ignored subtree.
+                        for fname in filenames:
+                            fpath = os.path.join(dirpath, fname)
+                            # Check whether any prefix of fpath is an ignored dir.
+                            in_ignored = any(
+                                os.path.commonpath([fpath, ig]) == ig
+                                for ig in ignore_set
+                            )
+                            if not in_ignored:
+                                try:
+                                    os.remove(fpath)
+                                except Exception as del_e:
+                                    logging.error(f"Could not delete source file '{fpath}': {del_e}")
+
+                        # Remove subdirectories that are not ignored and not ancestors of an
+                        # ignored path, provided they are now empty.
+                        for dname in dirnames:
+                            dpath = os.path.join(dirpath, dname)
+                            if dpath in ignore_set:
+                                continue  # Preserve ignored subtree.
+                            in_ignored = any(
+                                os.path.commonpath([dpath, ig]) == ig
+                                for ig in ignore_set
+                            )
+                            if in_ignored:
+                                continue  # Inside an ignored subtree — leave it.
+                            if dpath not in ancestor_dirs and not os.listdir(dpath):
+                                try:
+                                    os.rmdir(dpath)
+                                except Exception as del_e:
+                                    logging.error(f"Could not remove source dir '{dpath}': {del_e}")
+
+                    # Finally, remove the root source_dir itself only if it is now empty
+                    # (it won't be if any ignored subtree lives inside it).
+                    if not os.listdir(source_dir):
+                        os.rmdir(source_dir)
+                    else:
+                        logging.info(
+                            f"Original source directory kept because it still contains "
+                            f"ignored sub-folders: {source_dir}"
+                        )
+
+                logging.info(f"Successfully removed copied content from original source directory: {source_dir}")
             except Exception as e:
                 logging.error(f"CRITICAL: Failed to remove original source directory after move: {e}")
                 update_callback(100, f"Error: Could not remove original source folder. Please remove it manually: {source_dir}", "warning", initial_analytics)
