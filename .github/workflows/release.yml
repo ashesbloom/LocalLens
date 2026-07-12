@@ -1,4 +1,4 @@
-﻿name: Release Build
+name: Release Build
 
 on:
   push:
@@ -425,11 +425,21 @@ jobs:
           echo "checksums_mac_path=$CHECKSUMS_MAC" >> $GITHUB_OUTPUT
           echo "fix_script_path=$FIX_SCRIPT" >> $GITHUB_OUTPUT
           
-          # Get DMG SHA256 for Homebrew cask
+          # Get DMG SHA256 and actual filename for Homebrew cask
           if [ -n "$DMG_FILE" ] && [ -f "$DMG_FILE" ]; then
             DMG_SHA256=$(shasum -a 256 "$DMG_FILE" | awk '{print $1}')
+            DMG_FILENAME=$(basename "$DMG_FILE")
             echo "dmg_sha256=$DMG_SHA256" >> $GITHUB_OUTPUT
+            echo "dmg_filename=$DMG_FILENAME" >> $GITHUB_OUTPUT
             echo "DMG SHA256: $DMG_SHA256"
+            echo "DMG Filename: $DMG_FILENAME"
+          fi
+          
+          # Get actual tarball filename for latest.json
+          if [ -n "$TARBALL" ] && [ -f "$TARBALL" ]; then
+            TARBALL_FILENAME=$(basename "$TARBALL")
+            echo "tarball_filename=$TARBALL_FILENAME" >> $GITHUB_OUTPUT
+            echo "Tarball Filename: $TARBALL_FILENAME"
           fi
           
           # Read signatures for latest.json
@@ -466,7 +476,7 @@ jobs:
             --arg win_sig "$win_sig" \
             --arg win_url "https://github.com/$repo/releases/download/$tag/Local_Lens_${tag}_x64_en-US.msi" \
             --arg mac_sig "$mac_sig" \
-            --arg mac_url "https://github.com/$repo/releases/download/$tag/Local_Lens.app.tar.gz" \
+            --arg mac_url "https://github.com/$repo/releases/download/$tag/${{ steps.find_files.outputs.tarball_filename }}" \
             '{
               version: $version,
               notes: $notes,
@@ -496,7 +506,7 @@ jobs:
             version "$version"
             sha256 "$sha256"
 
-            url "https://github.com/${{ github.repository }}/releases/download/v#{version}/Local_Lens_v#{version}_aarch64.dmg",
+            url "https://github.com/${{ github.repository }}/releases/download/v#{version}/${{ steps.find_files.outputs.dmg_filename }}",
                 verified: "github.com/${{ github.repository }}/"
             name "Local Lens"
             desc "AI-powered offline photo organizer with face recognition"
