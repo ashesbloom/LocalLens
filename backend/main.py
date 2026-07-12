@@ -227,7 +227,7 @@ cancellation_events = {
 
 # --- Application Version ---
 # Canonical version string — keep this in sync with frontend/package.json and tauri.conf.json.
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.4.1"
 
 # --- FastAPI App Initialization ---
 app = FastAPI(
