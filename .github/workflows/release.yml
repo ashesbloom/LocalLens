@@ -114,6 +114,35 @@ jobs:
           cd frontend
           pnpm run tauri build
 
+      # Tauri derives filenames from productName ("Local Lens") which produces
+      # spaces in the filenames. Rename to a URL-safe, predictable pattern so
+      # Homebrew cask URLs and Tauri updater latest.json never break.
+      - name: Normalize macOS artifact filenames
+        run: |
+          tag="${{ github.ref_name }}"  # e.g. v2.4.1
+          cd frontend/src-tauri/target/release/bundle
+
+          # Rename DMG
+          DMG=$(find dmg -name "*.dmg" 2>/dev/null | head -1)
+          if [ -n "$DMG" ]; then
+            mv "$DMG" "dmg/Local_Lens_${tag}_aarch64.dmg"
+            echo "Renamed DMG → Local_Lens_${tag}_aarch64.dmg"
+          fi
+
+          # Rename updater tarball
+          TARBALL=$(find macos -name "*.app.tar.gz" ! -name "*.sig" 2>/dev/null | head -1)
+          if [ -n "$TARBALL" ]; then
+            mv "$TARBALL" "macos/Local_Lens_${tag}_aarch64.app.tar.gz"
+            echo "Renamed tarball → Local_Lens_${tag}_aarch64.app.tar.gz"
+          fi
+
+          # Rename updater signature
+          SIG=$(find macos -name "*.app.tar.gz.sig" 2>/dev/null | head -1)
+          if [ -n "$SIG" ]; then
+            mv "$SIG" "macos/Local_Lens_${tag}_aarch64.app.tar.gz.sig"
+            echo "Renamed sig → Local_Lens_${tag}_aarch64.app.tar.gz.sig"
+          fi
+
       - name: Find macOS build artifacts
         id: find_files
         run: |
@@ -304,6 +333,27 @@ jobs:
           cd frontend
           pnpm run tauri build
 
+      # Rename Windows artifacts to URL-safe pattern matching the macOS convention
+      - name: Normalize Windows artifact filenames
+        run: |
+          $tag = "${{ github.ref_name }}"  # e.g. v2.4.1
+          $bundlePath = "frontend\src-tauri\target\release\bundle"
+
+          # Rename MSI
+          $msi = Get-ChildItem -Path "$bundlePath\msi" -Filter "*.msi" | Where-Object { $_.Name -notlike "*.sig" } | Select-Object -First 1
+          if ($msi) {
+            $newName = "Local_Lens_${tag}_x64_en-US.msi"
+            Rename-Item $msi.FullName $newName
+            Write-Output "Renamed MSI -> $newName"
+          }
+
+          # Rename MSI signature
+          $sig = Get-ChildItem -Path "$bundlePath\msi" -Filter "*.msi.sig" | Select-Object -First 1
+          if ($sig) {
+            $newName = "Local_Lens_${tag}_x64_en-US.msi.sig"
+            Rename-Item $sig.FullName $newName
+            Write-Output "Renamed MSI sig -> $newName"
+          }
 
 
       # Generate checksums for verification
@@ -425,21 +475,11 @@ jobs:
           echo "checksums_mac_path=$CHECKSUMS_MAC" >> $GITHUB_OUTPUT
           echo "fix_script_path=$FIX_SCRIPT" >> $GITHUB_OUTPUT
           
-          # Get DMG SHA256 and actual filename for Homebrew cask
+          # Get DMG SHA256 for Homebrew cask
           if [ -n "$DMG_FILE" ] && [ -f "$DMG_FILE" ]; then
             DMG_SHA256=$(shasum -a 256 "$DMG_FILE" | awk '{print $1}')
-            DMG_FILENAME=$(basename "$DMG_FILE")
             echo "dmg_sha256=$DMG_SHA256" >> $GITHUB_OUTPUT
-            echo "dmg_filename=$DMG_FILENAME" >> $GITHUB_OUTPUT
             echo "DMG SHA256: $DMG_SHA256"
-            echo "DMG Filename: $DMG_FILENAME"
-          fi
-          
-          # Get actual tarball filename for latest.json
-          if [ -n "$TARBALL" ] && [ -f "$TARBALL" ]; then
-            TARBALL_FILENAME=$(basename "$TARBALL")
-            echo "tarball_filename=$TARBALL_FILENAME" >> $GITHUB_OUTPUT
-            echo "Tarball Filename: $TARBALL_FILENAME"
           fi
           
           # Read signatures for latest.json
@@ -476,7 +516,7 @@ jobs:
             --arg win_sig "$win_sig" \
             --arg win_url "https://github.com/$repo/releases/download/$tag/Local_Lens_${tag}_x64_en-US.msi" \
             --arg mac_sig "$mac_sig" \
-            --arg mac_url "https://github.com/$repo/releases/download/$tag/${{ steps.find_files.outputs.tarball_filename }}" \
+            --arg mac_url "https://github.com/$repo/releases/download/$tag/Local_Lens_${tag}_aarch64.app.tar.gz" \
             '{
               version: $version,
               notes: $notes,
@@ -506,7 +546,7 @@ jobs:
             version "$version"
             sha256 "$sha256"
 
-            url "https://github.com/${{ github.repository }}/releases/download/v#{version}/${{ steps.find_files.outputs.dmg_filename }}",
+            url "https://github.com/${{ github.repository }}/releases/download/v#{version}/Local_Lens_v#{version}_aarch64.dmg",
                 verified: "github.com/${{ github.repository }}/"
             name "Local Lens"
             desc "AI-powered offline photo organizer with face recognition"
