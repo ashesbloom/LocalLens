@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-07-23
 ### Added
 
-- **MCP (Model Context Protocol) Agent Groundwork (Internal)**: Scaffolded a standalone MCP server inside `locallens_mcp_agent/` to enable future local chat tooling (no user-facing UI shipped yet).
-- Added `/api/stats` endpoint to the FastAPI backend to supply summary metrics for internal diagnostics and MCP tool clients.
-- FastAPI backend now exports its bound network port to `APP_DATA_DIR/port.txt` so local tool clients can connect without hardcoded ports.
+- **MCP Backend Discovery**: On first launch, Local Lens now writes `install_info.json` to the platform app-data directory (`~/Library/Application Support/LocalLens/` on macOS, `%APPDATA%\LocalLens\` on Windows). This lets companion tools such as the LocalLens MCP agent tray app locate and start the `backend_server` sidecar directly — without a Python environment or hardcoded install paths.
+- **MCP Agent Groundwork (Internal)**: Scaffolded a standalone MCP server inside `locallens_mcp_agent/` to enable future local chat tooling. Added `/api/stats` diagnostics endpoint and port-file export to `APP_DATA_DIR/port.txt` for local tool clients.
 
 ## [2.4.1] - 2026-07-12
 

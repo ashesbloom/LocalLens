@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{Emitter, Manager, State, WindowEvent};
 use tauri_plugin_shell::{process::{CommandChild, CommandEvent}, ShellExt};
+use serde_json::json;
 
 #[derive(Default)]
 struct BackendInfo {
@@ -106,6 +107,10 @@ pub fn run() {
                 });
             }
 
+            // --- Write install_info.json for companion tools (MCP agent, etc.) ---
+            // Only written on first launch; skipped if the file already exists.
+            write_install_info(app);
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -198,6 +203,86 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Write `install_info.json` into the Tauri app-data directory so that
+/// companion tools (e.g. the LocalLens MCP agent tray app) can locate the
+/// `backend_server` sidecar without needing a Python environment or
+/// hardcoded install paths.
+///
+/// Layout written:
+/// - macOS : `~/Library/Application Support/LocalLens/install_info.json`
+/// - Windows: `%APPDATA%\LocalLens\install_info.json`
+///
+/// The file is only created on the first launch; if it already exists it is
+/// left untouched so users or installers can override it manually.
+fn write_install_info(app: &tauri::App) {
+    // Resolve the directory that holds the running executable.  The sidecar
+    // lives in the same directory as the main app binary.
+    let exe_dir = match std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+    {
+        Some(d) => d,
+        None => {
+            eprintln!("install_info: could not determine exe directory");
+            return;
+        }
+    };
+
+    // Absolute path to the backend_server sidecar binary.
+    #[cfg(target_os = "windows")]
+    let backend_exe = exe_dir.join("backend_server.exe");
+    #[cfg(not(target_os = "windows"))]
+    let backend_exe = exe_dir.join("backend_server");
+
+    // Tauri's app-data dir resolves to the per-app directory inside the
+    // platform's standard "application support" folder.
+    let app_data_dir = match app.path().app_data_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("install_info: could not resolve app_data_dir: {}", e);
+            return;
+        }
+    };
+
+    let info_path = app_data_dir.join("install_info.json");
+
+    // Skip if the file already exists (first-launch guard).
+    if info_path.exists() {
+        println!("install_info: {} already exists, skipping write", info_path.display());
+        return;
+    }
+
+    // Ensure the directory exists before writing.
+    if let Err(e) = std::fs::create_dir_all(&app_data_dir) {
+        eprintln!("install_info: could not create app_data_dir {}: {}", app_data_dir.display(), e);
+        return;
+    }
+
+    #[cfg(target_os = "windows")]
+    let platform = "windows";
+    #[cfg(target_os = "macos")]
+    let platform = "macos";
+    #[cfg(target_os = "linux")]
+    let platform = "linux";
+
+    let payload = json!({
+        "install_dir": exe_dir.to_string_lossy(),
+        "backend_exe": backend_exe.to_string_lossy(),
+        "app_version": env!("CARGO_PKG_VERSION"),
+        "platform": platform,
+    });
+
+    match serde_json::to_string_pretty(&payload) {
+        Ok(contents) => {
+            match std::fs::write(&info_path, contents) {
+                Ok(_) => println!("install_info: wrote {}", info_path.display()),
+                Err(e) => eprintln!("install_info: failed to write {}: {}", info_path.display(), e),
+            }
+        }
+        Err(e) => eprintln!("install_info: failed to serialise payload: {}", e),
+    }
 }
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
