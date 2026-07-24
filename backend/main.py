@@ -32,7 +32,7 @@ import signal
 from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Body, Request, BackgroundTasks, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Body, Request, BackgroundTasks, UploadFile, File, Form, Depends, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -44,6 +44,7 @@ import asyncio
 # import json
 # import signal
 import uvicorn
+import secrets
 from asyncio import Queue, CancelledError # FIX: Import the asyncio Queue and CancelledError
 
 # --- Custom Exception Import ---
@@ -80,10 +81,48 @@ def get_app_data_dir():
 
 # --- Centralized paths for ALL user data ---
 APP_DATA_DIR = get_app_data_dir()
+
+# Write the install directory so that the MCP server can locate the backend
+try:
+    (APP_DATA_DIR / "install_dir.txt").write_text(str(Path(application_path).resolve()))
+except Exception:
+    pass
+
 ENROLLMENT_FOLDER = APP_DATA_DIR / "Enrollment"
 ENCODINGS_FILE = APP_DATA_DIR / "encodings.pickle"
 LAST_CONFIG_FILE = APP_DATA_DIR / "last_config.json"
 PATH_PRESETS_FILE = APP_DATA_DIR / "path_presets.json"
+
+
+# --- Local API Token (Security) ---
+# A random secret generated on first run. Required by all sensitive endpoints.
+# Stored next to port.txt so the Tauri UI and MCP agent can read it.
+# External processes and rogue web pages cannot access it.
+def _get_or_create_local_token() -> str:
+    """Generate a random 32-byte hex token on first launch. File is owner-read-only."""
+    token_file = APP_DATA_DIR / "local_api_token.txt"
+    if not token_file.exists():
+        token = secrets.token_hex(32)
+        token_file.write_text(token)
+        token_file.chmod(0o600)
+        return token
+    return token_file.read_text().strip()
+
+LOCAL_API_TOKEN = _get_or_create_local_token()
+
+
+async def require_local_token(x_local_token: Optional[str] = Header(None)) -> None:
+    """
+    FastAPI dependency that validates the X-Local-Token header.
+    Apply to all endpoints that expose personal data (persona, metadata, privacy).
+    The token is stored at APP_DATA_DIR/local_api_token.txt alongside port.txt.
+    The Tauri frontend and MCP agent read it from there on startup.
+    """
+    if x_local_token != LOCAL_API_TOKEN:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid or missing X-Local-Token. Read the token from ~/.config/LocalLens/local_api_token.txt"
+        )
 
 
 # --- Backend Logic Imports ---
@@ -113,7 +152,18 @@ async def lifespan(app: FastAPI):
 
 
     yield
-    # Code here would run on shutdown
+    # ---------------------------------------------------------------
+    # Shutdown cleanup: delete port.txt so external tools (tray, MCP
+    # agent) don't get a false-positive "running" status from a stale
+    # file after the backend exits.
+    # ---------------------------------------------------------------
+    _port_file = APP_DATA_DIR / "port.txt"
+    if _port_file.exists():
+        try:
+            _port_file.unlink()
+            print("port.txt removed on shutdown.")
+        except Exception as _e:
+            print(f"Warning: Could not remove port.txt on shutdown: {_e}")
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +277,7 @@ cancellation_events = {
 
 # --- Application Version ---
 # Canonical version string — keep this in sync with frontend/package.json and tauri.conf.json.
-APP_VERSION = "2.5.0"
+APP_VERSION = "2.5.1"
 
 # --- FastAPI App Initialization ---
 app = FastAPI(
@@ -238,12 +288,26 @@ app = FastAPI(
 )
 
 # --- CORS Middleware ---
+# Restrict to Tauri's internal origins only.
+# This prevents rogue web pages from calling the API while the app is running.
+# During development (running as plain Python script), localhost:* is also allowed
+# so the Tauri dev server and browser-based testing tools can connect.
+_TAURI_ORIGINS = [
+    "tauri://localhost",        # Tauri v2 production
+    "https://tauri.localhost",  # Tauri v2 WebView
+    "http://tauri.localhost",   # Tauri v2 WebView (http variant)
+    "http://localhost",         # Dev server / browser testing
+    "http://localhost:1420",    # Tauri default dev port
+    "http://localhost:5173",    # Vite dev server
+    "http://127.0.0.1:1420",
+    "http://127.0.0.1:5173",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allow all origins for local development with Tauri
+    allow_origins=_TAURI_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Local-Token"],
 )
 
 # --- Pydantic Models for API Data Validation ---
@@ -314,6 +378,10 @@ class PathPreset(BaseModel):
 
 class OpenFolderRequest(BaseModel):
     folder_path: str
+
+class DeleteFilesRequest(BaseModel):
+    file_paths: List[str]
+    dry_run: bool = True  # Defaults to True — always preview before destroying
 
 class OpenEnrolledFolderRequest(BaseModel):
     person_name: str
@@ -804,6 +872,116 @@ async def abort_process():
         "source": "system" # Use a neutral source
     })
     return {"status": "success", "message": "Abort signal sent to all running tasks."}
+
+
+# ==============================================================================
+#  NEW: Utility Endpoints (Open Folder, Delete Files)
+# ==============================================================================
+
+@app.post("/api/open-folder")
+async def open_folder_endpoint(request: OpenFolderRequest):
+    """
+    Opens a folder in the native OS file manager (Finder on macOS, File Explorer
+    on Windows, Nautilus/Thunar on Linux). Safe read-only action.
+    Used by the MCP agent after a sort or find-group completes.
+    """
+    folder_path = os.path.expanduser(request.folder_path)
+    if not folder_path or not os.path.isdir(folder_path):
+        raise HTTPException(status_code=400, detail=f"Path does not exist or is not a directory: {folder_path}")
+
+    platform = sys.platform
+    try:
+        if platform == "darwin":
+            subprocess.Popen(["open", folder_path])
+        elif platform == "win32":
+            subprocess.Popen(["explorer", folder_path])
+        else:
+            # Linux — try xdg-open; fallback to nautilus, then thunar
+            for cmd in ["xdg-open", "nautilus", "thunar", "dolphin"]:
+                try:
+                    subprocess.Popen([cmd, folder_path])
+                    break
+                except FileNotFoundError:
+                    continue
+        return {
+            "status": "opened",
+            "folder_path": folder_path,
+            "platform": platform,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to open folder: {str(e)}")
+
+
+@app.post("/api/delete-files")
+async def delete_files_endpoint(request: DeleteFilesRequest):
+    """
+    Deletes a list of files. Prefers sending to OS Trash (via send2trash)
+    for safety; falls back to permanent os.remove if send2trash is unavailable.
+
+    ALWAYS call with dry_run=True first to get a preview, then call again with
+    dry_run=False only after the user has confirmed the list.
+
+    Returns:
+    - deleted: list of successfully removed file paths
+    - failed:  list of {path, error} for files that couldn't be removed
+    - total_freed_mb: disk space freed (0.0 in dry_run mode)
+    - dry_run: echoes whether this was a preview or real deletion
+    """
+    if not request.file_paths:
+        raise HTTPException(status_code=400, detail="file_paths list is empty.")
+
+    # Try to import send2trash for safe trash-based deletion
+    try:
+        from send2trash import send2trash
+        use_trash = True
+    except ImportError:
+        use_trash = False
+
+    deleted = []
+    failed = []
+    total_freed_bytes = 0
+
+    for fp in request.file_paths:
+        expanded = os.path.expanduser(fp)
+        if not os.path.isfile(expanded):
+            failed.append({"path": fp, "error": "File does not exist"})
+            continue
+
+        try:
+            file_size = os.path.getsize(expanded)
+        except OSError:
+            file_size = 0
+
+        if request.dry_run:
+            # Preview mode: report what WOULD be deleted, touch nothing
+            deleted.append(expanded)
+            total_freed_bytes += file_size
+        else:
+            try:
+                if use_trash:
+                    send2trash(expanded)
+                else:
+                    os.remove(expanded)
+                deleted.append(expanded)
+                total_freed_bytes += file_size
+            except Exception as e:
+                failed.append({"path": fp, "error": str(e)})
+
+    return {
+        "status": "preview" if request.dry_run else "deleted",
+        "dry_run": request.dry_run,
+        "use_trash": use_trash,
+        "deleted": deleted,
+        "failed": failed,
+        "total_freed_mb": round(total_freed_bytes / (1024 * 1024), 2),
+        "message": (
+            f"DRY RUN: {len(deleted)} file(s) would be freed ({round(total_freed_bytes / (1024*1024), 2)} MB). "
+            "Call again with dry_run=False to confirm."
+        ) if request.dry_run else (
+            f"{len(deleted)} file(s) {'sent to Trash' if use_trash else 'permanently deleted'} "
+            f"({round(total_freed_bytes / (1024*1024), 2)} MB freed)."
+        )
+    }
 
 
 # ==============================================================================
@@ -1408,11 +1586,24 @@ async def daemon_command(request: DaemonCommandRequest):
         python = sys.executable
         # We use Popen instead of run for 'start' so it runs in background
         if request.command in ("start", "restart"):
-            # Launch without hanging the API response
-            subprocess.Popen(
-                [python, "scheduler_daemon.py", request.command],
-                cwd=os.path.dirname(os.path.abspath(__file__))
-            )
+            # Launch silently — output goes to scheduler.log, no terminal window
+            log_file = APP_DATA_DIR / "scheduler.log"
+            log_handle = open(log_file, 'a')
+            env = os.environ.copy()
+            env["PYTHONUNBUFFERED"] = "1"
+            kwargs = {
+                "stdout": log_handle,
+                "stderr": subprocess.STDOUT,
+                "cwd": os.path.dirname(os.path.abspath(__file__)),
+                "env": env,
+            }
+            if sys.platform == "win32":
+                kwargs["creationflags"] = (
+                    subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+                )
+            else:
+                kwargs["start_new_session"] = True
+            subprocess.Popen([python, "scheduler_daemon.py", request.command], **kwargs)
             return {"status": f"Command '{request.command}' dispatched."}
         else:
             result = subprocess.run(
@@ -1489,6 +1680,51 @@ async def scheduler_ui():
 
 
 # ==============================================================================
+#  SETUP / ONBOARDING UI
+# ==============================================================================
+
+_SETUP_INSTRUCTIONS = """I use LocalLens (a local photo organization MCP tool). Here are my preferences:
+
+Photo organization:
+- I prefer "copy" mode over "move" — keep my originals safe unless I say otherwise
+- Before sorting, scan the folder first (analyse_folder) so I can choose what to ignore
+- Don't guess folder paths — ask me or check my saved presets (get_path_presets)
+
+LocalLens help:
+- When I ask about LocalLens features or capabilities, use the locallens_help tool — it has an interactive guide with topics I can browse
+- The guide has topics like "organize", "people", "duplicates", "automation", "privacy", "pro"
+- Present its explore_next options as a numbered menu so I can navigate"""
+
+_ONBOARDING_FILE = Path.home() / ".config" / "LocalLens" / "mcp_onboarded.json"
+
+
+@app.get("/setup", response_class=HTMLResponse)
+async def setup_page():
+    """Serve the LocalLens Setup Guide with instructions pre-filled."""
+    template = Path(__file__).parent / "templates" / "setup.html"
+    html = template.read_text(encoding="utf-8")
+    # Inject the actual instructions into the placeholder
+    html = html.replace("LOCALLENS_INSTRUCTIONS_PLACEHOLDER", _SETUP_INSTRUCTIONS.replace("`", "\\`"))
+    return HTMLResponse(content=html)
+
+
+@app.post("/api/complete-onboarding")
+async def complete_onboarding():
+    """Mark the user as onboarded so first-run prompts stop appearing."""
+    import json as _json
+    from datetime import datetime as _dt
+    _ONBOARDING_FILE.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "onboarded": True,
+        "onboarded_at": _dt.now().isoformat(),
+        "version": "1.0",
+        "source": "setup_page",
+    }
+    _ONBOARDING_FILE.write_text(_json.dumps(data, indent=2), encoding="utf-8")
+    return {"status": "ok", "message": "Onboarding complete"}
+
+
+# ==============================================================================
 #  PRO FEATURES: Smart Album Suggestions API
 # ==============================================================================
 
@@ -1507,7 +1743,7 @@ class SuggestionAcceptRequest(BaseModel):
     suggestion_key: str
 
 
-@app.post("/api/smart-albums/suggest")
+@app.post("/api/smart-albums/suggest", dependencies=[Depends(require_local_token)])
 async def smart_album_suggest(request: SmartAlbumSuggestRequest):
     """
     Generate personalized Smart Album Suggestions.
@@ -1531,7 +1767,7 @@ async def smart_album_suggest(request: SmartAlbumSuggestRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/smart-albums/accept")
+@app.post("/api/smart-albums/accept", dependencies=[Depends(require_local_token)])
 async def smart_album_accept(request: SuggestionAcceptRequest):
     """Mark that the user accepted (created) an album from a suggestion."""
     try:
@@ -1541,7 +1777,7 @@ async def smart_album_accept(request: SuggestionAcceptRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/persona/survey")
+@app.get("/api/persona/survey", dependencies=[Depends(require_local_token)])
 async def get_persona_survey():
     """Return the Smart Album persona survey questions for the chat UI."""
     try:
@@ -1551,7 +1787,7 @@ async def get_persona_survey():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/persona/submit")
+@app.post("/api/persona/submit", dependencies=[Depends(require_local_token)])
 async def submit_persona_survey(request: PersonaSubmitRequest):
     """
     Submit survey answers to build/update the user persona.
@@ -1576,7 +1812,7 @@ async def submit_persona_survey(request: PersonaSubmitRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/persona/profile")
+@app.get("/api/persona/profile", dependencies=[Depends(require_local_token)])
 async def get_persona_profile():
     """Get the current user persona profile (synthesized + raw answers)."""
     try:
@@ -1592,7 +1828,7 @@ async def get_persona_profile():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/persona/profile")
+@app.delete("/api/persona/profile", dependencies=[Depends(require_local_token)])
 async def reset_persona_profile():
     """Wipe the persona profile and survey answers (privacy reset)."""
     try:
@@ -1602,7 +1838,7 @@ async def reset_persona_profile():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/persona/consent/revoke")
+@app.post("/api/persona/consent/revoke", dependencies=[Depends(require_local_token)])
 async def revoke_cloud_persona_consent():
     """Revoke previously granted consent to send persona data to a cloud LLM provider."""
     try:
@@ -1612,7 +1848,7 @@ async def revoke_cloud_persona_consent():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/persona/consent")
+@app.get("/api/persona/consent", dependencies=[Depends(require_local_token)])
 async def get_cloud_persona_consent():
     """Check whether cloud persona synthesis consent is currently granted."""
     try:
@@ -1622,7 +1858,7 @@ async def get_cloud_persona_consent():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/metadata-store/stats")
+@app.get("/api/metadata-store/stats", dependencies=[Depends(require_local_token)])
 async def metadata_store_stats():
     """Return metadata store health: photo count, DB size, last compaction."""
     try:
@@ -1632,7 +1868,7 @@ async def metadata_store_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/metadata-store/purge")
+@app.delete("/api/metadata-store/purge", dependencies=[Depends(require_local_token)])
 async def metadata_store_purge():
     """
     Privacy: Wipe ALL data from the metadata store (photo metadata,
@@ -1646,7 +1882,7 @@ async def metadata_store_purge():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/privacy/summary")
+@app.get("/api/privacy/summary", dependencies=[Depends(require_local_token)])
 async def privacy_summary():
     """
     Returns a complete, human-readable summary of all data LocalLens stores
@@ -1805,9 +2041,20 @@ async def shutdown_server():
     This is called by the Tauri frontend just before exiting.
     """
     print("Shutdown signal received. Server is terminating.")
+
+    # Belt-and-suspenders: remove port.txt immediately so callers that
+    # poll between now and the lifespan teardown also see a clean state.
+    _port_file = APP_DATA_DIR / "port.txt"
+    if _port_file.exists():
+        try:
+            _port_file.unlink()
+            print("port.txt removed by /api/shutdown.")
+        except Exception as _e:
+            print(f"Warning: Could not remove port.txt in /api/shutdown: {_e}")
+
     # A small delay can help ensure the HTTP response is sent before shutdown.
-    await asyncio.sleep(0.1) 
-    
+    await asyncio.sleep(0.1)
+
     # This is a common way to stop the server from within an endpoint.
     # It might cause a clean exit or raise an exception that the runner handles.
     os.kill(os.getpid(), signal.SIGTERM)
