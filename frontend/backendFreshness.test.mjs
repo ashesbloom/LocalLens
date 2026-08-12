@@ -50,5 +50,22 @@ assert.ok(isStale(binary, [backend]), 'edited source did not trip the guard');
 // Nothing built yet is ensure-backend.js's existing dummy-backend path, not ours.
 assert.ok(!isStale(path.join(built, 'nope'), [backend]), 'absent artifact was reported stale');
 
+// Regression, v3.0.0: CI's smoke test writes backend/backend-smoke.log AFTER
+// PyInstaller runs. Counting non-source debris as a source made every release
+// build look stale and aborted the macOS job.
+touch(path.join(backend, 'main.py'), 60_000);
+touch(path.join(backend, 'templates', 'setup.html'), 60_000);
+touch(binary, 30_000);
+fs.writeFileSync(path.join(backend, 'backend-smoke.log'), 'started');
+touch(path.join(backend, 'backend-smoke.log'), 0);
+assert.ok(!isStale(binary, [backend]), 'a build log was treated as a source');
+
+// requirements.txt IS a build input, so it must still trip the guard.
+fs.writeFileSync(path.join(backend, 'requirements.txt'), 'fastapi');
+touch(path.join(backend, 'requirements.txt'), 0);
+assert.ok(isStale(binary, [backend]), 'edited requirements.txt did not trip the guard');
+fs.rmSync(path.join(backend, 'requirements.txt'), { force: true });
+fs.rmSync(path.join(backend, 'backend-smoke.log'), { force: true });
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log('backendFreshness: ok');

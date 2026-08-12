@@ -9,7 +9,17 @@ import path from 'path';
 // artifact against itself.
 const SKIP = new Set(['dist', 'build', '__pycache__', 'venv', '.venv', 'node_modules', '.git']);
 
-/** Newest mtime (ms) across the given files/directories, recursing into directories. */
+// Only things PyInstaller actually consumes count as sources. The backend
+// directory also collects run-time and build-time debris beside the sources —
+// CI writes backend-smoke.log there *after* PyInstaller runs — and counting
+// those made a correct build look stale and failed the release.
+const SOURCE_EXTENSIONS = new Set(['.py', '.html', '.spec']);
+const SOURCE_FILENAMES = new Set(['requirements.txt']);
+
+const isSource = (p) =>
+  SOURCE_EXTENSIONS.has(path.extname(p)) || SOURCE_FILENAMES.has(path.basename(p));
+
+/** Newest mtime (ms) across build inputs under the given files/directories. */
 export const newestMtime = (targets) => {
   let newest = 0;
   const walk = (p) => {
@@ -22,7 +32,7 @@ export const newestMtime = (targets) => {
     if (st.isDirectory()) {
       if (SKIP.has(path.basename(p))) return;
       for (const entry of fs.readdirSync(p)) walk(path.join(p, entry));
-    } else if (st.mtimeMs > newest) {
+    } else if (isSource(p) && st.mtimeMs > newest) {
       newest = st.mtimeMs;
     }
   };
