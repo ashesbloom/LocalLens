@@ -1,7 +1,7 @@
 {
   "name": "local-lens",
   "private": true,
-  "version": "2.5.1",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
     "dev:pre": "node ensure-backend.js",
@@ -19,6 +19,7 @@
     "@tauri-apps/plugin-process": "2.3.x",
     "@tauri-apps/plugin-shell": "2.3.x",
     "@tauri-apps/plugin-updater": "2.9.x",
+    "gsap": "^3.15.0",
     "lucide-react": "^0.544.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -2109,3 +2109,54 @@ p {
         background-position: -200% center;
     }
 }
+/* === DEV-ONLY: CLEAR LOCAL STATE ===
+   Sits on the same header rail as .btn-reload / .btn-exit and borrows their
+   geometry, but deliberately NOT their glass material: dashed amber, flat fill,
+   no sheen. Scaffolding left up on a finished building — it should never be
+   mistaken for shipping UI. Rendered only when import.meta.env.DEV. */
+.btn-dev-reset {
+  position: fixed;
+  top: 1.5rem;
+  right: calc(50% - 400px + 8.5rem);
+  width: 44px;
+  height: 44px;
+  padding: 0.6rem;
+  margin: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: pointer;
+
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px dashed rgba(245, 158, 11, 0.55);
+  border-radius: 50%;
+  color: #f59e0b;
+  opacity: 0.6;
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+@media (max-width: 800px) {
+  .btn-dev-reset { right: 8.5rem; }
+}
+
+.btn-dev-reset:hover,
+.btn-dev-reset:focus-visible {
+  opacity: 1;
+  background: rgba(245, 158, 11, 0.18);
+  border-style: solid;
+  border-color: #f59e0b;
+  transform: translateY(-3px);
+}
+
+.btn-dev-reset:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-dev-reset { transition: none; }
+  .btn-dev-reset:hover,
+  .btn-dev-reset:focus-visible { transform: none; }
+}

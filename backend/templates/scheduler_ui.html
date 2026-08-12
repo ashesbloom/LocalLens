@@ -6,29 +6,34 @@
     <title>LocalLens Scheduler Dashboard</title>
     <style>
         :root {
-            --bg: #0f172a;
-            --surface: #1e293b;
-            --surface2: #263145;
+            --bg: #0a0f1a;
+            --surface: #131b2e;
+            --surface2: #1a2540;
+            --surface-hover: #1f2d4d;
             --primary: #3b82f6;
             --primary-hover: #2563eb;
             --danger: #ef4444;
             --danger-hover: #dc2626;
             --warning: #f59e0b;
             --success: #10b981;
-            --text: #f8fafc;
-            --text-dim: #94a3b8;
-            --border: rgba(255,255,255,0.08);
+            --text: #f1f5f9;
+            --text-dim: #64748b;
+            --text-muted: #475569;
+            --border: rgba(255,255,255,0.06);
+            --radius: 0.75rem;
+            --shadow: 0 4px 24px rgba(0,0,0,0.3);
         }
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             background: var(--bg);
             color: var(--text);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 2rem;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
             min-height: 100vh;
+            padding: 1.5rem;
         }
-        .container { max-width: 960px; margin: 0 auto; }
+        .container { max-width: 1040px; margin: 0 auto; }
+
+        /* ── Header ── */
         .header {
             display: flex;
             justify-content: space-between;
@@ -37,230 +42,376 @@
             gap: 1rem;
             flex-wrap: wrap;
         }
-        h1 { margin: 0; font-size: 1.4rem; display: flex; align-items: center; gap: 0.6rem; }
-        .status-badge {
-            padding: 0.25rem 0.75rem;
+        .header-left { display: flex; align-items: center; gap: 0.75rem; }
+        h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; }
+        .badge {
+            padding: 0.2rem 0.65rem;
             border-radius: 999px;
-            font-size: 0.8rem;
+            font-size: 0.72rem;
             font-weight: 600;
-            letter-spacing: 0.02em;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
         }
-        .status-running { background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
-        .status-stopped { background: rgba(239,68,68,0.15);  color: var(--danger);  border: 1px solid rgba(239,68,68,0.3); }
-        .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-        button {
+        .badge-running { background: rgba(16,185,129,0.12); color: var(--success); border: 1px solid rgba(16,185,129,0.25); }
+        .badge-stopped { background: rgba(239,68,68,0.12); color: var(--danger); border: 1px solid rgba(239,68,68,0.25); }
+        .controls { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+        /* ── Buttons ── */
+        button, .btn {
             background: var(--surface2);
             color: var(--text);
             border: 1px solid var(--border);
-            padding: 0.45rem 1rem;
+            padding: 0.4rem 0.85rem;
             border-radius: 0.5rem;
             cursor: pointer;
-            font-size: 0.875rem;
+            font-size: 0.8rem;
             font-weight: 500;
             transition: all 0.15s;
             white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
         }
-        button:hover  { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+        button:hover  { background: var(--surface-hover); border-color: rgba(255,255,255,0.12); }
         button:active { transform: scale(0.97); }
-        button.btn-primary { background: var(--primary); border-color: var(--primary); }
-        button.btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
-        button.btn-danger  { background: var(--danger);  border-color: var(--danger); }
-        button.btn-danger:hover  { background: var(--danger-hover);  border-color: var(--danger-hover); }
-        button.btn-warning { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.4); color: var(--warning); }
-        button.btn-warning:hover { background: rgba(245,158,11,0.25); }
-        .divider { width: 1px; background: var(--border); margin: 0 0.25rem; align-self: stretch; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-danger  { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: var(--danger); }
+        .btn-danger:hover  { background: rgba(239,68,68,0.25); }
+        .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.72rem; }
 
-        /* ── Terminal ── */
-        .terminal-wrap {
-            background: #000e1a;
-            border-radius: 0.75rem;
+        /* ── Schedule Cards ── */
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+        .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem 1.15rem;
+            transition: border-color 0.2s;
+        }
+        .card:hover { border-color: rgba(255,255,255,0.12); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+        .card-id { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.8rem; font-weight: 600; }
+        .card-status {
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 600;
+        }
+        .status-active  { background: rgba(16,185,129,0.12); color: var(--success); }
+        .status-paused  { background: rgba(245,158,11,0.12); color: var(--warning); }
+        .status-error   { background: rgba(239,68,68,0.12);  color: var(--danger); }
+        .card-body { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.75rem; font-size: 0.78rem; }
+        .card-label { color: var(--text-dim); }
+        .card-value { color: var(--text); word-break: break-all; }
+        .card-value.mono { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.75rem; }
+        .card-actions { display: flex; gap: 0.35rem; margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px solid var(--border); }
+        .empty-state {
+            background: var(--surface);
+            border: 1px dashed rgba(255,255,255,0.1);
+            border-radius: var(--radius);
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+        }
+
+        /* ── Log Panel ── */
+        .log-wrap {
+            background: #000a14;
+            border-radius: var(--radius);
             border: 1px solid var(--border);
             overflow: hidden;
         }
-        .terminal-toolbar {
+        .log-toolbar {
             display: flex;
             align-items: center;
-            padding: 0.5rem 1rem;
+            padding: 0.45rem 0.85rem;
             background: var(--surface);
             border-bottom: 1px solid var(--border);
             gap: 0.5rem;
         }
-        .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
-        .dot-red    { background: #ff5f57; }
-        .dot-yellow { background: #febc2e; }
-        .dot-green  { background: #28c840; }
-        .terminal-title { font-size: 0.8rem; color: var(--text-dim); margin-left: 0.5rem; }
-        .terminal-actions { margin-left: auto; display: flex; gap: 0.5rem; }
-        .terminal-actions button { padding: 0.25rem 0.6rem; font-size: 0.75rem; }
-        #terminal {
-            background: #000e1a;
-            padding: 1rem 1.25rem;
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .dot-r { background: #ff5f57; }
+        .dot-y { background: #febc2e; }
+        .dot-g { background: #28c840; }
+        .log-label { font-size: 0.75rem; color: var(--text-dim); margin-left: 0.4rem; flex: 1; }
+        .log-actions { display: flex; gap: 0.35rem; }
+        #logPanel {
+            background: #000a14;
+            padding: 0.75rem 1rem;
             font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            font-size: 0.8rem;
-            line-height: 1.6;
-            height: 520px;
+            font-size: 0.75rem;
+            line-height: 1.65;
+            height: 380px;
             overflow-y: auto;
             white-space: pre-wrap;
             word-break: break-all;
         }
         .log-line    { padding: 1px 0; }
-        .log-sep     { border-top: 1px solid rgba(255,255,255,0.06); margin: 4px 0; }
-        .dim         { color: var(--text-dim); }
-        .text-success { color: var(--success); }
-        .text-danger  { color: var(--danger); }
-        .text-warning { color: var(--warning); }
+        .log-ts      { color: var(--text-muted); }
+        .log-success { color: var(--success); }
+        .log-danger  { color: var(--danger); }
+        .log-warning { color: var(--warning); }
+        .log-dim     { color: var(--text-dim); }
+        .log-sweep   { color: var(--primary); }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Header -->
         <div class="header">
-            <h1>
-                🗓 LocalLens Scheduler
-                <span id="statusBadge" class="status-badge status-stopped">Checking...</span>
-            </h1>
+            <div class="header-left">
+                <h1>🗓 LocalLens Scheduler</h1>
+                <span id="daemonBadge" class="badge badge-stopped">Checking…</span>
+            </div>
             <div class="controls">
-                <button id="btnStart" class="btn-primary" onclick="sendCommand('start')">▶ Start</button>
-                <button id="btnStop"  class="btn-danger"  onclick="sendCommand('stop')">⏹ Stop</button>
-                <button onclick="sendCommand('restart')">↻ Restart</button>
-                <div class="divider"></div>
-                <button class="btn-warning" onclick="sendCommand('status')">📊 Status</button>
+                <button class="btn-primary" disabled title="Managed by the LocalLens MCP agent — start or stop it from the tray app.">▶ Start</button>
+                <button class="btn-danger"  disabled title="Managed by the LocalLens MCP agent — start or stop it from the tray app.">⏹ Stop</button>
+                <button disabled title="Managed by the LocalLens MCP agent — start or stop it from the tray app.">↻ Restart</button>
             </div>
         </div>
 
-        <div class="terminal-wrap">
-            <div class="terminal-toolbar">
-                <div class="terminal-dot dot-red"></div>
-                <div class="terminal-dot dot-yellow"></div>
-                <div class="terminal-dot dot-green"></div>
-                <span class="terminal-title">scheduler.log</span>
-                <div class="terminal-actions">
-                    <button onclick="clearLogs()" title="Clear the log display">✕ Clear</button>
-                    <button onclick="toggleAutoScroll()" id="btnScroll" title="Toggle auto-scroll">⬇ Auto-scroll: ON</button>
+        <!-- Schedule Cards -->
+        <div class="section-title">Schedules</div>
+        <div id="cardsContainer" class="empty-state">Loading…</div>
+
+        <!-- Event Log -->
+        <div class="section-title" style="margin-top: 0.5rem;">Event Log</div>
+        <div class="log-wrap">
+            <div class="log-toolbar">
+                <div class="dot dot-r"></div>
+                <div class="dot dot-y"></div>
+                <div class="dot dot-g"></div>
+                <span class="log-label">scheduler.log</span>
+                <div class="log-actions">
+                    <button class="btn-sm" onclick="clearLog()">✕ Clear</button>
+                    <button class="btn-sm" id="btnScroll" onclick="toggleScroll()">⬇ Auto-scroll: ON</button>
                 </div>
             </div>
-            <div id="terminal">Loading logs...</div>
+            <div id="logPanel">Loading logs…</div>
         </div>
     </div>
 
     <script>
-        const terminal    = document.getElementById('terminal');
-        const statusBadge = document.getElementById('statusBadge');
-        const btnScroll   = document.getElementById('btnScroll');
-        let isAutoScrolling = true;
-        let lastLogHash     = '';
+        const cardsEl  = document.getElementById('cardsContainer');
+        const logEl    = document.getElementById('logPanel');
+        const badgeEl  = document.getElementById('daemonBadge');
+        const scrollBtn = document.getElementById('btnScroll');
+        let autoScroll = true;
+        let lastLogHash = '';
+        let lastCardHash = '';
+        let cachedSchedules = [];  // For live ticker to re-compute times
 
-        // ── Helpers ────────────────────────────────────────────────────
-        function escHtml(s) {
-            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // ── Helpers ──
+        const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+        function toggleScroll() {
+            autoScroll = !autoScroll;
+            scrollBtn.textContent = `⬇ Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+            if (autoScroll) logEl.scrollTop = logEl.scrollHeight;
         }
-
-        function toggleAutoScroll() {
-            isAutoScrolling = !isAutoScrolling;
-            btnScroll.textContent = `⬇ Auto-scroll: ${isAutoScrolling ? 'ON' : 'OFF'}`;
-            if (isAutoScrolling) terminal.scrollTop = terminal.scrollHeight;
-        }
-
-        function clearLogs() {
-            terminal.innerHTML = '<div class="log-line dim">— Log display cleared (file not deleted) —</div>';
+        function clearLog() {
+            logEl.innerHTML = '<div class="log-line log-dim">— Display cleared —</div>';
             lastLogHash = '';
         }
-
-        function scrollIfNeeded() {
-            if (isAutoScrolling) terminal.scrollTop = terminal.scrollHeight;
-        }
-
-        // Re-enable auto-scroll when user scrolls back to the bottom
-        terminal.addEventListener('scroll', () => {
-            const atBottom = terminal.scrollHeight - terminal.scrollTop <= terminal.clientHeight + 20;
-            if (!isAutoScrolling && atBottom) {
-                isAutoScrolling = true;
-                btnScroll.textContent = '⬇ Auto-scroll: ON';
-            }
+        logEl.addEventListener('scroll', () => {
+            const atBottom = logEl.scrollHeight - logEl.scrollTop <= logEl.clientHeight + 20;
+            if (!autoScroll && atBottom) { autoScroll = true; scrollBtn.textContent = '⬇ Auto-scroll: ON'; }
         });
 
-        // ── Status polling ─────────────────────────────────────────────
-        async function fetchStatus() {
+        function timeAgo(isoStr) {
+            if (!isoStr) return '—';
+            const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+            if (diff < 0) return 'just now';
+            if (diff < 60) return `${Math.round(diff)}s ago`;
+            if (diff < 3600) return `${Math.round(diff/60)}m ago`;
+            return `${Math.round(diff/3600)}h ${Math.round((diff%3600)/60)}m ago`;
+        }
+        function countdown(isoStr) {
+            if (!isoStr) return '—';
+            const diff = (new Date(isoStr).getTime() - Date.now()) / 1000;
+            if (diff <= 0) return 'imminent';
+            const h = Math.floor(diff/3600), m = Math.floor((diff%3600)/60), s = Math.round(diff%60);
+            let parts = [];
+            if (h) parts.push(`${h}h`);
+            if (m) parts.push(`${m}m`);
+            parts.push(`${s}s`);
+            return parts.join(' ');
+        }
+        function localTime(isoStr) {
+            if (!isoStr) return 'never';
+            return new Date(isoStr).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+        }
+        function basename(p) {
+            if (!p) return '?';
+            return p.split('/').filter(Boolean).slice(-2).join('/');
+        }
+
+        // ── Daemon badge + commands ──
+        async function fetchDaemonStatus() {
             try {
-                const res  = await fetch('/api/scheduler/daemon-status');
-                const data = await res.json();
-                if (data.daemon_running) {
-                    statusBadge.textContent  = `Running (PID ${data.daemon_pid})`;
-                    statusBadge.className    = 'status-badge status-running';
+                const r = await fetch('/api/scheduler/daemon-status');
+                const d = await r.json();
+                if (d.daemon_running) {
+                    badgeEl.textContent = `Running (PID ${d.daemon_pid})`;
+                    badgeEl.className = 'badge badge-running';
                 } else {
-                    statusBadge.textContent  = 'Stopped';
-                    statusBadge.className    = 'status-badge status-stopped';
+                    badgeEl.textContent = 'Stopped';
+                    badgeEl.className = 'badge badge-stopped';
                 }
             } catch {
-                statusBadge.textContent = 'Disconnected';
-                statusBadge.className   = 'status-badge status-stopped';
+                badgeEl.textContent = 'Disconnected';
+                badgeEl.className = 'badge badge-stopped';
             }
         }
 
-        // ── Log polling ────────────────────────────────────────────────
+        // ── Schedule Cards ──
+        async function fetchCards() {
+            try {
+                const r = await fetch('/api/scheduler/list');
+                const d = await r.json();
+                const schedules = d.schedules || [];
+                const running = d.daemon_running;
+
+                const hash = JSON.stringify(schedules);
+                if (hash === lastCardHash) return;
+                lastCardHash = hash;
+
+                if (schedules.length === 0) {
+                    cardsEl.className = 'empty-state';
+                    cardsEl.innerHTML = '📭 No schedules configured. Create one with the MCP agent.';
+                    return;
+                }
+
+                cardsEl.className = 'cards';
+                cardsEl.innerHTML = schedules.map(s => {
+                    const sid = s.schedule_id;
+                    const st = s.status || 'active';
+                    const statusCls = st === 'active' ? 'status-active' : st === 'paused' ? 'status-paused' : 'status-error';
+                    const statusLabel = st === 'active' ? '🟢 Active' : st === 'paused' ? '⏸ Paused' : '🔴 Error';
+                    const mode = s.mode === 'active' ? '👁 Active Folder' : '⏰ Scheduled';
+                    const hrs = s.interval_hours || 0;
+                    const mins = s.interval_minutes || 0;
+                    const interval = hrs ? `${hrs}h ${mins}m` : `${mins}m`;
+                    const monitored = running && st === 'active';
+
+                    return `<div class="card">
+                        <div class="card-header">
+                            <span class="card-id">${esc(sid)}</span>
+                            <span class="card-status ${statusCls}">${statusLabel}${monitored ? '' : ' (not monitored)'}</span>
+                        </div>
+                        <div class="card-body">
+                            <span class="card-label">Mode</span>    <span class="card-value">${mode}</span>
+                            <span class="card-label">Sort</span>    <span class="card-value">${esc(s.primary_sort || '?')} · ${esc(s.operation_mode || 'copy')}</span>
+                            <span class="card-label">Source</span>  <span class="card-value mono" title="${esc(s.source_folder || '')}">${esc(basename(s.source_folder))}</span>
+                            <span class="card-label">Dest</span>    <span class="card-value mono" title="${esc(s.destination_folder || '')}">${esc(basename(s.destination_folder))}</span>
+                            <span class="card-label">Interval</span><span class="card-value">${interval}</span>
+                            <span class="card-label">Last run</span><span class="card-value"><span class="live-time" data-type="ago" data-iso="${s.last_run_at || ''}">${localTime(s.last_run_at)} <span class="log-dim">(${timeAgo(s.last_run_at)})</span></span></span>
+                            <span class="card-label">Next</span>    <span class="card-value"><span class="live-time" data-type="countdown" data-iso="${s.next_sweep_at || ''}">${localTime(s.next_sweep_at)} <span class="log-dim">(in ${countdown(s.next_sweep_at)})</span></span></span>
+                            <span class="card-label">Total</span>   <span class="card-value">${s.files_organized_total || 0} files organized</span>
+                            ${s.last_error ? `<span class="card-label">Error</span><span class="card-value log-danger">${esc(s.last_error)}</span>` : ''}
+                        </div>
+                        <div class="card-actions">
+                            ${st === 'active'
+                                ? `<button class="btn-sm" onclick="scheduleAction('${sid}','pause')">⏸ Pause</button>`
+                                : `<button class="btn-sm" onclick="scheduleAction('${sid}','resume')">▶ Resume</button>`}
+                            <button class="btn-sm" onclick="scheduleAction('${sid}','trigger')">⚡ Trigger Now</button>
+                            <button class="btn-sm btn-danger" onclick="if(confirm('Delete ${sid}?')) scheduleAction('${sid}','delete')">🗑 Delete</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch(e) {
+                console.error('Cards fetch error', e);
+            }
+        }
+
+        async function scheduleAction(sid, action) {
+            try {
+                const method = action === 'delete' ? 'DELETE' : 'POST';
+                const url = action === 'delete'
+                    ? `/api/scheduler/${sid}`
+                    : action === 'trigger'
+                        ? `/api/scheduler/${sid}/trigger`
+                        : `/api/scheduler/${sid}/${action}`;
+                await fetch(url, {method});
+                setTimeout(() => { fetchCards(); fetchLogs(); }, 500);
+            } catch(e) {
+                console.error('Schedule action error', e);
+            }
+        }
+
+        // ── Event Log ──
         async function fetchLogs() {
             try {
-                const res  = await fetch('/api/scheduler/logs?lines=200');
-                const data = await res.json();
-                if (!data.logs || data.logs.length === 0) return;
+                const r = await fetch('/api/scheduler/logs?lines=150');
+                const d = await r.json();
+                if (!d.logs || d.logs.length === 0) return;
 
-                // Skip re-render when content is identical
-                const hash = data.logs.join('|');
+                const hash = d.logs.slice(-5).join('|');
                 if (hash === lastLogHash) return;
                 lastLogHash = hash;
 
-                const html = data.logs.map(line => {
-                    // Strip ANSI escape codes
-                    const clean = line
-                        .replace(/\u001b\[[0-9;]*m/g, '')
-                        .replace(/\x1b\[[0-9;]*m/g, '');
+                const html = d.logs.map(line => {
+                    // Strip ANSI codes
+                    const clean = line.replace(/\u001b\[[0-9;]*m/g, '').replace(/\x1b\[[0-9;]*m/g, '');
 
+                    // Skip status table lines (box-drawing chars) — those are shown in cards now
+                    if (/[─│┌└┘┐╔╚║╗╝]/.test(clean) || /Mode:|Sort:|Source:|Status:|Interval:|Last run:|Next:|Total:/.test(clean)) {
+                        return ''; // Skip — this info is in the cards
+                    }
+                    if (clean.trim() === '' || /Scheduler Status/.test(clean)) return '';
+
+                    // Colorize
                     let cls = 'log-line';
-                    if      (clean.includes('✅') || clean.includes('Done'))                              cls += ' text-success';
-                    else if (clean.includes('❌') || clean.includes('Error') || clean.includes('Fatal')) cls += ' text-danger';
-                    else if (clean.includes('⚠')  || clean.includes('Warning'))                          cls += ' text-warning';
-                    else if (/[─│┌└]/.test(clean))                                                        cls += ' dim';
+                    if (clean.includes('✅') || clean.includes('Done'))  cls += ' log-success';
+                    else if (clean.includes('❌') || clean.includes('Error') || clean.includes('Fatal'))  cls += ' log-danger';
+                    else if (clean.includes('⚠') || clean.includes('Warning'))  cls += ' log-warning';
+                    else if (clean.includes('Sweep triggered') || clean.includes('Starting organize')) cls += ' log-sweep';
 
-                    return `<div class="${cls}">${escHtml(clean)}</div>`;
-                }).join('');
+                    return `<div class="${cls}">${esc(clean)}</div>`;
+                }).filter(Boolean).join('');
 
-                terminal.innerHTML = html;
-                scrollIfNeeded();
-            } catch (e) {
-                console.error('Failed to fetch logs', e);
-            }
-        }
-
-        // ── Command sender ─────────────────────────────────────────────
-        async function sendCommand(cmd) {
-            terminal.innerHTML += `<div class="log-line dim">❯ ${cmd}...</div><div class="log-sep"></div>`;
-            scrollIfNeeded();
-            try {
-                const res  = await fetch('/api/scheduler/daemon-command', {
-                    method:  'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body:    JSON.stringify({ command: cmd })
-                });
-                const data = await res.json();
-
-                // Show status output inline
-                if (cmd === 'status' && data.output) {
-                    const lines = data.output.split('\n').filter(l => l.trim());
-                    terminal.innerHTML += lines.map(l =>
-                        `<div class="log-line dim">${escHtml(l)}</div>`
-                    ).join('') + '<div class="log-sep"></div>';
-                    scrollIfNeeded();
+                if (html) {
+                    logEl.innerHTML = html;
+                    if (autoScroll) logEl.scrollTop = logEl.scrollHeight;
                 }
-
-                setTimeout(() => { fetchStatus(); fetchLogs(); }, 600);
-            } catch (e) {
-                terminal.innerHTML += `<div class="log-line text-danger">Command failed: ${e}</div>`;
+            } catch(e) {
+                console.error('Log fetch error', e);
             }
         }
 
-        // ── Boot ───────────────────────────────────────────────────────
-        setInterval(fetchStatus, 2000);
-        setInterval(fetchLogs,   1500);
-        fetchStatus();
+        // ── Live Ticker (updates times every second without API call) ──
+        function tickTimes() {
+            document.querySelectorAll('.live-time').forEach(el => {
+                const iso = el.dataset.iso;
+                if (!iso) return;
+                const type = el.dataset.type;
+                if (type === 'ago') {
+                    el.innerHTML = `${localTime(iso)} <span class="log-dim">(${timeAgo(iso)})</span>`;
+                } else if (type === 'countdown') {
+                    el.innerHTML = `${localTime(iso)} <span class="log-dim">(in ${countdown(iso)})</span>`;
+                }
+            });
+        }
+
+        // ── Boot ──
+        setInterval(fetchDaemonStatus, 3000);
+        setInterval(fetchCards, 3000);
+        setInterval(fetchLogs, 2000);
+        setInterval(tickTimes, 1000);  // Live countdown ticker
+        fetchDaemonStatus();
+        fetchCards();
         fetchLogs();
     </script>
 </body>

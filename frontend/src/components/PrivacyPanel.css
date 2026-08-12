@@ -1,0 +1,197 @@
+/* PrivacyPanel.css — the data inventory behind "nothing leaves your machine".
+   Same register as McpAnnounce: mono body, sans for headings, accent inherited
+   from --color-primary-rgb so it follows the active operation mode. */
+
+.pp-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2100;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    background: rgba(6, 10, 18, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    animation: pp-fade 0.25s ease;
+}
+@keyframes pp-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.pp-modal {
+    width: min(620px, 100%);
+    max-height: calc(100vh - 3rem);
+    overflow-y: auto;
+    padding: 1.5rem;
+    border-radius: 1rem;
+
+    background: linear-gradient(145deg, rgba(42, 55, 74, 0.96) 0%, rgba(31, 41, 55, 0.96) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    color: #d1d5db;
+    animation: pp-rise 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes pp-rise {
+    from { opacity: 0; transform: translateY(14px) scale(0.985); }
+    to   { opacity: 1; transform: none; }
+}
+
+.pp-eyebrow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+.pp-close {
+    padding: 0.1rem 0.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 3px;
+    background: none;
+    color: #6b7280;
+    font-family: inherit;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+.pp-close:hover { color: #e5e7eb; }
+
+.pp-modal h2 {
+    margin: 0 0 1.4rem;
+    font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+    font-size: clamp(1.2rem, 3.6vw, 1.5rem);
+    font-weight: 660;
+    letter-spacing: -0.022em;
+    line-height: 1.18;
+    color: #f1f5f9;
+}
+
+.pp-section { margin-bottom: 1.75rem; }
+.pp-section h3 {
+    margin: 0 0 0.8rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-family: var(--font-sans, sans-serif);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+
+/* ── The ledger ──────────────────────────────────────────────────────── */
+.pp-leave {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.36rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+}
+.pp-leave:last-child { border-bottom: none; }
+.pp-leave-k { color: #9ca3af; }
+.pp-leave-v { text-align: right; }
+.pp-leave.never .pp-leave-v { color: #4ade80; }
+.pp-leave.note  .pp-leave-v { color: #facc15; }
+
+/* ── File inventory ──────────────────────────────────────────────────── */
+.pp-dir {
+    margin-bottom: 0.75rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.4rem;
+    background: rgba(0, 0, 0, 0.25);
+    color: #9ca3af;
+    font-size: 0.76rem;
+    word-break: break-all;
+}
+.pp-files { display: flex; flex-direction: column; gap: 0.7rem; }
+.pp-file {
+    padding: 0.6rem 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 0.5rem;
+    background: rgba(0, 0, 0, 0.18);
+}
+.pp-file-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.2rem;
+}
+.pp-file-name { color: #e5e7eb; }
+.pp-file-size { color: #6b7280; flex: 0 0 auto; }
+.pp-file-path {
+    color: #6b7280;
+    font-size: 0.72rem;
+    word-break: break-all;
+}
+.pp-file-meta {
+    margin-top: 0.28rem;
+    color: #9ca3af;
+    font-size: 0.72rem;
+}
+
+/* ── Actions ─────────────────────────────────────────────────────────── */
+.pp-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.pp-btn {
+    font-family: inherit;
+    font-size: 0.8rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid rgba(248, 113, 113, 0.28);
+    background: rgba(248, 113, 113, 0.1);
+    color: #fca5a5;
+}
+.pp-btn:hover:not(:disabled) {
+    background: rgba(248, 113, 113, 0.18);
+    border-color: rgba(248, 113, 113, 0.45);
+}
+.pp-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.pp-btn-warn {
+    border-color: rgba(250, 204, 21, 0.28);
+    background: rgba(250, 204, 21, 0.1);
+    color: #fde68a;
+}
+.pp-btn-warn:hover:not(:disabled) {
+    background: rgba(250, 204, 21, 0.18);
+    border-color: rgba(250, 204, 21, 0.45);
+}
+.pp-btn:focus-visible, .pp-close:focus-visible {
+    outline: 2px solid rgb(var(--color-primary-rgb, 59, 130, 246));
+    outline-offset: 2px;
+}
+
+.pp-foot {
+    margin: 0.9rem 0 0;
+    font-family: var(--font-sans, sans-serif);
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: #6b7280;
+}
+
+.pp-error {
+    margin-bottom: 1.2rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-radius: 0.5rem;
+    background: rgba(248, 113, 113, 0.08);
+    color: #fca5a5;
+    font-size: 0.78rem;
+}
+.pp-loading { color: #6b7280; padding: 1.5rem 0; }
+
+@media (max-width: 480px) {
+    .pp-modal { padding: 1.15rem; font-size: 0.78rem; }
+    .pp-leave { flex-direction: column; gap: 0.1rem; }
+    .pp-leave-v { text-align: left; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pp-overlay, .pp-modal { animation: none; }
+}

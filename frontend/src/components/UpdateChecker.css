@@ -63,6 +63,63 @@
     animation: pulse-glow 2s ease-in-out infinite;
 }
 
+/* Bell glyph needs to sit above the matrix layer — it's the only unpositioned
+   child, so an absolutely-positioned sibling would otherwise paint over it */
+.update-icon-btn svg {
+    position: relative;
+    z-index: 1;
+}
+
+/* ========================================
+   MATRIX RAIN — tiny code glyphs falling behind the bell.
+   Clipped to its own inset circle (not the button) so the glow on the
+   glyphs never bleeds past the button's edge, and the button's own
+   shadow/hover treatment stays untouched.
+   ======================================== */
+.matrix-rain {
+    position: absolute;
+    inset: 1px;
+    border-radius: 50%;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.matrix-col {
+    position: absolute;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 6px;
+    line-height: 1.15;
+    color: #00ff6a;
+    text-shadow: 0 0 2px rgba(0, 255, 106, 0.85), 0 0 5px rgba(0, 255, 106, 0.45);
+    transform: translateY(-100%);
+    animation-name: matrix-fall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+}
+
+/* Lead glyph brightest, trailing glyphs fade — classic rain streak */
+.matrix-col span:first-child { opacity: 0.3; }
+.matrix-col span:nth-child(2) { opacity: 0.55; }
+.matrix-col span:nth-child(3) { opacity: 0.8; }
+.matrix-col span:last-child { opacity: 1; }
+
+@keyframes matrix-fall {
+    from { transform: translateY(-100%); }
+    to { transform: translateY(160%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .matrix-col {
+        animation: none;
+        transform: translateY(20%);
+        opacity: 0.5;
+    }
+}
+
 @keyframes pulse-glow {
     0%, 100% {
         box-shadow: 
@@ -517,4 +574,72 @@
 .btn-check-updates:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+}
+
+/* ========================================
+   MCP CARD — permanent entry point into the
+   Claude setup flow, shown in both branches
+   ======================================== */
+.mcp-card {
+    margin-top: 0.85rem;
+    padding: 0.85rem 1rem 0.9rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+.mcp-card-head {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.35rem;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.92);
+}
+.mcp-card-head svg { color: rgb(var(--color-primary-rgb)); flex: 0 0 auto; }
+
+.mcp-card-body {
+    margin: 0 0 0.7rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.mcp-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.btn-mcp-setup {
+    padding: 0.35rem 0.8rem;
+    border: none;
+    border-radius: 0.45rem;
+    background: var(--color-gradient, linear-gradient(135deg, #3b82f6, #06b6d4));
+    color: #06121f;
+    font-family: inherit;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.2s ease;
+}
+.btn-mcp-setup:hover { filter: brightness(1.1); }
+
+.btn-mcp-privacy {
+    margin-left: auto;
+    padding: 0.2rem 0;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    background: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: inherit;
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+.btn-mcp-privacy:hover { color: rgba(255, 255, 255, 0.85); }
+
+.btn-mcp-setup:focus-visible,
+.btn-mcp-privacy:focus-visible {
+    outline: 2px solid rgb(var(--color-primary-rgb));
+    outline-offset: 2px;
 }

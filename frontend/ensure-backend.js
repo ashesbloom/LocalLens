@@ -1,6 +1,23 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { isStale } from './backendFreshness.js';
+
+const BACKEND_SRC = path.join('..', 'backend');
+
+// Refuse to bundle a backend older than the Python it was built from. Without
+// this the copy succeeds and the stale binary ships silently.
+const refuseIfStale = (builtBinary) => {
+  if (!isStale(builtBinary, [BACKEND_SRC])) return;
+  console.error(`
+[Dev Setup] ERROR: backend sources are newer than the built backend.
+            Bundling this would ship a stale backend. Rebuild it first:
+
+              cd backend && ./venv/bin/python -m PyInstaller backend_server.spec --clean --noconfirm
+              cd ../frontend && node ensure-backend.js
+`);
+  process.exit(1);
+};
 
 // Map Node.js platform/arch to Rust target triples
 const getTargetTriple = () => {
@@ -58,7 +75,8 @@ if (platform === 'darwin') {
   
   if (fs.existsSync(builtFolderPath) && fs.existsSync(actualBinaryInFolder)) {
     console.log(`[Dev Setup] Found one-folder backend at: ${builtFolderPath}`);
-    
+    refuseIfStale(actualBinaryInFolder);
+
     // Copy entire folder to src-tauri
     console.log(`[Dev Setup] Copying folder to: ${targetFolderPath}`);
     if (fs.existsSync(targetFolderPath)) {
@@ -115,6 +133,7 @@ exec "$BUNDLE_DIR/backend_server" "$@"
   
   if (fs.existsSync(builtBackendPath)) {
     console.log(`[Dev Setup] Found built backend at: ${builtBackendPath}`);
+    refuseIfStale(builtBackendPath);
     console.log(`[Dev Setup] Copying to: ${binaryPath}`);
     fs.copyFileSync(builtBackendPath, binaryPath);
     

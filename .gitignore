@@ -35,6 +35,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 presets/
+.agents/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -45,6 +46,7 @@ presets/
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+
 
 # Unit test / coverage reports
 htmlcov/
@@ -230,6 +232,7 @@ backend_server-x86_64-apple-darwin
 backend_server-i686-unknown-linux-gnu
 website/
 locallens_mcp_agent/
+locallens_mcp_agent_v1/
 backend/launch_daemon.command
 about/
 

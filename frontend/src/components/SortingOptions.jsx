@@ -176,13 +176,13 @@ const SortingOptions = ({ sortMethod, setSortMethod, isProcessing, isEnrolled, e
                         data-tutorial-target="face-mode-dropdown"
                     >
                         <option value="fast" data-tutorial-target="face-mode-fast">Fast - Recommended for large sets of photos</option>
-                        <option value="balanced" data-tutorial-target="face-mode-balanced">Balanced - Almost similar to fast mode (slightly more accurate)</option>
-                        <option value="accurate" data-tutorial-target="face-mode-accurate">Accurate - For intensive face detection only</option>
+                        <option value="balanced" data-tutorial-target="face-mode-balanced">Balanced - Also catches sideways and untagged photos</option>
+                        <option value="accurate" data-tutorial-target="face-mode-accurate">Accurate - Last-resort deep scan for anything still missed</option>
                     </select>
                     <p className="description">
-                        {faceMode === 'accurate' && "Best for finding small or distant faces in group photos (⏱️ Very slow processing)"}
-                        {faceMode === 'fast' && "Works great with clear, close-up face photos (⚡ Fast processing)"}
-                        {faceMode === 'balanced' && "Perfect balance of speed and accuracy for most photos (⚖️ Moderate processing speed)"}
+                        {faceMode === 'accurate' && "Everything Balanced does, plus a slow deep scan of the photos it still found nothing in (⏱️ Slowest)"}
+                        {faceMode === 'fast' && "Full-quality detection, retried at higher resolution for small or distant faces (⚡ Fast processing)"}
+                        {faceMode === 'balanced' && "Adds a rotated retry, for photos whose orientation tag is missing or wrong (⚖️ Recommended)"}
                     </p>
                 </div>
             )}

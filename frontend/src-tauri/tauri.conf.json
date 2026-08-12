@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Local Lens",
-  "version": "2.5.1",
+  "version": "3.0.0",
   "identifier": "ashes.locallens",
   "build": {
     "beforeDevCommand": "pnpm run dev:pre && pnpm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm run build",
+    "beforeBuildCommand": "pnpm run dev:pre && pnpm run build",
     "frontendDist": "../dist"
   },
   "app": {

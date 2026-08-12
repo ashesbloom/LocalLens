@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-08-13
+### Added
+
+- **LocalLens AI Agent**: LocalLens now talks to Claude Desktop, so you can organize your photos by asking in plain English — sort by who's in them, pull every shot from a place and year, find duplicates, or set a folder to sort itself. Nothing uploads: the agent runs on your machine and only ever reaches LocalLens at 127.0.0.1. Set it up from the bell icon, or from the panel on first launch.
+- **Privacy panel**: a new "what we store" view lists every file LocalLens keeps on your machine and what (if anything) ever leaves it, with one-click buttons to erase the photo index or your AI profile.
+- Every Pro feature is unlocked for everyone while the agent is in free preview — install now and it stays free for you.
+
+### Fixed
+
+- **Face recognition accuracy**: enrollment and sorting used to process photos differently, which could silently file photos of enrolled people under "Unknown Faces." Both now share one pipeline and detect sideways or tilted photos — People sorts are also considerably faster, running in parallel with results cached across re-sorts.
+- **Ignored subfolders**: a subfolder marked "ignore" was not fully excluded if it contained its own subfolders — nested content could still be scanned and sorted. Ignored folders are now excluded completely, contents included.
+- **Permanent deletions**: duplicate-photo deletion always permanently removed files — the code to send them to the Trash/Recycle Bin instead already existed but the required package was never bundled. It's now included, so deletions are safe by default.
+
+### Changed
+
+- People sorts on macOS now share disk blocks between copies of the same photo instead of duplicating it for every matched person, freeing up real space on nearly-full drives.
+- Enrollment now accepts every photo format LocalLens can already sort (HEIC, RAW, etc.), not just JPG/PNG.
+- The scheduler dashboard's Start/Stop/Restart controls are disabled for now — manage the background scheduler from the LocalLens Agent tray app instead. This also fixes duplicate backend processes piling up over time.
+
 ## [2.5.1] - 2026-07-24
 
 ### Fixed

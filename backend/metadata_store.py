@@ -21,6 +21,7 @@ import json
 import logging
 import sqlite3
 import hashlib
+import pickle
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -121,6 +122,33 @@ CREATE TABLE IF NOT EXISTS compaction_log (
     ran_at       TEXT NOT NULL DEFAULT (datetime('now')),
     rows_deleted INTEGER,
     threshold_months INTEGER
+);
+
+-- Face encoding cache ------------------------------------------------------
+-- Detecting and encoding faces costs 0.15-1s per photo and is by far the most
+-- expensive part of a People sort. Re-sorting a folder, or the scheduler
+-- revisiting one nightly, used to redo all of it.
+--
+-- Encodings are cached, not names: names depend on who is enrolled, so they go
+-- stale the moment someone is added. Matching an encoding against the gallery is
+-- a single numpy op, so it is re-run every time and stays correct.
+--
+-- A row is only valid for the (size, mtime) it was computed from, so an edited
+-- photo is always re-read. passes_run records how deep the detection ladder went,
+-- which is what makes a cheap 'fast' scan finding nothing not count as proof for
+-- a deeper 'accurate' scan.
+CREATE TABLE IF NOT EXISTS face_cache (
+    path           TEXT    NOT NULL,
+    file_size      INTEGER NOT NULL,
+    file_mtime     REAL    NOT NULL,
+    engine_version INTEGER NOT NULL,
+    status         TEXT    NOT NULL,   -- 'ok' | 'no_face' | 'unreadable'
+    pass_used      INTEGER NOT NULL,   -- ladder pass that succeeded, 0 if none
+    passes_run     INTEGER NOT NULL,   -- how many passes were executed
+    encodings      BLOB,               -- pickled list of numpy arrays
+    cached_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+
+    PRIMARY KEY (path, engine_version)
 );
 """
 
@@ -421,6 +449,115 @@ class MetadataStore:
         except Exception as e:
             _log.error(f"get_stats failed: {e}")
             return {"error": str(e)}
+
+    # ── Face encoding cache ─────────────────────────────────────────────────
+    #
+    # Only ever touched from the parent process. Worker processes doing the
+    # detection stay pure compute, so there is exactly one writer and no lock
+    # contention to reason about.
+
+    def face_cache_get_many(self, paths: List[str], engine_version: int,
+                            ladder_length: int) -> Dict[str, Dict[str, Any]]:
+        """
+        Cached face results for `paths`, keyed by path. Missing/stale paths are absent.
+
+        A row only counts as a hit if it is at least as authoritative as the scan
+        being asked for:
+          - a success is reusable when the pass that found the face is one this
+            request would also have run
+          - a "no face" is reusable only when the cached scan ran at least as many
+            passes as this request would
+
+        The ladders are prefixes of one another (fast ⊂ balanced ⊂ accurate), which
+        is what makes that comparison sound.
+        """
+        if not paths:
+            return {}
+
+        found: Dict[str, Dict[str, Any]] = {}
+        try:
+            stats = {}
+            for path in paths:
+                try:
+                    st = os.stat(path)
+                    stats[path] = (st.st_size, st.st_mtime)
+                except OSError:
+                    continue
+            if not stats:
+                return {}
+
+            with self._connect() as conn:
+                # Chunked to stay clear of SQLite's variable limit on huge folders.
+                items = list(stats.keys())
+                for start in range(0, len(items), 400):
+                    chunk = items[start:start + 400]
+                    placeholders = ",".join("?" * len(chunk))
+                    rows = conn.execute(
+                        f"SELECT path, file_size, file_mtime, status, pass_used, passes_run, encodings "
+                        f"FROM face_cache WHERE engine_version = ? AND path IN ({placeholders})",
+                        [engine_version] + chunk,
+                    ).fetchall()
+
+                    for row in rows:
+                        size, mtime = stats[row["path"]]
+                        if row["file_size"] != size or abs(row["file_mtime"] - mtime) > 1e-6:
+                            continue  # file changed on disk
+                        if row["status"] == "ok":
+                            if row["pass_used"] > ladder_length:
+                                continue  # found by a pass this request would not run
+                        elif row["passes_run"] < ladder_length:
+                            continue  # cached scan was shallower than this request
+
+                        encodings = []
+                        if row["encodings"]:
+                            try:
+                                encodings = pickle.loads(row["encodings"])
+                            except Exception:
+                                continue
+                        found[row["path"]] = {
+                            "status": row["status"],
+                            "encodings": encodings,
+                            "pass_used": row["pass_used"],
+                            "passes_run": row["passes_run"],
+                        }
+        except Exception as e:
+            _log.warning(f"face_cache_get_many failed, falling back to a full scan: {e}")
+            return {}
+
+        return found
+
+    def face_cache_put(self, path: str, engine_version: int, result: Dict[str, Any]) -> None:
+        """Store one detection result. Never raises: a cache miss must not fail a sort."""
+        try:
+            st = os.stat(path)
+        except OSError:
+            return
+        try:
+            blob = pickle.dumps(result.get("encodings") or [], protocol=pickle.HIGHEST_PROTOCOL)
+            with self._connect() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO face_cache "
+                    "(path, file_size, file_mtime, engine_version, status, pass_used, passes_run, encodings) "
+                    "VALUES (?,?,?,?,?,?,?,?)",
+                    (path, st.st_size, st.st_mtime, engine_version,
+                     result.get("status", "no_face"), int(result.get("pass_used", 0)),
+                     int(result.get("passes_run", 0)), blob),
+                )
+                conn.commit()
+        except Exception as e:
+            _log.debug(f"face_cache_put skipped for {os.path.basename(path)}: {e}")
+
+    def face_cache_clear(self) -> int:
+        """Drop every cached encoding. Returns the number of rows removed."""
+        try:
+            with self._connect() as conn:
+                count = conn.execute("SELECT COUNT(*) FROM face_cache").fetchone()[0]
+                conn.execute("DELETE FROM face_cache")
+                conn.commit()
+            return int(count)
+        except Exception as e:
+            _log.warning(f"face_cache_clear failed: {e}")
+            return 0
 
     # ── Self-optimization: Compaction ───────────────────────────────────────
 

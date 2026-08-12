@@ -130,7 +130,7 @@ async def require_local_token(x_local_token: Optional[str] = Header(None)) -> No
 from organizer_logic import (
     process_photos, SUPPORTED_EXTENSIONS, 
     load_face_encodings, find_and_group_photos, get_metadata_overview, 
-    initialize_libraries, build_folder_tree
+    initialize_libraries, build_folder_tree, walk_ignoring, effective_ignore_set
 )
 import organizer_logic
 from enrollment_logic import update_encodings
@@ -264,6 +264,9 @@ current_job_state = {
     "filters_applied": None,    # Dict summarising active filters (years, months, locations, people)
     # --- File scope ---
     "total_files": 0,           # Total supported photo files found in source (respects ignore list)
+    "files_written": 0,         # Files actually written to the destination. NOT the same as
+                                # total_files: a People sort fans one source photo out to
+                                # every enrolled person in it, so writes can exceed sources.
     "ignore_list": [],          # Folders excluded from this job
 }
 
@@ -277,7 +280,7 @@ cancellation_events = {
 
 # --- Application Version ---
 # Canonical version string — keep this in sync with frontend/package.json and tauri.conf.json.
-APP_VERSION = "2.5.1"
+APP_VERSION = "3.0.0"
 
 # --- FastAPI App Initialization ---
 app = FastAPI(
@@ -410,6 +413,12 @@ def update_status_callback(update_data: Dict):
     current_job_state["status"] = st
     current_job_state["is_active"] = st == "running"
 
+    # The job's final write count rides in on the completing update's analytics dict,
+    # so it is visible the instant status flips to "complete" (no polling race).
+    written = (update_data.get("analytics") or {}).get("files_written")
+    if written is not None:
+        current_job_state["files_written"] = written
+
     try:
         # Use put_nowait for thread-safe adding from background tasks
         log_queue.put_nowait(json.dumps(update_data))
@@ -417,18 +426,20 @@ def update_status_callback(update_data: Dict):
         print(f"Error adding log to queue: {e}")
 
 
-def _count_source_files(source_folder: str, ignore_list: list) -> int:
+def _count_source_files(source_folder: str, ignore_list: list, destination_folder: str = None) -> int:
     """
     Counts all supported image files inside source_folder, honouring ignore_list.
     Mirrors the exact os.walk filtering logic used by the core processing functions
     so the count matches what the job will actually process.
+
+    destination_folder must be passed whenever it is known: effective_ignore_set drops
+    a destination nested inside the source, and this precount has to apply the identical
+    set the copy loop will, or the two numbers diverge.
     """
-    ignore_set = set(ignore_list or [])
+    ignore_set = effective_ignore_set(source_folder, destination_folder, ignore_list)
     count = 0
     try:
-        for dirpath, _, filenames in os.walk(source_folder):
-            if dirpath in ignore_set:
-                continue  # Skip files in this ignored directory
+        for dirpath, _, filenames in walk_ignoring(source_folder, ignore_set):
             count += sum(
                 1 for f in filenames
                 if f.lower().endswith(SUPPORTED_EXTENSIONS)
@@ -507,7 +518,10 @@ async def run_organization_task(config: Dict):
         "filters_applied": filters_applied,
         # File scope
         "ignore_list": ignore_list,
-        "total_files": _count_source_files(config.get("source_folder", ""), ignore_list),
+        "total_files": _count_source_files(
+            config.get("source_folder", ""), ignore_list, config.get("destination_folder")
+        ),
+        "files_written": 0,  # Reset: a stale count from the last job must not leak through.
     })
 
     try:
@@ -578,7 +592,10 @@ async def run_find_group_task(config: Dict):
         "primary_sort": None,
         # File scope
         "ignore_list": ignore_list,
-        "total_files": _count_source_files(config.get("source_folder", ""), ignore_list),
+        "total_files": _count_source_files(
+            config.get("source_folder", ""), ignore_list, config.get("destination_folder")
+        ),
+        "files_written": 0,  # Reset: a stale count from the last job must not leak through.
     })
     target_folder = None
     try:
@@ -723,21 +740,10 @@ async def list_subfolders(request: SubfolderRequest):
         file_count = 0
         folder_count = 0
         
-        # CORRECTED LOGIC: Walk the entire directory tree to accurately count items.
-        # This now matches the behavior of the core processing logic.
-        for dirpath, dirnames, filenames in os.walk(source_path):
-            # Count folders that are NOT in the ignore list.
-            # We check this by iterating through the children of the current dirpath.
-            for d in dirnames:
-                if os.path.join(dirpath, d) not in ignore_set:
-                    folder_count += 1
-
-            # If the current directory itself is ignored, skip counting its files,
-            # but allow os.walk to continue into its subdirectories (like 'B' inside 'A').
-            if dirpath in ignore_set:
-                continue
-            
-            # If the directory is not ignored, count its supported files.
+        # Counts must match what the job will actually process, so ignored subtrees are
+        # pruned entirely — their nested folders and files count for nothing.
+        for dirpath, dirnames, filenames in walk_ignoring(source_path, ignore_set):
+            folder_count += len(dirnames)  # Already pruned of ignored children.
             file_count += len([f for f in filenames if f.lower().endswith(SUPPORTED_EXTENSIONS)])
 
         return {
@@ -1022,9 +1028,7 @@ async def find_duplicates_endpoint(request: FindDuplicatesRequest):
 
     # --- Collect all supported image files ---
     image_files = []
-    for dirpath, _, filenames in os.walk(source_folder):
-        if dirpath in ignore_set:
-            continue
+    for dirpath, _, filenames in walk_ignoring(source_folder, ignore_set):
         for f in filenames:
             if f.lower().endswith(SUPPORTED_EXTENSIONS):
                 image_files.append(os.path.join(dirpath, f))
@@ -1104,9 +1108,7 @@ async def export_report_endpoint(request: ExportReportRequest):
     subfolder_count = 0
     subfolder_list = []
 
-    for dirpath, dirnames, filenames in os.walk(source_folder):
-        if dirpath in ignore_set:
-            continue
+    for dirpath, dirnames, filenames in walk_ignoring(source_folder, ignore_set):
         if dirpath != source_folder:
             subfolder_count += 1
             subfolder_list.append(os.path.relpath(dirpath, source_folder))
@@ -1571,49 +1573,17 @@ async def scheduler_logs(lines: int = 50):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-class DaemonCommandRequest(BaseModel):
-    command: str
-
-@app.post("/api/scheduler/daemon-command")
-async def daemon_command(request: DaemonCommandRequest):
-    """Run a daemon CLI command (start, stop, status)."""
-    if request.command not in ("start", "stop", "status", "restart"):
-        raise HTTPException(status_code=400, detail="Invalid command")
-    try:
-        import subprocess
-        import sys
-        # Use the same python executable as the backend
-        python = sys.executable
-        # We use Popen instead of run for 'start' so it runs in background
-        if request.command in ("start", "restart"):
-            # Launch silently — output goes to scheduler.log, no terminal window
-            log_file = APP_DATA_DIR / "scheduler.log"
-            log_handle = open(log_file, 'a')
-            env = os.environ.copy()
-            env["PYTHONUNBUFFERED"] = "1"
-            kwargs = {
-                "stdout": log_handle,
-                "stderr": subprocess.STDOUT,
-                "cwd": os.path.dirname(os.path.abspath(__file__)),
-                "env": env,
-            }
-            if sys.platform == "win32":
-                kwargs["creationflags"] = (
-                    subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
-                )
-            else:
-                kwargs["start_new_session"] = True
-            subprocess.Popen([python, "scheduler_daemon.py", request.command], **kwargs)
-            return {"status": f"Command '{request.command}' dispatched."}
-        else:
-            result = subprocess.run(
-                [python, "scheduler_daemon.py", request.command],
-                cwd=os.path.dirname(os.path.abspath(__file__)),
-                capture_output=True, text=True
-            )
-            return {"status": "success", "output": result.stdout + result.stderr}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# REMOVED: /api/scheduler/daemon-command endpoint.
+#
+# Bug: In frozen (PyInstaller) builds sys.executable IS the backend binary, so
+# [sys.executable, "scheduler_daemon.py", "start"] boots a second full backend
+# server instead of the daemon.  That clone overwrites port.txt, hijacks port
+# discovery, and cascades — we observed 3 backend processes spawning in the wild.
+#
+# The MCP agent's _launch_daemon_script() (pro_tools.py) already avoids this
+# endpoint and resolves a real Python interpreter from the venv.  Nothing in the
+# frontend calls this endpoint.  Use the MCP tool or the tray app to manage the
+# daemon instead.
 
 @app.get("/api/scheduler/{schedule_id}")
 async def get_schedule(schedule_id: str):

@@ -25,13 +25,27 @@ import InputModal from './components/InputModal';
 import UpdateChecker from './components/UpdateChecker'; // <-- ADD: Auto-update notification
 import TutorialOverlay from './components/TutorialOverlay'; // <-- ADD THIS
 import TutorialMenu from './components/TutorialMenu'; // <-- ADD THIS
+import McpAnnounce from './components/McpAnnounce';
+import { advance, canAnnounce, initialGate } from './components/announceGate';
+import PrivacyPanel from './components/PrivacyPanel';
 import { useTutorial } from './context/TutorialContext'; // <-- ADD THIS
 import { version } from '../package.json';
 
 import './App.css';
 
 function App() {
-    const { startTutorial: startTutorialBase, isDemoMode, currentStep } = useTutorial();
+    const { startTutorial: startTutorialBase, isDemoMode, currentStep, isActive: isTutorialActive } = useTutorial();
+
+    // Whose turn it is to talk to the user. On a brand-new install the tutorial
+    // auto-starts 800ms after mount while the MCP announcement opens on its
+    // first render, so both used to land on top of each other. This gate makes
+    // the announcement wait: 'idle' for a returning user, 'waiting' from the
+    // moment we know a first-run tutorial is coming, then 'running' -> 'done'.
+    // It deliberately does not reuse isFirstTimeTutorial, which never clears
+    // for a user who has no previous config to restore — exactly a new user.
+    const [tutorialGate, setTutorialGate] = useState(
+        () => initialGate(localStorage.getItem('has_seen_tutorial'))
+    );
     // --- State Management ---
     // Use localStorage to avoid UI flash on reload
     const getInitialOperationMode = () => {
@@ -104,6 +118,9 @@ function App() {
     const [backendPort, setBackendPort] = useState(null);
     const [isBackendReady, setIsBackendReady] = useState(false);
     const startupRan = useRef(false);
+
+    // --- MCP announcement & privacy inventory ---
+    const [showPrivacyPanel, setShowPrivacyPanel] = useState(false);
 
     // --- NEW State for Subfolders ---
     const [subfolders, setSubfolders] = useState([]);
@@ -628,6 +645,13 @@ function App() {
         };
         restoreConfig();
     }, [isDemoMode, isFirstTimeTutorial, stashedConfig]);
+
+    // Advance the announcement gate as the tutorial starts and ends. Also
+    // covers a returning user opening the tutorial from the menu while the
+    // announcement is up.
+    useEffect(() => {
+        setTutorialGate(gate => advance(gate, isTutorialActive));
+    }, [isTutorialActive]);
 
     // Effect 3: Log scrolling effect
     useEffect(() => {
@@ -1628,7 +1652,11 @@ function App() {
                 />
 
                 {/* Update Checker - Top Left Notification */}
-                <UpdateChecker currentVersion={version} />
+                <UpdateChecker
+                    currentVersion={version}
+                    backendPort={backendPort}
+                    onShowPrivacy={() => setShowPrivacyPanel(true)}
+                />
 
                 {/* Tutorial Menu - with step selection dropdown */}
                 <TutorialMenu 
@@ -1664,6 +1692,22 @@ function App() {
                         <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
                     </svg>
                 </button>
+
+                {/* Dev-only: wipe first-run state (tutorial, MCP announce, operation mode).
+                    import.meta.env.DEV is false in `vite build`, so this is stripped from releases. */}
+                {import.meta.env.DEV && (
+                    <button
+                        className="btn-dev-reset"
+                        onClick={() => { localStorage.clear(); window.location.reload(); }}
+                        title="Clear local state and reload (dev only)"
+                        aria-label="Clear local state and reload"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <polyline points="1,4 1,10 7,10"></polyline>
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                        </svg>
+                    </button>
+                )}
             </div>
 
             {/* Exit Confirmation Modal */}
@@ -2013,6 +2057,19 @@ function App() {
                 }}
             />
             <TutorialOverlay />
+
+            {canAnnounce(tutorialGate) && (
+                <McpAnnounce
+                    backendPort={backendPort}
+                    onShowPrivacy={() => setShowPrivacyPanel(true)}
+                />
+            )}
+            {showPrivacyPanel && (
+                <PrivacyPanel
+                    backendPort={backendPort}
+                    onClose={() => setShowPrivacyPanel(false)}
+                />
+            )}
         </div>
     );
 }

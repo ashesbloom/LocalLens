@@ -28,12 +28,17 @@ except Exception:
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 import tempfile
-from multiprocessing import Pool, TimeoutError as MultiprocessingTimeoutError
+from multiprocessing import Pool
 import time
 
 
 # --- Custom Exception Import ---
 from exceptions import OperationAbortedError
+
+# --- Face pipeline ---
+# Shared with enrollment_logic so the gallery and the query encodings are
+# produced by identical image handling.
+import face_engine
 
 # --- REVERT: REMOVE ALL MULTIPROCESSING WORKER FUNCTIONS ---
 
@@ -129,26 +134,20 @@ import reverse_geocoder as rg
 # os.makedirs(PRESETS_FOLDER, exist_ok=True)
 # PATHS_FILE_NAME = os.path.join(PRESETS_FOLDER, "paths.json")
 
-SUPPORTED_EXTENSIONS = (
-    # Standard formats
-    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.tif', '.webp',
-    # Apple formats
-    '.heic', '.heif',
-    # Raw formats
-    '.dng', '.cr2', '.cr3', '.nef', '.arw', '.raf',
-    # Modern formats
-    '.avif',
-    # Professional / HDR formats
-    '.psd', '.hdr'
-)
+# Defined in face_engine so the enroller can use the same list without importing
+# this module. Re-exported under the name the rest of the app already imports.
+SUPPORTED_EXTENSIONS = face_engine.SUPPORTED_EXTENSIONS
 
 UNKNOWN_DATE_FOLDER_NAME = "Unknown_Date"
 UNKNOWN_LOCATION_FOLDER_NAME = "Unknown_Location"
 UNKNOWN_PEOPLE_FOLDER_NAME = "Unknown_Faces"
 NO_FACES_FOLDER_NAME = "No_Faces_Found"
 
-FACE_RECOGNITION_TOLERANCE = 0.55
-RESIZE_WIDTH_FOR_PROCESSING = 800
+# Owned by face_engine now (the enroller needs the same value). Re-exported here
+# because this module has always been the place other code looked for it.
+# RESIZE_WIDTH_FOR_PROCESSING is gone: the engine scales by long edge through a
+# ladder of passes instead of forcing every image to one fixed width.
+FACE_RECOGNITION_TOLERANCE = face_engine.FACE_RECOGNITION_TOLERANCE
 
 # ==============================================================================
 #  Preset & Configuration Handling
@@ -262,6 +261,92 @@ def get_location(exif_data):
         logging.warning(f"Could not extract location due to corrupted GPS metadata: {e}")
         return None
 
+def _norm(p):
+    """
+    Canonical form for ignore-path comparison. abspath() also collapses trailing
+    separators and redundant components, so '~/Photos', 'Photos/' and relative paths
+    all reduce to the same string in one call.
+
+    ponytail: normcase is a no-op on POSIX, so two paths differing only in case are
+    not matched on macOS. Deliberate — forcing .lower() would ignore the WRONG folder
+    on a case-sensitive APFS volume. Every real ignore_list value comes from
+    build_folder_tree(), so case already matches exactly. Revisit only if paths start
+    arriving from somewhere that retypes them.
+    """
+    return os.path.normcase(os.path.abspath(os.path.expanduser(p)))
+
+
+def effective_ignore_set(source_dir, dest_dir, ignore_list):
+    """
+    Normalised ignore set, plus dest_dir when it nests strictly inside source_dir.
+
+    Without that guard, sorting into a subfolder of the source makes the job ingest
+    its own output on the next run. Not added when dest == source, which would
+    exclude everything.
+
+    Every enumeration that knows both paths must build its set here, so the
+    total_files precount and the copy loop can never disagree on scope.
+    """
+    ignore_set = {_norm(p) for p in (ignore_list or [])}
+    if source_dir and dest_dir:
+        s, d = _norm(source_dir), _norm(dest_dir)
+        try:
+            if d != s and os.path.commonpath([s, d]) == s:
+                ignore_set.add(d)
+        except ValueError:
+            pass  # Different Windows drives — cannot nest.
+    return ignore_set
+
+
+def _is_ignored(path, ignore_set):
+    """
+    True when path IS an ignored directory or lives inside one.
+    `ignore_set` must already be normalised (see effective_ignore_set).
+
+    Used by the post-move source cleanup, which deletes files — both sides of the
+    comparison must be normalised there or an ignored subtree could be destroyed.
+    """
+    p = _norm(path)
+    for ig in ignore_set:
+        if p == ig:
+            return True
+        try:
+            if os.path.commonpath([p, ig]) == ig:
+                return True
+        except ValueError:
+            continue  # Different Windows drives — cannot be inside.
+    return False
+
+
+def walk_ignoring(root, ignore_set):
+    """
+    os.walk that prunes ignored subtrees, instead of only skipping their direct files.
+
+    `ignore_set` holds full paths — the same values build_folder_tree() puts in each
+    node's "path", which is what the UI sends back as the ignore_list.
+
+    A bare `if dirpath in ignore_set: continue` is not enough: os.walk still descends
+    into the ignored folder's children, whose dirpaths are not in the set. Sorted output
+    always nests (Sorted_By_People/Mayank/...), so an ignored folder holds zero direct
+    files and such a filter excludes nothing at all.
+    """
+    # Normalise here rather than trusting callers: a single trailing slash or '~' in
+    # the incoming list would otherwise silently disable the whole filter. _norm is
+    # idempotent, so an already-normalised set costs nothing.
+    ignore_set = {_norm(p) for p in ignore_set}
+    for dirpath, dirnames, filenames in os.walk(root):
+        if _norm(dirpath) in ignore_set:
+            # Only reachable when the walk root itself is ignored — ignored children are
+            # pruned below before os.walk can descend into them. Stop the whole subtree.
+            dirnames[:] = []
+            continue
+        # Slice-assign: os.walk reads back this same list object to decide where to
+        # descend, so rebinding the name (dirnames = ...) would silently do nothing.
+        dirnames[:] = [d for d in dirnames if _norm(os.path.join(dirpath, d)) not in ignore_set]
+        # Yield the raw dirpath — callers join real filenames onto it.
+        yield dirpath, dirnames, filenames
+
+
 def build_folder_tree(root_path):
     """
     NEW: Recursively builds a hierarchical tree of subdirectories.
@@ -300,8 +385,7 @@ def get_metadata_overview(source_dir, ignore_list=None, encodings_path=None, sca
     """
     locations, people = set(), set()
     date_structure = {} # Changed from a simple set of years to a dict
-    # FIX: The ignore_list contains folder names, not full paths.
-    # This ensures the check later on is correct.
+    # ignore_list holds full paths (see walk_ignoring / build_folder_tree).
     ignore_set = set(ignore_list) if ignore_list else set()
     
     # Pre-load known faces if an encodings path is provided
@@ -315,13 +399,7 @@ def get_metadata_overview(source_dir, ignore_list=None, encodings_path=None, sca
             logging.warning(f"Could not load face encodings for metadata overview: {e}")
 
     files_to_scan = []
-    # CORRECTED LOGIC: Walk the entire tree, then filter files based on their parent folder.
-    for dirpath, dirnames, filenames in os.walk(source_dir):
-        # Do not prune the walk. Instead, check each file's parent.
-        if dirpath in ignore_set:
-            # If the current directory is ignored, skip all files directly within it.
-            continue
-        
+    for dirpath, dirnames, filenames in walk_ignoring(source_dir, ignore_set):
         for f in filenames:
             if f.lower().endswith(SUPPORTED_EXTENSIONS):
                 files_to_scan.append(os.path.join(dirpath, f))
@@ -359,6 +437,110 @@ def get_metadata_overview(source_dir, ignore_list=None, encodings_path=None, sca
 #  File System Operations
 # ==============================================================================
 
+# --- Space-sharing copies ---------------------------------------------------
+# A People sort files one group photo under every person in it, so a photo with
+# four enrolled faces used to be written to disk four times. In 'copy' mode the
+# originals stay too, which made the sorted output a second full copy of the
+# library. On a nearly-full volume that is the difference between the feature
+# being usable and not.
+#
+# APFS can do better: clonefile(2) creates a genuinely independent file that
+# shares unchanged blocks with its source. Deleting or editing either side leaves
+# the other untouched - it is what Finder's "Duplicate" does - so the semantics
+# are identical to a copy and only the bytes are saved.
+#
+# Hardlinks are deliberately NOT used. They would save the same space, but every
+# link shares one inode, so the os.utime() call below (which stamps each file with
+# its EXIF date) would apply to all of them at once, and a user editing one copy
+# would silently change the others.
+#
+# Measuring this: `du` and Finder are the WRONG instruments. APFS does not expose
+# per-file block sharing, so four clones of a 20 MB photo still report 80 MB
+# there. Volume free space is the truth. Measured on this machine with
+# os.statvfs across four 60 MB files: clones consumed 0 MB, real copies consumed
+# 240 MB. Do not "fix" the counters to agree with du.
+
+_clonefile = None
+_clonefile_checked = False
+
+# Reset per job by _core_processing_loop. Safe as module state because the app
+# runs a single job at a time (there is one current_job_state in main.py).
+# ponytail: module-level counter. If concurrent jobs ever land, thread these
+# through handle_file_op's return value instead.
+_space_stats = {'cloned': 0, 'copied': 0, 'bytes_shared': 0}
+
+
+def _get_clonefile():
+    """Return macOS clonefile(2) via ctypes, or None where it is unavailable."""
+    global _clonefile, _clonefile_checked
+    if _clonefile_checked:
+        return _clonefile
+    _clonefile_checked = True
+    if sys.platform != 'darwin':
+        return None
+    try:
+        import ctypes
+        import ctypes.util
+        libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
+        fn = libc.clonefile
+        fn.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint32]
+        fn.restype = ctypes.c_int
+        _clonefile = fn
+    except Exception as e:
+        logging.info(f"clonefile unavailable, copies will be full byte copies: {e}")
+        _clonefile = None
+    return _clonefile
+
+
+def reset_space_stats():
+    """Clear the per-job clone counters."""
+    _space_stats.update({'cloned': 0, 'copied': 0, 'bytes_shared': 0})
+
+
+def format_space_savings():
+    """One clause describing what cloning saved, or '' when it saved nothing."""
+    cloned = _space_stats['cloned']
+    if not cloned:
+        return ""
+    saved = _space_stats['bytes_shared']
+    if saved >= 1024 ** 3:
+        size = f"{saved / 1024 ** 3:.2f} GB"
+    else:
+        size = f"{saved / 1024 ** 2:.0f} MB"
+    return f" {cloned} shared on disk instead of duplicated, saving {size}."
+
+
+def copy_preserving_space(source_path, destination_path):
+    """
+    Copy a file, sharing its blocks with the original where the filesystem allows.
+
+    Returns True when the file was cloned, False when a full byte copy was made.
+    A clone failure is never an error: EXDEV (different volume), ENOTSUP (not
+    APFS), Windows and Linux all fall through to shutil.copy2, which is exactly
+    the previous behaviour. Only a genuine copy failure raises.
+
+    clonefile carries timestamps, xattrs, ACLs and flags itself, so this is at
+    least as faithful as copy2 - and because a clone is its own inode, the
+    os.utime() stamp applied afterwards still affects only this file.
+    """
+    fn = _get_clonefile()
+    if fn is not None:
+        try:
+            if fn(os.fsencode(source_path), os.fsencode(destination_path), 0) == 0:
+                _space_stats['cloned'] += 1
+                try:
+                    _space_stats['bytes_shared'] += os.path.getsize(destination_path)
+                except OSError:
+                    pass
+                return True
+        except Exception:
+            pass  # fall through to a real copy
+
+    shutil.copy2(source_path, destination_path)
+    _space_stats['copied'] += 1
+    return False
+
+
 def handle_file_op(op, source_path, target_folder, new_filename, date_obj):
     os.makedirs(target_folder, exist_ok=True)
     destination_path = os.path.join(target_folder, new_filename)
@@ -370,7 +552,7 @@ def handle_file_op(op, source_path, target_folder, new_filename, date_obj):
         if counter == 1: logging.info(f"File '{new_filename}' already exists. Renaming to '{renamed_filename}'")
         counter += 1
     try:
-        if op == 'copy': shutil.copy2(source_path, destination_path)
+        if op == 'copy': copy_preserving_space(source_path, destination_path)
         elif op == 'move': shutil.move(source_path, destination_path)
         logging.info(f"{op.capitalize()}d '{os.path.basename(source_path)}' to '{destination_path}'")
         if date_obj:
@@ -403,139 +585,171 @@ def load_face_encodings(encodings_file):
     except Exception as e:
         raise IOError(f"Could not load or parse encodings file: {e}")
 
-def _recognize_faces_in_process(image_path, known_encodings, known_names, mode):
-    """
-    NEW: This function is designed to be run in a separate process.
-    It contains the blocking face_recognition call.
-    """
-    if not face_recognition: return []
-    try:
-        pil_image = Image.open(image_path).convert('RGB')
-        if pil_image.width > RESIZE_WIDTH_FOR_PROCESSING:
-            ratio = RESIZE_WIDTH_FOR_PROCESSING / float(pil_image.width)
-            new_height = int(float(pil_image.height) * ratio)
-            pil_image = pil_image.resize((RESIZE_WIDTH_FOR_PROCESSING, new_height), Image.Resampling.LANCZOS)
-        
-        image = np.array(pil_image)
-
-        model_to_use = 'cnn' if mode == 'accurate' else 'hog'
-        upsamples = 2 if mode == 'balanced' else 1
-
-        face_locations = face_recognition.face_locations(image, model=model_to_use, number_of_times_to_upsample=upsamples)
-
-        if not face_locations: return []
-        
-        face_encodings = face_recognition.face_encodings(image, face_locations)
-        found_names = set()
-        for face_encoding in face_encodings:
-            if not np.isfinite(face_encoding).all(): continue
-            matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=FACE_RECOGNITION_TOLERANCE)
-            name = "Unknown"
-            if True in matches:
-                face_distances = face_recognition.face_distance(known_encodings, face_encoding)
-                best_match_index = np.argmin(face_distances)
-                if matches[best_match_index] and face_distances[best_match_index] <= FACE_RECOGNITION_TOLERANCE:
-                    name = known_names[best_match_index]
-            found_names.add(name)
-        return list(found_names)
-    except Exception:
-        # Don't log here, as it can cause issues with multiprocessing.
-        # The parent process will handle the logging of the failure.
-        return None
-
-
 def recognize_faces(image_path, known_encodings, known_names, mode='balanced'):
     """
     The core AI function. It takes a single image and identifies all known
     people within it, with selectable accuracy modes.
 
-    MODIFIED: Now supports a wide range of formats, including Camera Raw files
-    (DNG, CR2, NEF, etc.) by using the 'rawpy' library to decode them.
+    The implementation now lives in face_engine, which the enroller shares so both
+    sides see the same picture (upright, same scale). This wrapper keeps the old
+    contract exactly: a list of names, [] when the photo has no face, None when
+    the file could not be decoded.
     """
-    if not face_recognition: return []
-    
-    pil_image = None
-    file_ext = os.path.splitext(image_path)[1].lower()
-    RAW_EXTENSIONS = ('.dng', '.cr2', '.cr3', '.nef', '.arw', '.raf')
+    return face_engine.recognize(image_path, known_encodings, known_names, mode)
 
-    try:
-        # First, try opening with Pillow. This works for most files, including
-        # JPG, PNG, WEBP, and AVIF/HEIC if the plugins are installed.
-        pil_image = Image.open(image_path)
-    
-    except Exception as e:
-        # If Pillow fails, check if it's a Raw file we can handle with rawpy or Wand.
-        if file_ext in RAW_EXTENSIONS:
-            # Try rawpy first (preferred)
-            if rawpy:
-                try:
-                    with rawpy.imread(image_path) as raw:
-                        # postprocess() creates a standard, viewable image array
-                        rgb_array = raw.postprocess()
-                    pil_image = Image.fromarray(rgb_array)
-                    logging.info(f"Successfully decoded Raw file '{os.path.basename(image_path)}' via rawpy.")
-                except Exception as raw_e:
-                    logging.warning(f"Could not process Raw file {os.path.basename(image_path)} with rawpy: {raw_e}")
 
-            # Try Wand if rawpy failed or is missing
-            if not pil_image and WandImage:
-                try:
-                    with WandImage(filename=image_path) as img:
-                        img_blob = img.make_blob(format='RGB')
-                        pil_image = Image.frombytes('RGB', (img.width, img.height), img_blob)
-                    logging.info(f"Successfully decoded Raw file '{os.path.basename(image_path)}' via Wand.")
-                except Exception as wand_e:
-                    logging.warning(f"Could not process Raw file {os.path.basename(image_path)} with Wand: {wand_e}")
+# ==============================================================================
+#  Parallel face recognition
+# ==============================================================================
+#
+# Detection is the expensive part of a People sort (0.15-1s per photo) and it used
+# to run one photo at a time, inline, on a single core. It is also pure compute
+# with no shared state, which makes it the one part of the loop that parallelises
+# cleanly. Everything that touches the filesystem stays in the main loop, in the
+# same order as before, so the rollback manifest and progress messages are
+# unaffected.
 
-        if not pil_image:
-            # If it's not a known Raw file or neither library worked, log the original Pillow error.
-            logging.warning(f"Pillow could not open {os.path.basename(image_path)}: {e}")
-            return None
+def _recognize_all(paths, mode, known_encodings, known_names,
+                   update_callback, cancellation_event, analytics, cache=None,
+                   abort_message="Sorting operation cancelled by user."):
+    """
+    Recognise faces in every photo up front, in parallel.
 
-    if not pil_image:
-         return None
+    Returns (names_by_path, diagnostics). names_by_path[path] is a list of names,
+    [] when the photo has no face, or None when the file could not be decoded -
+    the same three-way answer recognize_faces gives for a single file.
 
-    # --- The rest of the function remains the same, robust and reliable ---
-    try:
-        pil_image = pil_image.convert('RGB')
-        if pil_image.width > RESIZE_WIDTH_FOR_PROCESSING:
-            ratio = RESIZE_WIDTH_FOR_PROCESSING / float(pil_image.width)
-            new_height = int(float(pil_image.height) * ratio)
-            pil_image = pil_image.resize((RESIZE_WIDTH_FOR_PROCESSING, new_height), Image.Resampling.LANCZOS)
-        
-        image = np.array(pil_image)
+    Doing this as one pass before the file operations, rather than inline per
+    photo, is what allows a Pool: the pool lives and dies inside this function, so
+    an abort or an error tears the workers down here instead of leaving them
+    orphaned in the middle of a move. The file operations that follow are
+    untouched and still run one photo at a time, in the original order.
 
-        face_locations = []
-        if mode == 'fast':
-            face_locations = face_recognition.face_locations(image, model='hog')
-        elif mode == 'accurate':
-            face_locations = face_recognition.face_locations(image, model='cnn')
+    Only this function touches the cache, and only from the parent process, so
+    there is a single writer and no lock contention.
+    """
+    names_by_path = {}
+    diagnostics = {
+        'total': len(paths), 'with_faces': 0, 'no_face': 0, 'unreadable': 0,
+        'cached': 0, 'recovered_by_rescale': 0, 'recovered_by_rotation': 0,
+        'recovered_by_cnn': 0,
+    }
+    if not paths:
+        return names_by_path, diagnostics
+
+    matrix, gallery_names = face_engine.build_gallery(known_encodings, known_names)
+
+    cached = {}
+    if cache is not None:
+        try:
+            cached = cache.face_cache_get_many(
+                paths, face_engine.ENGINE_VERSION, face_engine.ladder_length(mode)
+            )
+        except Exception as e:
+            logging.warning(f"Face cache unavailable, scanning everything: {e}")
+            cached = {}
+
+    def record(path, status, names, pass_used):
+        names_by_path[path] = names
+        if status == face_engine.UNREADABLE:
+            diagnostics['unreadable'] += 1
+            logging.warning(f"Could not read '{os.path.basename(path)}' to look for faces.")
+        elif status == face_engine.UNAVAILABLE:
+            # dlib is missing entirely. Counted as unreadable rather than as a
+            # photo with faces, so the summary does not overstate what was found.
+            diagnostics['unreadable'] += 1
+        elif status == face_engine.NO_FACE:
+            diagnostics['no_face'] += 1
         else:
-            face_locations = face_recognition.face_locations(image, model='hog', number_of_times_to_upsample=2)
+            diagnostics['with_faces'] += 1
+            # Ask the ladder what the winning pass actually was. Counting by pass
+            # number got this wrong: in accurate mode pass 5 is the CNN scan, so a
+            # `>= 3` rule reported deep-scan finds as rotated photos.
+            kind = face_engine.pass_kind(mode, pass_used)
+            if kind == 'rescale':
+                diagnostics['recovered_by_rescale'] += 1
+            elif kind == 'rotation':
+                diagnostics['recovered_by_rotation'] += 1
+            elif kind == 'cnn':
+                diagnostics['recovered_by_cnn'] += 1
 
-        if not face_locations: return []
-        
-        face_encodings = face_recognition.face_encodings(image, face_locations)
-        found_names = set()
-        for face_encoding in face_encodings:
-            try:
-                if not np.isfinite(face_encoding).all():
-                    logging.warning(f"Skipping a non-finite face encoding in {os.path.basename(image_path)}.")
-                    continue
-                matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=FACE_RECOGNITION_TOLERANCE)
-                name = "Unknown"
-                if True in matches:
-                    face_distances = face_recognition.face_distance(known_encodings, face_encoding)
-                    best_match_index = np.argmin(face_distances)
-                    if matches[best_match_index]: name = known_names[best_match_index]
-                found_names.add(name)
-            except Exception as e_inner:
-                logging.warning(f"Could not compare a face in {os.path.basename(image_path)} due to an error: {e_inner}. Skipping this face.")
-                continue
-        return list(found_names)
-    except Exception as e:
-        logging.warning(f"Could not process faces in {os.path.basename(image_path)}: {e}")
-        return None
+    for path, entry in cached.items():
+        names = None
+        if entry['status'] == face_engine.OK and entry['encodings']:
+            names = face_engine.match_names(entry['encodings'], matrix, gallery_names)
+        elif entry['status'] == face_engine.NO_FACE:
+            names = []
+        record(path, entry['status'], names, entry['pass_used'])
+        diagnostics['cached'] += 1
+
+    pending = [p for p in paths if p not in cached]
+    if cached:
+        logging.info(f"Face cache: {len(cached)} of {len(paths)} photos already encoded.")
+    if not pending:
+        update_callback(70, f"Recognised faces from cache for all {len(paths)} photos.", "running", analytics)
+        return names_by_path, diagnostics
+
+    # One worker per spare core, except in modes that can reach the CNN pass -
+    # those are capped, because parallel CNN detections were measured exhausting
+    # system memory, and an out-of-memory kill loses the entire job.
+    # Below a handful of photos the process startup (spawn re-imports dlib in
+    # every worker) costs more than it saves.
+    worker_count = face_engine.safe_worker_count(mode)
+    use_pool = worker_count > 1 and len(pending) >= 4
+
+    def consume(index, result):
+        if 'error' in result:
+            logging.warning(
+                f"Face recognition failed for '{os.path.basename(result['path'])}': {result['error']}"
+            )
+        elif cache is not None and result['status'] in (face_engine.OK, face_engine.NO_FACE):
+            cache.face_cache_put(result['path'], face_engine.ENGINE_VERSION, result)
+        record(result['path'], result['status'], result['names'], result['pass_used'])
+
+        # Recognition dominates a People sort, so it owns most of the progress bar.
+        progress = 10 + int((index + 1) / len(pending) * 60)
+        update_callback(progress, f"Looking for faces in {os.path.basename(result['path'])}",
+                        "running", analytics)
+
+    if not use_pool:
+        face_engine.worker_init(mode, known_encodings, known_names)
+        for index, path in enumerate(pending):
+            if cancellation_event and cancellation_event.is_set():
+                raise OperationAbortedError(abort_message)
+            consume(index, face_engine.worker(path))
+    else:
+        with Pool(processes=worker_count,
+                  initializer=face_engine.worker_init,
+                  initargs=(mode, known_encodings, known_names)) as pool:
+            results = pool.imap(face_engine.worker, pending, chunksize=1)
+            for index, result in enumerate(results):
+                if cancellation_event and cancellation_event.is_set():
+                    pool.terminate()
+                    pool.join()
+                    raise OperationAbortedError(abort_message)
+                consume(index, result)
+
+    return names_by_path, diagnostics
+
+
+def format_face_diagnostics(diagnostics):
+    """One-line summary of what the face pass actually did, for the job log."""
+    parts = [
+        f"{diagnostics['total']} photos scanned",
+        f"{diagnostics['with_faces']} with faces",
+        f"{diagnostics['no_face']} without",
+    ]
+    if diagnostics['unreadable']:
+        parts.append(f"{diagnostics['unreadable']} unreadable")
+    if diagnostics['recovered_by_rescale']:
+        parts.append(f"{diagnostics['recovered_by_rescale']} found only at higher resolution")
+    if diagnostics['recovered_by_rotation']:
+        parts.append(f"{diagnostics['recovered_by_rotation']} found only after rotating")
+    if diagnostics.get('recovered_by_cnn'):
+        parts.append(f"{diagnostics['recovered_by_cnn']} found only by the deep scan")
+    if diagnostics['cached']:
+        parts.append(f"{diagnostics['cached']} reused from cache")
+    return "Face scan: " + ", ".join(parts) + "."
 
 # ==============================================================================
 #  Main Process Orchestration - Merged and Refactored
@@ -592,13 +806,12 @@ def find_and_group_photos(config, update_callback):
     initial_analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
     update_callback(0, "Preparing to search for photos...", "running", initial_analytics)
 
-    # CORRECTED LOGIC: Filter files to process using the parent folder check.
-    ignore_set = set(ignore_list)
+    # Find & Group is always a copy, so it benefits from cloning too.
+    reset_space_stats()
+
+    ignore_set = effective_ignore_set(source_dir, base_dest_dir, ignore_list)
     files_to_process = []
-    for dirpath, dirnames, filenames in os.walk(source_dir):
-        if dirpath in ignore_set:
-            continue # Ignore files in this directory, but os.walk will still process its subdirectories.
-        
+    for dirpath, dirnames, filenames in walk_ignoring(source_dir, ignore_set):
         for f in filenames:
             if f.lower().endswith(SUPPORTED_EXTENSIONS):
                 files_to_process.append(os.path.join(dirpath, f))
@@ -626,21 +839,40 @@ def find_and_group_photos(config, update_callback):
             update_callback(100, f"Fatal Error loading face data: {e}", "error", initial_analytics)
             return
 
+    # --- Face recognition: one parallel pass, same as the sorter -------------
+    # Find & Group defaults to the cheapest face mode and still ran it one photo
+    # at a time, which made a People search over a large folder the slowest thing
+    # in the app.
+    face_names = {}
+    if known_encodings:
+        face_names, face_diagnostics = _recognize_all(
+            files_to_process, face_mode, known_encodings, known_names,
+            update_callback, cancellation_event, initial_analytics,
+            cache=_metadata_store,
+            abort_message="Find & Group operation cancelled by user.",
+        )
+        summary = format_face_diagnostics(face_diagnostics)
+        logging.info(summary)
+        update_callback(70, summary, "running", initial_analytics)
+
+    search_progress_base = 70 if known_encodings else 10
+    search_progress_span = 25 if known_encodings else 85
+
     # --- NEW: Real-time analytics tracking ---
     start_time = time.time()
     processed_files_count = 0
     processed_size_mb = 0.0
 
     for i, source_path in enumerate(files_to_process):
-        progress = 10 + int(((i + 1) / total_files) * 85)
-        
+        progress = search_progress_base + int(((i + 1) / total_files) * search_progress_span)
+
         # --- Analytics Calculation ---
         analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
         try:
             file_size_mb = os.path.getsize(source_path) / (1024 * 1024)
             processed_files_count += 1
             processed_size_mb += file_size_mb
-            
+
             elapsed_time = time.time() - start_time
             if elapsed_time > 0.5:
                 scan_rate = processed_files_count / elapsed_time
@@ -687,8 +919,9 @@ def find_and_group_photos(config, update_callback):
         
         # --- People Filter ---
         if match and find_config.get('people') and known_encodings:
-            # Use requested mode for face recognition when filtering by people.
-            names = recognize_faces(source_path, known_encodings, known_names, mode=face_mode)
+            # Recognised in the parallel pass above. None (unreadable) and []
+            # (no face) both fail the filter, as they did before.
+            names = face_names.get(source_path)
             if not names or not any(p in names for p in find_config['people']):
                 match = False
 
@@ -704,11 +937,13 @@ def find_and_group_photos(config, update_callback):
 
     verb = "copied" if operation_mode == "copy" else "moved"
     completion_message = f"Search complete. Found and {verb} {found_count} matching photos to '{target_folder_name}'."
+    completion_message += format_space_savings()
     if found_count == 0:
         completion_message = "Search complete. No photos matched the specified criteria."
         
     logging.info(completion_message)
-    update_callback(100, completion_message, "complete", initial_analytics)
+    update_callback(100, completion_message, "complete", {**initial_analytics, "files_written": found_count})
+    return found_count
 
 
 def _get_standard_sort_paths(base_dir, sort_method, date_obj, location_path, names, multiple_countries_found, sort_options):
@@ -810,7 +1045,7 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
     """
     # Get the full-path ignore list from the options.
     ignore_list = sort_options.get("ignore_list", [])
-    ignore_set = set(ignore_list)
+    ignore_set = effective_ignore_set(work_dir, dest_dir, ignore_list)
     # Optional: only process files newer than this Unix timestamp (used by the scheduler daemon)
     mtime_cutoff = sort_options.get("mtime_cutoff", None)
     specific_files = sort_options.get("specific_files", None)
@@ -823,11 +1058,9 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
             if os.path.exists(fp) and fp.lower().endswith(SUPPORTED_EXTENSIONS):
                 files_to_process.append(fp)
     else:
-        # Walk the entire tree, then filter files based on their parent folder.
-        for dirpath, dirnames, filenames in os.walk(work_dir):
-            if dirpath in ignore_set:
-                continue
-
+        # NOTE: on the cross-drive 'move' path work_dir is the temp copy, whose paths are
+        # not the ones in ignore_set — but copytree(ignore=...) already excluded them there.
+        for dirpath, dirnames, filenames in walk_ignoring(work_dir, ignore_set):
             for f in filenames:
                 if f.lower().endswith(SUPPORTED_EXTENSIONS):
                     fp = os.path.join(dirpath, f)
@@ -848,7 +1081,7 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
     total_files = len(files_to_process)
     if total_files == 0:
         update_callback(100, "Scan complete. No supported image files found.", "complete")
-        return 0
+        return 0, 0
 
     sort_method = sort_options.get('primary_sort', 'Date').title()  # Normalize: 'location' → 'Location'
     face_rec_mode = sort_options.get('face_mode', 'balanced')
@@ -862,13 +1095,15 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
             update_callback(8, f"Face detection mode set to '{face_rec_mode.capitalize()}'.", "running")
         except (FileNotFoundError, ImportError, IOError) as e:
             update_callback(100, f"Fatal Error: Cannot sort by People. Reason: {e}", "error")
-            return 0
+            return 0, total_files
 
     multiple_countries_found = False
     locations = []
     if sort_method == 'Location' or (sort_method == 'Hybrid' and (sort_options.get('base_sort') == 'Location' or sort_options.get('custom_filter', {}).get('filter_type') == 'Location')):
         update_callback(7, "Scanning for location metadata...", "running")
-        locations, _, _ = get_metadata_overview(work_dir)
+        # Must honour ignore_set: otherwise this reads EXIF from every ignored subtree
+        # and can flip multiple_countries_found off a photo the job never sorts.
+        locations, _, _ = get_metadata_overview(work_dir, ignore_list=ignore_set)
         # CORRECTED: This now properly determines if photos span multiple countries.
         if locations:
             # Extract the first part of each path (the country code) and count the unique ones.
@@ -888,8 +1123,31 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
     # ADD THIS: A manifest to track file operations for rollback on abort.
     operation_manifest = []
 
+    # --- Face recognition: one parallel pass over every photo ---------------
+    # This used to happen inline, one photo at a time, on a single core, and was
+    # the reason a People sort over a large folder took hours. Nothing has been
+    # moved or copied yet at this point, so an abort here needs no rollback.
+    face_names = {}
+    face_diagnostics = None
+    if known_encodings:
+        face_names, face_diagnostics = _recognize_all(
+            files_to_process, face_rec_mode, known_encodings, known_names,
+            update_callback, cancellation_event,
+            {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"},
+            cache=_metadata_store,
+        )
+        # Logged here, but shown to the user only once, at the end of the job -
+        # emitting it here too put two identical lines on the same timestamp
+        # whenever the file phase was quick.
+        logging.info(format_face_diagnostics(face_diagnostics))
+
+    # File operations get the rest of the bar. When there is no face pass at all
+    # they get all of it, so Date and Location sorts behave exactly as before.
+    op_progress_base = 70 if known_encodings else 10
+    op_progress_span = 25 if known_encodings else 85
+
     for i, source_path in enumerate(files_to_process):
-        progress = 10 + int(((i + 1) / total_files) * 85)
+        progress = op_progress_base + int(((i + 1) / total_files) * op_progress_span)
         
         # --- Analytics Calculation ---
         analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
@@ -909,7 +1167,8 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
             pass # Ignore if file is inaccessible
 
         # Pass analytics with the update
-        update_callback(progress, f"Analyzing: {os.path.basename(source_path)}", "running", analytics)
+        _verb = "Sorting" if known_encodings else "Analyzing"
+        update_callback(progress, f"{_verb}: {os.path.basename(source_path)}", "running", analytics)
         
         if cancellation_event and cancellation_event.is_set():
             # Pass the manifest to the exception so the finally block can use it.
@@ -920,20 +1179,10 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
         date_obj = get_date_taken(exif_data)
         new_filename = f"{date_obj.strftime('%Y-%m-%d_%H%M%S')}_{os.path.basename(source_path)}" if date_obj else os.path.basename(source_path)
 
-        names = []
-        if known_encodings:
-            try:
-                # This function call is now protected. If it fails for any reason,
-                # the except block will catch it and prevent the main loop from crashing.
-                recognized_names = recognize_faces(source_path, known_encodings, known_names, mode=face_rec_mode)
-                if recognized_names is not None:
-                    names = recognized_names
-            except Exception as e:
-                # If recognize_faces fails catastrophically on one file, log it and move on.
-                logging.error(f"CRITICAL: Face recognition failed for file '{os.path.basename(source_path)}'. Error: {e}. This file will be treated as having no faces.")
-                # We explicitly ensure 'names' is an empty list so the file can be sorted
-                # into 'No_Faces_Found' and the overall process can continue.
-                names = []
+        # Recognition already happened in one parallel pass above. A missing entry
+        # or a None (unreadable file) becomes [], which files the photo under
+        # No_Faces_Found exactly as before - but the log now says which it was.
+        names = face_names.get(source_path) or [] if known_encodings else []
 
         # --- Destination Path Calculation ---
         dest_paths = []
@@ -1016,7 +1265,16 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
                     if op == 'move':
                         break
 
-    return moved_count
+    # Repeat the face summary at the end: by now the per-file messages have
+    # scrolled it out of the log console, and it is the line that tells the user
+    # whether No_Faces_Found is honest.
+    if face_diagnostics:
+        update_callback(95, format_face_diagnostics(face_diagnostics), "running",
+                        {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"})
+
+    # Two distinct quantities: moved_count counts WRITES (a People sort fans one photo
+    # out to every enrolled person in it), total_files counts SOURCE photos.
+    return moved_count, total_files
 
 def process_photos(config, update_callback):
     """Main entry point called by the API, orchestrating the entire process."""
@@ -1050,6 +1308,8 @@ def process_photos(config, update_callback):
     initial_analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
     update_callback(0, f"System prepared. Initiating '{operation_mode.capitalize()}' operation.", "running", initial_analytics)
 
+    reset_space_stats()
+
     work_dir = source_dir
     temp_source_path = None
     operation_successful = False # Add a flag to track success
@@ -1070,13 +1330,10 @@ def process_photos(config, update_callback):
                 logging.warning("Source and destination are on different drives. Using safe copy-then-delete method.")
                 update_callback(1, "Verifying required disk space...", "running", initial_analytics)
                 
-                # CORRECTED LOGIC: Filter files based on their parent folder for size calculation.
-                ignore_set = set(ignore_list)
+                # Ignored subtrees are never copied, so they must not count toward size.
+                ignore_set = effective_ignore_set(source_dir, dest_dir, ignore_list)
                 files_to_process = []
-                for dirpath, dirnames, filenames in os.walk(source_dir):
-                    if dirpath in ignore_set:
-                        continue # Ignore files in this directory for size calculation.
-                    
+                for dirpath, dirnames, filenames in walk_ignoring(source_dir, ignore_set):
                     for f in filenames:
                         if f.lower().endswith(SUPPORTED_EXTENSIONS):
                             files_to_process.append(os.path.join(dirpath, f))
@@ -1124,11 +1381,19 @@ def process_photos(config, update_callback):
 
         update_callback(5, "Workspace secured. Commencing file processing...", "running", initial_analytics)
         
-        moved_count = _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, encodings_path, cancellation_event, operation_mode)
+        moved_count, total_files = _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, encodings_path, cancellation_event, operation_mode)
 
-        completion_message = f"Process complete. {moved_count} files successfully {operation_mode}d."
+        # NOTE: the "{n} files successfully" substring is regex-scraped by
+        # scheduler_daemon.py as a fallback — keep that wording intact.
+        # The space clause is appended after it, so the scraped substring is
+        # untouched.
+        completion_message = f"Process complete. {moved_count} files successfully {operation_mode}d from {total_files} source photos."
+        completion_message += format_space_savings()
         logging.info(completion_message)
-        update_callback(100, completion_message, "complete", initial_analytics)
+        # Ride the analytics dict so the count lands in job state in the SAME update that
+        # flips status to "complete" — setting it after this call returns would leave a
+        # window where a poller sees complete with files_written still 0.
+        update_callback(100, completion_message, "complete", {**initial_analytics, "files_written": moved_count})
         operation_successful = True
         return moved_count  # Return count so callers (scheduler daemon, API) can track it
 
@@ -1170,29 +1435,25 @@ def process_photos(config, update_callback):
                 else:
                     # Determine every directory that is an ancestor of an ignored path so
                     # we can keep those directories alive even if they contain no other content.
+                    # Normalised, so it can be compared against _norm()ed walked paths.
                     ancestor_dirs = set()
                     for ignored_path in ignore_set:
                         # Walk from source_dir down to the ignored path's parent.
-                        rel = os.path.relpath(ignored_path, source_dir)
+                        rel = os.path.relpath(ignored_path, _norm(source_dir))
                         parts = rel.split(os.sep)
                         for i in range(len(parts)):
-                            ancestor_dirs.add(os.path.join(source_dir, *parts[:i]))
+                            ancestor_dirs.add(_norm(os.path.join(source_dir, *parts[:i])))
 
                     # Bottom-up walk so we can safely remove empty dirs as we go.
                     for dirpath, dirnames, filenames in os.walk(source_dir, topdown=False):
                         # Never touch an ignored subtree.
-                        if dirpath in ignore_set:
+                        if _is_ignored(dirpath, ignore_set):
                             continue
 
                         # Delete individual files that are not inside an ignored subtree.
                         for fname in filenames:
                             fpath = os.path.join(dirpath, fname)
-                            # Check whether any prefix of fpath is an ignored dir.
-                            in_ignored = any(
-                                os.path.commonpath([fpath, ig]) == ig
-                                for ig in ignore_set
-                            )
-                            if not in_ignored:
+                            if not _is_ignored(fpath, ignore_set):
                                 try:
                                     os.remove(fpath)
                                 except Exception as del_e:
@@ -1202,15 +1463,9 @@ def process_photos(config, update_callback):
                         # ignored path, provided they are now empty.
                         for dname in dirnames:
                             dpath = os.path.join(dirpath, dname)
-                            if dpath in ignore_set:
-                                continue  # Preserve ignored subtree.
-                            in_ignored = any(
-                                os.path.commonpath([dpath, ig]) == ig
-                                for ig in ignore_set
-                            )
-                            if in_ignored:
-                                continue  # Inside an ignored subtree — leave it.
-                            if dpath not in ancestor_dirs and not os.listdir(dpath):
+                            if _is_ignored(dpath, ignore_set):
+                                continue  # Is, or is inside, an ignored subtree — leave it.
+                            if _norm(dpath) not in ancestor_dirs and not os.listdir(dpath):
                                 try:
                                     os.rmdir(dpath)
                                 except Exception as del_e:

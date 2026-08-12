@@ -188,19 +188,20 @@ class SchedulerDaemon:
         self.schedules: Dict[str, dict] = {}
         self.observers: Dict[str, Observer] = {}
         self.scheduler: Optional[AsyncIOScheduler] = None
-        self._locks: Dict[str, asyncio.Lock] = {}
+        self._global_job_lock = None  # Created in run() when event loop exists
         self._pending_q: Dict[str, List[str]] = {}
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._running = True
         self._config_mtime: float = 0
-        self._status_interval = 30  # print status every 30s
+        self._status_interval = 60  # print status every 60s (terminal only)
 
     # ── Logging ────────────────────────────────────────────────────────
     def _log(self, msg: str, emoji: str = "ℹ️ "):
         now = _to_local(_utcnow()).strftime("%H:%M:%S")
         terminal_line = f"  {C.D}[{now}]{C.X} {emoji} {msg}"
         print(terminal_line, flush=True)
-        # Also append a clean (no ANSI) version to scheduler.log for the Web UI
+        # Write a clean (no ANSI) version to scheduler.log for the Web UI.
+        # Note: do NOT also redirect stdout to this file — that causes duplicates.
         try:
             import re as _re
             clean = _re.sub(r'\x1b\[[0-9;]*m', '', terminal_line)
@@ -253,19 +254,13 @@ class SchedulerDaemon:
         self._log_raw("")
 
     def _log_raw(self, text: str):
-        """Print a line to both terminal and log file (no timestamp prefix)."""
+        """Print a line to terminal only (status tables stay out of log file)."""
         print(text, flush=True)
-        try:
-            import re as _re
-            clean = _re.sub(r'\x1b\[[0-9;]*m', '', text)
-            with open(LOG_FILE, 'a', encoding='utf-8') as lf:
-                lf.write(clean + "\n")
-        except Exception:
-            pass
 
     # ── Main loop ──────────────────────────────────────────────────────
     async def run(self):
         self._loop = asyncio.get_running_loop()
+        self._global_job_lock = asyncio.Lock()  # One sort job at a time across all schedules
         self._print_banner()
         self._write_pid()
 
@@ -389,7 +384,6 @@ class SchedulerDaemon:
             self._log(f"Source folder not found: {src}", "⚠️ ")
             return
 
-        self._locks[sid] = asyncio.Lock()
         self._pending_q[sid] = []
 
         mode = s.get("mode", "scheduled")
@@ -473,13 +467,15 @@ class SchedulerDaemon:
         if not s or s.get("status") != "active":
             return
 
-        lock = self._locks.get(sid)
-        if lock and lock.locked():
-            self._pending_q[sid].extend(files)
-            self._log(f"Queued {len(files)} files (job active)", "📥")
+        # Global lock: only one backend sort job at a time across ALL schedules.
+        # The backend's start-sorting is a single-job system — concurrent calls
+        # would silently abort the first job. This serializes them.
+        if self._global_job_lock and self._global_job_lock.locked():
+            self._pending_q.setdefault(sid, []).extend(files)
+            self._log(f"Queued {sid} (another job is running)", "📥")
             return
 
-        async with lock:
+        async with self._global_job_lock:
             all_files = list(set(files + self._pending_q.get(sid, [])))
             self._pending_q[sid] = []
 
@@ -548,11 +544,9 @@ class SchedulerDaemon:
                     msg = status.get("message", "")
 
                     if state in ("complete", "error", "aborted", "warning"):
-                        # Extract file count from the completion message
-                        # e.g. "Process complete. 5 files successfully copied."
-                        import re
-                        m = re.search(r"(\d+)\s+files?\s+successfully", msg or "")
-                        count = int(m.group(1)) if m else 0
+                        # files_written is the backend's own tally of files written to the
+                        # destination — read it instead of regex-scraping the prose message.
+                        count = status.get("files_written") or 0
                         if state == "error":
                             error_msg = msg or "Unknown error from backend"
                         self._log(
@@ -607,10 +601,12 @@ class SchedulerDaemon:
 
             self._save_schedules()
 
-        # Outside the lock, if files were added to the queue while we were running, process them now
-        if self._pending_q.get(sid):
-            self._log(f"Found {len(self._pending_q[sid])} files added during run, starting next batch...", "🔄")
-            self._loop.create_task(self._execute_organize(sid, [], "queue"))
+        # Outside the lock: check ALL schedules for pending work (not just this one)
+        for pending_sid, pending_files in list(self._pending_q.items()):
+            if pending_files:
+                self._log(f"Processing queued work for {pending_sid} ({len(pending_files)} files)", "🔄")
+                self._loop.create_task(self._execute_organize(pending_sid, [], "queue"))
+                break  # One at a time — the next will be picked up after this completes
 
     # ── PID file ───────────────────────────────────────────────────────
     def _write_pid(self):

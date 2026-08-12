@@ -115,7 +115,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
-            get_backend_port
+            get_backend_port,
+            get_local_token
         ])
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { api, .. } => {
@@ -289,6 +290,34 @@ fn write_install_info(app: &tauri::App) {
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+/// Read the local API token the backend generates on first run.
+///
+/// Endpoints that expose personal data require this as an `X-Local-Token`
+/// header (see `require_local_token` in `backend/main.py`). The webview cannot
+/// read the file itself, so it goes through this command.
+///
+/// The path must match `get_app_data_dir()` on the Python side — that is
+/// `~/.config/LocalLens` on macOS/Linux, NOT Tauri's `app_data_dir()`.
+#[tauri::command]
+fn get_local_token() -> Result<Option<String>, String> {
+    let dir = if cfg!(target_os = "windows") {
+        std::path::PathBuf::from(std::env::var("APPDATA").map_err(|e| e.to_string())?)
+            .join("LocalLens")
+    } else {
+        std::path::PathBuf::from(std::env::var("HOME").map_err(|e| e.to_string())?)
+            .join(".config")
+            .join("LocalLens")
+    };
+
+    let token_file = dir.join("local_api_token.txt");
+    if !token_file.exists() {
+        return Ok(None); // backend has not run yet
+    }
+    std::fs::read_to_string(&token_file)
+        .map(|t| Some(t.trim().to_string()))
+        .map_err(|e| e.to_string())
 }
 
 // FINAL FIX: This async version waits for the port, eliminating race conditions.

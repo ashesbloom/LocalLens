@@ -16,6 +16,10 @@ rg_path = Path(reverse_geocoder.__file__).parent / 'rg_cities1000.csv'
 datas = [
     (str(model_dir), 'face_recognition_models/models'),
     (str(rg_path), 'reverse_geocoder'),
+    # Served by /setup and /scheduler, which read them via Path(__file__).parent.
+    # Frozen, that resolves to sys._MEIPASS, so they must ship as bundled data or
+    # both routes 500 with FileNotFoundError.
+    (str(Path(SPECPATH) / 'templates'), 'templates'),
 ]
 
 numpy_hiddenimports = collect_submodules('numpy')

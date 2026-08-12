@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { openUrl } from '@tauri-apps/plugin-opener';
+import { MCP_SITE_URL } from './McpAnnounce';
 import './UpdateChecker.css';
 
 // Bell icon SVG
@@ -36,7 +38,37 @@ const LoaderIcon = () => (
 );
 
 
-function UpdateChecker({ currentVersion }) {
+// Matrix rain glyphs behind the bell — half-width katakana + stray digits,
+// each column its own speed/offset so the fall feels organic, not looped-in-sync
+const MATRIX_COLUMNS = [
+    { chars: ['ﾊ', '3', 'ﾐ', '9'], left: '14%', duration: '2.6s', delay: '0s' },
+    { chars: ['5', 'ｹ', 'ｻ', '1'], left: '37%', duration: '3.1s', delay: '0.6s' },
+    { chars: ['ﾜ', '7', 'ﾂ', '0'], left: '60%', duration: '2.3s', delay: '1.1s' },
+    { chars: ['2', 'ﾘ', 'ｵ', '8'], left: '83%', duration: '2.9s', delay: '0.3s' },
+];
+
+const MatrixRain = () => (
+    <span className="matrix-rain" aria-hidden="true">
+        {MATRIX_COLUMNS.map((col, i) => (
+            <span
+                key={i}
+                className="matrix-col"
+                style={{ left: col.left, animationDuration: col.duration, animationDelay: col.delay }}
+            >
+                {col.chars.map((ch, j) => <span key={j}>{ch}</span>)}
+            </span>
+        ))}
+    </span>
+);
+
+// Sparkle icon for the MCP card
+const SparkIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4L12 3z"/>
+    </svg>
+);
+
+function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [updateInfo, setUpdateInfo] = useState(null);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -301,29 +333,44 @@ function UpdateChecker({ currentVersion }) {
         }
     };
 
+    // Apply inline markdown (bold, code) to any text fragment
+    const applyInlineMarkdown = (text) => {
+        return text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/`(.*?)`/g, '<code>$1</code>');
+    };
+
     // Parse markdown-style release notes into simple HTML
     const formatReleaseNotes = (notes) => {
         if (!notes) return '<p>No release notes available.</p>';
         
-        // Simple markdown parsing
         return notes
             .split('\n')
             .map(line => {
-                // Headers
-                if (line.startsWith('### ')) return `<h4>${line.slice(4)}</h4>`;
-                if (line.startsWith('## ')) return `<h3>${line.slice(3)}</h3>`;
-                if (line.startsWith('# ')) return `<h2>${line.slice(2)}</h2>`;
-                // List items
-                if (line.startsWith('- ') || line.startsWith('* ')) return `<li>${line.slice(2)}</li>`;
-                // Bold
-                line = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                // Code
-                line = line.replace(/`(.*?)`/g, '<code>$1</code>');
+                // Headers (h3 / h2 / h1)
+                if (line.startsWith('### ')) return `<h4>${applyInlineMarkdown(line.slice(4))}</h4>`;
+                if (line.startsWith('## ')) return `<h3>${applyInlineMarkdown(line.slice(3))}</h3>`;
+                if (line.startsWith('# ')) return `<h2>${applyInlineMarkdown(line.slice(2))}</h2>`;
+                // List items — inline markdown runs inside the bullet too
+                if (line.startsWith('- ') || line.startsWith('* '))
+                    return `<li>${applyInlineMarkdown(line.slice(2))}</li>`;
                 // Empty lines
                 if (line.trim() === '') return '<br/>';
-                return `<p>${line}</p>`;
+                // Paragraph — inline markdown
+                return `<p>${applyInlineMarkdown(line)}</p>`;
             })
             .join('');
+    };
+
+    // Pick a contextual panel title based on what sections the notes contain
+    const getReleaseNotesTitle = (notes) => {
+        if (!notes) return "What's New";
+        const hasAdded   = /^###\s+(Added|New|Features)/im.test(notes);
+        const hasChanged = /^###\s+(Changed|Improvements?)/im.test(notes);
+        const hasFixed   = /^###\s+Fixed/im.test(notes);
+        if (hasAdded || hasChanged) return "What's New";
+        if (hasFixed) return "What's Fixed";
+        return "Release Notes";
     };
 
     // Always show the icon, but style differently based on update availability
@@ -335,6 +382,7 @@ function UpdateChecker({ currentVersion }) {
                 onClick={() => setIsExpanded(!isExpanded)}
                 title={updateAvailable ? "Update available!" : `Version ${currentVersion}`}
             >
+                <MatrixRain />
                 <BellIcon />
                 {updateAvailable && <span className="update-badge" />}
             </button>
@@ -369,7 +417,7 @@ function UpdateChecker({ currentVersion }) {
 
                             {/* Release Notes */}
                             <div className="update-panel-body">
-                                <h4 className="release-notes-title">What's New</h4>
+                                <h4 className="release-notes-title">{getReleaseNotesTitle(updateInfo?.notes)}</h4>
                                 <div 
                                     className="release-notes-content"
                                     dangerouslySetInnerHTML={{ __html: formatReleaseNotes(updateInfo?.notes) }}
@@ -471,6 +519,37 @@ function UpdateChecker({ currentVersion }) {
                             </div>
                         </>
                     )}
+
+                    {/* Permanent home for the MCP announcement — stays reachable
+                        whether or not an update is pending. */}
+                    <div className="mcp-card">
+                        <div className="mcp-card-head">
+                            <SparkIcon />
+                            <span>Connect to Claude</span>
+                        </div>
+                        <p className="mcp-card-body">
+                            Sort and search your library by asking. Runs on 127.0.0.1 — nothing uploads.
+                        </p>
+                        <div className="mcp-card-actions">
+                            <button
+                                className="btn-mcp-setup"
+                                onClick={() => {
+                                    openUrl(backendPort ? `http://127.0.0.1:${backendPort}/setup` : MCP_SITE_URL);
+                                    setIsExpanded(false);
+                                }}
+                            >
+                                Set it up
+                            </button>
+                            {onShowPrivacy && (
+                                <button
+                                    className="btn-mcp-privacy"
+                                    onClick={() => { setIsExpanded(false); onShowPrivacy(); }}
+                                >
+                                    what we store
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

@@ -12,6 +12,8 @@ Wand; sys_platform != 'win32'
 python-multipart
 PyInstaller==6.19.0
 setuptools<81
+send2trash
+
 
 # ============================================================================
 # Platform-Specific Dependencies:
@@ -24,3 +26,4 @@ setuptools<81
 #
 # The application will automatically use the correct library based on your OS.
 # ============================================================================
+
