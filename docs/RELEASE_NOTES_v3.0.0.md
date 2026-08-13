@@ -24,20 +24,22 @@ yourself. Never image data.
 
 ---
 
-## No hidden plumbing
+## Where your data goes
 
-```mermaid
-flowchart LR
-    subgraph HOST["THIS MACHINE — nothing leaves it"]
-        direction LR
-        CD["Claude Desktop"]
-        AG["LocalLens Agent<br/>no open port · BSL 1.1"]
-        LL["Local Lens<br/>your photos · AGPL-3.0"]
-        CD -->|"MCP over stdio"| AG
-        AG -->|"HTTP · 127.0.0.1"| LL
-    end
-    CLOUD(["the cloud"])
-    HOST -. "✕  no route · 0 B out" .-> CLOUD
+```
+THIS MACHINE — nothing leaves it
+──────────────────────────────────
+Claude Desktop
+   │  MCP · stdio
+   ▼
+LocalLens Agent            no open port · BSL 1.1
+   │  HTTP · 127.0.0.1
+   ▼
+Local Lens                 your photos · AGPL-3.0
+──────────────────────────────────
+        ✕  no route · 0 B out
+              ▼
+          the cloud
 ```
 
 **Three processes, one machine.** Local Lens holds your photos and is open source end to
@@ -54,20 +56,19 @@ It finds the app by reading `port.txt` and authenticates with a secret in
 
 **1. Install the agent**
 
-```bash
-brew install ashesbloom/locallens/locallens-agent
-```
+| | |
+|---|---|
+| macOS · Homebrew _(clears Gatekeeper for you)_ | `brew install ashesbloom/locallens/locallens-agent` |
+| macOS · Apple Silicon | [Download the DMG](https://github.com/ashesbloom/locallens_mcp_agent/releases/download/v1.1.0/locallens-agent-v1.1.0-macos-arm64.dmg) |
+| Windows · x64 | [Download the installer](https://github.com/ashesbloom/locallens_mcp_agent/releases/download/v1.1.0/locallens-agent-v1.1.0-windows-x86_64-setup.exe) |
+| Linux and every other build | [agent releases](https://github.com/ashesbloom/locallens_mcp_agent/releases/latest) |
 
-Homebrew handles Gatekeeper for you. On Windows and Linux, grab the archive from the
-[agent releases](https://github.com/ashesbloom/locallens_mcp_agent/releases/latest).
+The Windows x64 build also runs on Windows on ARM, through emulation.
 
-**2. Point it at Claude Desktop**
+**2. Connect it to Claude**
 
-```bash
-locallens-mcp --setup-claude
-```
-
-Writes the MCP entry into Claude's config. Run it once.
+Open the agent from your menu bar on macOS, or the system tray on Windows, and pick
+**Claude → Connect to Claude**. It writes the MCP entry for you — no terminal.
 
 **3. Restart Claude Desktop**
 
@@ -83,31 +84,26 @@ a folder before it sorts.
 
 ## What Claude can do
 
-26 tools, each one permission-gated by Claude before it runs.
+26 tools, one connector — Claude can see your library, sort it, find people and places in
+it, catch duplicates, and keep folders organizing themselves, all from a sentence. Nothing
+like this exists for a local photo library: no other offline organizer lets an AI actually
+operate it, tool-gated and permissioned, without a single photo ever leaving your machine.
 
-| ◇ Free | ◆ Pro |
-|---|---|
-| `check_app_status` · `get_stats` · `get_job_progress` | `add_face_enroll` · `find_duplicates` |
-| `locallens_help` · `get_enrolled_faces` | `delete_duplicates` · `export_report` |
-| `get_path_presets` · `analyse_folder` | `schedule_auto_organize` |
-| `start_sorting` · `start_find_group` · `abort_job` | `create_active_folder` |
-| `open_folder` · `remember_paths` · `forget_paths` | `list_schedules` · `manage_schedule` |
-| `activate_pro_license` · `get_license_status` · `revoke_pro_license` | `open_scheduler_dashboard` · `smart_album_suggestions` |
+- **Understand your library** — `check_app_status` · `get_stats` · `get_job_progress` · `analyse_folder` · `get_enrolled_faces` · `get_path_presets` · `locallens_help`
+- **Sort and find** — `start_sorting` · `start_find_group` · `abort_job` · `open_folder` · `remember_paths` · `forget_paths`
+- **Recognize people** — `add_face_enroll`
+- **Clean up** — `find_duplicates` · `delete_duplicates`
+- **Automate** — `schedule_auto_organize` · `create_active_folder` · `list_schedules` · `manage_schedule` · `open_scheduler_dashboard`
+- **Go deeper** — `export_report` · `smart_album_suggestions`
+- **License** — `activate_pro_license` · `get_license_status` · `revoke_pro_license`
+
+**Free for now** — every tool above, unlocked, for everyone, while the agent is in
+preview. No key, no card, nothing to activate. Install during the preview and it stays
+free for you, permanently.
 
 Destructive operations default to safe behaviour: sorting copies rather than moves unless
 you say otherwise, duplicate deletion goes to the Trash / Recycle Bin, and the agent scans
 a folder and asks what to ignore before it touches anything.
-
----
-
-## Free preview — and you keep it
-
-**Every Pro feature is unlocked, for everyone, right now.** Watching, scheduling, dedupe,
-enrollment, reports — all of it, no key, no card.
-
-If you install during the preview, **it stays free for you permanently.** Eligibility is
-recorded locally the moment you finish setup. Paid plans come later, for people who arrive
-later.
 
 ---
 
@@ -203,7 +199,9 @@ backend processes accumulating over time.
 | | |
 |---|---|
 | macOS · Homebrew | `brew install ashesbloom/locallens/locallens-agent` |
-| Windows & Linux | https://github.com/ashesbloom/locallens_mcp_agent/releases/latest |
+| macOS · Apple Silicon DMG | [`locallens-agent-v1.1.0-macos-arm64.dmg`](https://github.com/ashesbloom/locallens_mcp_agent/releases/download/v1.1.0/locallens-agent-v1.1.0-macos-arm64.dmg) |
+| Windows · x64 installer | [`locallens-agent-v1.1.0-windows-x86_64-setup.exe`](https://github.com/ashesbloom/locallens_mcp_agent/releases/download/v1.1.0/locallens-agent-v1.1.0-windows-x86_64-setup.exe) |
+| Linux & all builds | https://github.com/ashesbloom/locallens_mcp_agent/releases/latest |
 | Guide & site | https://locallensmcp.vercel.app/?ref=release |
 
 ---

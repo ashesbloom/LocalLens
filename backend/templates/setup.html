@@ -190,6 +190,8 @@
         word-break: break-word; overflow-x: auto;
     }
     .copy.block { max-height: 15rem; overflow-y: auto; line-height: 1.5; }
+    .step-actions { margin-top: 0.6rem; }
+    .step-actions .btn { text-decoration: none; }
     .copy-btn {
         position: absolute; top: 0.4rem; right: 0.4rem;
         background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim);
@@ -339,17 +341,20 @@
             <div class="step-n">1</div>
             <div>
                 <div class="step-t">Install the agent</div>
-                <div class="step-d">Homebrew handles Gatekeeper for you. On Windows and Linux, grab the archive from Releases.</div>
-                <div class="copy" data-copy>brew install ashesbloom/locallens/locallens-agent</div>
+                <div class="step-d" id="dl-note">Grab the build for your platform.</div>
+                <div class="copy" data-copy id="dl-brew" hidden>brew install ashesbloom/locallens/locallens-agent</div>
+                <div class="actions step-actions">
+                    <a class="btn btn-primary" id="dl-main" href="https://github.com/ashesbloom/locallens_mcp_agent/releases/latest" target="_blank" rel="noopener">Open Releases ↗</a>
+                    <a class="btn" href="https://github.com/ashesbloom/locallens_mcp_agent/releases/latest" target="_blank" rel="noopener">All builds ↗</a>
+                </div>
             </div>
         </div>
 
         <div class="step">
             <div class="step-n">2</div>
             <div>
-                <div class="step-t">Point it at Claude Desktop</div>
-                <div class="step-d">Writes the MCP entry into Claude's config. Run it once.</div>
-                <div class="copy" data-copy>locallens-mcp --setup-claude</div>
+                <div class="step-t">Connect it to Claude</div>
+                <div class="step-d" id="connect-note">The agent writes the MCP entry into Claude's config for you.</div>
             </div>
         </div>
 
@@ -439,13 +444,16 @@ document.getElementById('instr').textContent = `LOCALLENS_INSTRUCTIONS_PLACEHOLD
 
 // ── Copy blocks ────────────────────────────────────────────────────────────
 document.querySelectorAll('[data-copy]').forEach(el => {
+    // Read before the button goes in — it is a child, so textContent would
+    // otherwise carry the glyph into the clipboard.
+    const text = el.textContent.trim();
     const btn = document.createElement('button');
     btn.className = 'copy-btn';
     btn.textContent = '⧉';
     btn.title = 'Copy';
     btn.addEventListener('click', async () => {
         try {
-            await navigator.clipboard.writeText(el.textContent.trim());
+            await navigator.clipboard.writeText(text);
             btn.textContent = 'copied'; btn.classList.add('done');
             setTimeout(() => { btn.textContent = '⧉'; btn.classList.remove('done'); }, 1400);
         } catch {
@@ -562,10 +570,49 @@ fetch('/api/stats').then(r => r.ok ? r.json() : null).then(d => {
 }).catch(() => {});
 
 const winish = navigator.userAgent.includes('Windows');
+const macish = !winish && navigator.userAgent.includes('Mac');
 const cfg = winish ? '%APPDATA%\\LocalLens\\' : '~/.config/LocalLens/';
 document.getElementById('p-port').textContent  = cfg + 'port.txt';
 document.getElementById('p-token').textContent = cfg + 'local_api_token.txt';
 document.getElementById('fence-tag').textContent = 'this machine';
+
+// ── Steps 1 and 2, for the machine actually reading this ───────────────────
+// Homebrew is a macOS answer, so it only shows on macOS. Connecting Claude is
+// a menu item in the tray app now — the CLI flag survives only on the
+// binary-only Linux build, which ships no tray.
+// ponytail: download URLs are pinned to an agent version; "All builds" always
+// points at /releases/latest, so a stale pin degrades to one extra click.
+const DL_BASE = 'https://github.com/ashesbloom/locallens_mcp_agent/releases/download/v1.1.0/';
+const trayConnect = tray =>
+    'Open the agent from your ' + tray + ' and pick <strong>Claude → Connect to Claude</strong>. ' +
+    'It writes the MCP entry for you — no terminal needed.';
+
+const plat = winish ? {
+    url: DL_BASE + 'locallens-agent-v1.1.0-windows-x86_64-setup.exe',
+    label: 'Download the installer ↓',
+    note: 'Run it. SmartScreen may warn about an unknown publisher — choose More info, then Run anyway. ' +
+          'The x64 build also runs on Windows on ARM, through emulation.',
+    connect: trayConnect('system tray'),
+} : macish ? {
+    url: DL_BASE + 'locallens-agent-v1.1.0-macos-arm64.dmg',
+    label: 'Download the DMG ↓',
+    note: 'Apple Silicon. Homebrew is the shortest path — it clears Gatekeeper for you. ' +
+          'The DMG works too: drag LocalLens Agent to Applications, then run the Fix command inside it.',
+    connect: trayConnect('menu bar'),
+} : {
+    url: 'https://github.com/ashesbloom/locallens_mcp_agent/releases/latest',
+    label: 'Open Releases ↗',
+    note: 'Take the locallens-mcp archive for your platform and unpack it. These builds carry no tray app.',
+    connect: 'Run <code>locallens-mcp --setup-claude</code> once. The macOS and Windows builds do this from ' +
+             'their tray menu instead.',
+};
+
+const $dlMain = document.getElementById('dl-main');
+$dlMain.href = plat.url;
+$dlMain.textContent = plat.label;
+document.getElementById('dl-note').textContent = plat.note;
+document.getElementById('dl-brew').hidden = !macish;
+document.getElementById('connect-note').innerHTML = plat.connect;
 
 // ── Tool ledger ────────────────────────────────────────────────────────────
 const FREE = ['check_app_status','get_stats','get_job_progress','locallens_help',
