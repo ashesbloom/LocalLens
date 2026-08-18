@@ -45,6 +45,8 @@ import asyncio
 # import signal
 import uvicorn
 import secrets
+import numpy as np
+from PIL import Image as PILImage
 from asyncio import Queue, CancelledError # FIX: Import the asyncio Queue and CancelledError
 
 # --- Custom Exception Import ---
@@ -134,6 +136,7 @@ from organizer_logic import (
 )
 import organizer_logic
 from enrollment_logic import update_encodings
+from face_engine import load_upright
 
 # --- Lifespan Context Manager ---
 @asynccontextmanager
@@ -251,7 +254,7 @@ current_job_state = {
     "message": "Idle",
     "status": "ready",
     # --- Job identity (set at job start, cleared on next job) ---
-    "job_type": None,           # "sorting" | "find_group" | "enrollment"
+    "job_type": None,           # "sorting" | "find_group" | "enrollment" | "duplicates"
     "operation_mode": None,     # "copy" | "move" (find_group is always copy)
     # --- Location context ---
     "source_folder": None,
@@ -268,14 +271,35 @@ current_job_state = {
                                 # total_files: a People sort fans one source photo out to
                                 # every enrolled person in it, so writes can exceed sources.
     "ignore_list": [],          # Folders excluded from this job
+    # --- Duplicate scan results (duplicates jobs only) ---
+    # A duplicate scan has no destination to open, so its *output* is the result
+    # itself. It rides here rather than on the POST response because hashing a
+    # 15k-photo archive outlives any sane HTTP timeout; per the note above, the
+    # fields survive completion so a caller can still read them afterwards.
+    "duplicate_groups": [],     # [[keeper, dupe, ...], ...] — first entry is the keeper
+    "total_scanned": 0,         # Files successfully hashed (excludes skipped)
+    "total_duplicates": 0,      # Files across all groups, keepers included
+    "skipped": 0,               # Files nothing on this platform could decode
+}
+
+# Reset applied at the start of EVERY job: a stale duplicate result must never leak
+# into a later job of any type, for the same reason files_written is zeroed.
+_DUP_RESULT_RESET = {
+    "duplicate_groups": [],
+    "total_scanned": 0,
+    "total_duplicates": 0,
+    "skipped": 0,
 }
 
 # --- Cancellation Events for Aborting Tasks ---
 # Use multiprocessing.Event, which can be safely passed to other processes.
+# /api/abort-process sets every event in here, so a new job type only has to add
+# its key and check it — nothing in the abort path needs to change.
 cancellation_events = {
     "sorting": multiprocessing.Event(),
     "enrollment": multiprocessing.Event(),
-    "find_group": multiprocessing.Event()
+    "find_group": multiprocessing.Event(),
+    "duplicates": multiprocessing.Event()
 }
 
 # --- Application Version ---
@@ -449,6 +473,90 @@ def _count_source_files(source_folder: str, ignore_list: list, destination_folde
     return count
 
 
+# --- Perceptual hashing (duplicate detection) --------------------------------
+# pHash without the imagehash dependency. numpy is already a declared dep and
+# already bundled, so this costs nothing to ship.
+#
+# (For the record, because the original rationale overstated it: adding imagehash
+# would NOT have cost ~124MB. scipy is already required by reverse_geocoder, so it
+# is in every build regardless; only PyWavelets would be new, and PyInstaller
+# strips it to ~1.5MB. The reason to keep this is that it adds no dependency at
+# all and is already verified, not a bundle-size cliff.)
+#
+# Bit-identical to imagehash.phash at its defaults: 32x32 DCT-II, keep the 8x8
+# low-frequency block, threshold against its median. scipy's dct is the
+# unnormalized type-II with a leading factor of 2; this basis matrix omits it, so
+# `low` here is exactly dct2d/4 — and a positive constant scale cannot change
+# `block > median(block)`, so every one of the 64 bits matches. test_phash.py
+# asserts this against the real library.
+_PH_N, _PH_HASH_SIZE = 32, 8
+_k = np.arange(_PH_N)
+_DCT = np.cos(np.pi * (2 * _k[None, :] + 1) * _k[:, None] / (2 * _PH_N))
+
+# Hamming distance over packed 64-bit hashes, one byte at a time.
+_POPCOUNT = np.unpackbits(np.arange(256, dtype=np.uint8)[:, None], axis=1).sum(1).astype(np.uint8)
+
+
+def _phash(path: str):
+    """
+    64-bit perceptual hash of an image, or None when nothing on this platform can
+    decode it (corrupt file, or a format whose loader is absent — RAW without
+    rawpy/ImageMagick, .hdr, etc).
+
+    Decoding goes through face_engine.load_upright rather than Image.open for two
+    reasons, both of which change results rather than merely tidying:
+      - it carries the RAW fallback chain (rawpy on Windows, Wand elsewhere), so
+        .cr2/.dng/... hash instead of silently counting as skipped;
+      - it applies EXIF orientation. Without that, a portrait photo carrying an
+        Orientation tag and the same photo with the rotation baked in hash
+        completely differently and never group — and that pair (phone original vs
+        exported copy) is one of the most common duplicates a library contains.
+    """
+    im = load_upright(path)
+    if im is None:
+        return None
+    px = np.asarray(
+        im.convert("L").resize((_PH_N, _PH_N), PILImage.Resampling.LANCZOS),
+        dtype=np.float64,
+    )
+    low = (_DCT @ px @ _DCT.T)[:_PH_HASH_SIZE, :_PH_HASH_SIZE]
+    return np.packbits(low > np.median(low)).view(">u8")[0]
+
+
+def _group_by_hash(file_hashes: List, max_distance: int) -> List[List[str]]:
+    """
+    Greedy grouping of (path, hash) pairs: the first unused file seeds a group and
+    every unused file within max_distance joins it and is marked used. Only groups
+    of 2+ are returned, first entry being the keeper.
+
+    ponytail: still O(n²) in candidates, but each candidate's distances are one
+    numpy op over an (n, 8) byte array (~1s at 15k files, against ~6min for the
+    per-pair Python loop this replaced, and dwarfed either way by JPEG decode).
+    A BK-tree only earns its keep if that stops being true.
+    """
+    if not file_hashes:
+        return []
+
+    # (n, 8) big-endian bytes — '>u8' pins byte order so the packing is identical
+    # on Apple Silicon and Windows x64.
+    hb = np.array([h for _, h in file_hashes], dtype=">u8").view(np.uint8).reshape(-1, 8)
+
+    used = np.zeros(len(file_hashes), dtype=bool)
+    groups = []
+    for i in range(len(file_hashes)):
+        if used[i]:
+            continue
+        dist = _POPCOUNT[hb ^ hb[i]].sum(1)
+        match = (dist <= max_distance) & ~used
+        match[:i + 1] = False  # keep the seed's own slot and everything already passed
+        if not match.any():
+            continue
+        used[match] = True
+        used[i] = True
+        groups.append([file_hashes[i][0]] + [file_hashes[j][0] for j in np.flatnonzero(match)])
+    return groups
+
+
 _FACE_MODE_LABELS = {
     "fast": "Fast (HOG)",
     "balanced": "Balanced (LL Algorithm)",
@@ -522,6 +630,7 @@ async def run_organization_task(config: Dict):
             config.get("source_folder", ""), ignore_list, config.get("destination_folder")
         ),
         "files_written": 0,  # Reset: a stale count from the last job must not leak through.
+        **_DUP_RESULT_RESET,
     })
 
     try:
@@ -596,6 +705,7 @@ async def run_find_group_task(config: Dict):
             config.get("source_folder", ""), ignore_list, config.get("destination_folder")
         ),
         "files_written": 0,  # Reset: a stale count from the last job must not leak through.
+        **_DUP_RESULT_RESET,
     })
     target_folder = None
     try:
@@ -629,6 +739,123 @@ async def run_find_group_task(config: Dict):
     except Exception as e:
         error_update = {"progress": 100, "message": f"An error occurred: {e}", "status": "error"}
         update_status_callback(error_update)
+        print(f"BACKGROUND TASK ERROR: {e}")
+
+
+async def run_find_duplicates_task(config: Dict):
+    """
+    Duplicate scan, wrapped to run in the background.
+
+    This is a background job rather than an inline response because hashing has to
+    decode every file: at 15k photos that is 5-15 minutes, far past any HTTP client's
+    timeout. Results land in current_job_state and are served by /api/job-status.
+    """
+    global current_job_state
+    cancellation_events["duplicates"].clear()
+
+    source_folder = config["source_folder"]
+    ignore_list = config.get("ignore_list") or []
+    max_distance = config["max_distance"]
+
+    image_files = []
+    for dirpath, _, filenames in walk_ignoring(source_folder, set(ignore_list)):
+        for f in filenames:
+            if f.lower().endswith(SUPPORTED_EXTENSIONS):
+                image_files.append(os.path.join(dirpath, f))
+
+    current_job_state.update({
+        "is_active": True,
+        "status": "running",
+        "progress": 0,
+        "message": f"Hashing {len(image_files)} photos...",
+        # Job identity
+        "job_type": "duplicates",
+        "operation_mode": None,     # read-only scan; nothing is written or moved
+        # Location — a scan reads one folder and produces no destination
+        "source_folder": source_folder,
+        "destination_folder": None,
+        # Not applicable to a duplicate scan
+        "primary_sort": None,
+        "face_mode": None,
+        "folder_name": None,
+        "filters_applied": None,
+        # File scope
+        "ignore_list": ignore_list,
+        "total_files": len(image_files),
+        "files_written": 0,
+        **_DUP_RESULT_RESET,
+    })
+
+    def scan():
+        """Blocking hash + group pass. Runs off the event loop (see to_thread below)."""
+        file_hashes = []
+        skipped = 0
+        # Progress is reported per batch, not per file: at 15k files a callback each
+        # time would put 15k JSON messages through the log queue for no added detail.
+        step = max(1, len(image_files) // 100)
+
+        for idx, fp in enumerate(image_files):
+            if cancellation_events["duplicates"].is_set():
+                raise OperationAbortedError("Duplicate scan aborted by user.")
+            try:
+                h = _phash(fp)
+            except Exception:
+                h = None  # Corrupt or unreadable image
+            if h is None:
+                skipped += 1
+            else:
+                file_hashes.append((fp, h))
+
+            if idx % step == 0:
+                # Hashing owns 0-90%; grouping is comparatively instant.
+                update_status_callback({
+                    "progress": int(90 * idx / len(image_files)),
+                    "message": f"Hashing photos... {idx}/{len(image_files)}",
+                    "status": "running",
+                })
+
+        update_status_callback({
+            "progress": 90,
+            "message": f"Comparing {len(file_hashes)} hashes...",
+            "status": "running",
+        })
+        return _group_by_hash(file_hashes, max_distance), len(file_hashes), skipped
+
+    try:
+        if not image_files:
+            current_job_state.update({"total_scanned": 0, "total_duplicates": 0, "skipped": 0})
+            update_status_callback({
+                "progress": 100,
+                "message": "No supported image files found in the source directory.",
+                "status": "complete",
+            })
+            return
+
+        # to_thread is required, not stylistic: callers poll /api/job-status once a
+        # second while they wait, and a blocking loop here would starve those polls.
+        groups, scanned, skipped = await asyncio.to_thread(scan)
+
+        # Results must be in place BEFORE the update that flips status to "complete" —
+        # a poller reads the whole state dict on the poll that sees the terminal status,
+        # so setting them afterwards leaves a window where the job reads as done with
+        # no groups. Same ordering rule as files_written in organizer_logic.
+        total_dupes = sum(len(g) for g in groups)
+        current_job_state.update({
+            "duplicate_groups": groups,
+            "total_scanned": scanned,
+            "total_duplicates": total_dupes,
+            "skipped": skipped,
+        })
+        summary = f"Scan complete. Found {total_dupes} duplicate files in {len(groups)} group(s)."
+        if skipped:
+            summary += f" {skipped} file(s) could not be read."
+        update_status_callback({"progress": 100, "message": summary, "status": "complete"})
+    except OperationAbortedError:
+        abort_message = "Duplicate scan aborted by user."
+        print(f"BACKGROUND TASK: {abort_message}")
+        update_status_callback({"progress": 100, "message": abort_message, "status": "aborted"})
+    except Exception as e:
+        update_status_callback({"progress": 100, "message": f"An error occurred: {e}", "status": "error"})
         print(f"BACKGROUND TASK ERROR: {e}")
 
 
@@ -1000,81 +1227,70 @@ class FindDuplicatesRequest(BaseModel):
     similarity_threshold: Optional[float] = 0.95
 
 @app.post("/api/find-duplicates")
-async def find_duplicates_endpoint(request: FindDuplicatesRequest):
+async def find_duplicates_endpoint(request: FindDuplicatesRequest, background_tasks: BackgroundTasks):
     """
-    Scans a source folder for duplicate or near-duplicate images using
-    perceptual hashing (pHash). Groups visually similar files together.
+    Starts a background scan for duplicate or near-duplicate images using
+    perceptual hashing (pHash), and returns immediately.
+
+    Results are NOT on this response: hashing decodes every file, which takes
+    minutes on a large archive. Poll /api/job-status — it carries duplicate_groups,
+    total_scanned, total_duplicates and skipped once status is "complete", and
+    keeps them afterwards.
+
+    Callers tell this backend from the older synchronous one by the absence of a
+    "duplicate_groups" key here, so do not add one to this response.
     """
     source_folder = os.path.expanduser(request.source_folder) if request.source_folder else ""
     if not source_folder or not os.path.isdir(source_folder):
         raise HTTPException(status_code=400, detail="Source path is not a valid directory.")
 
-    try:
-        from PIL import Image as PILImage
-        import imagehash
-    except ImportError:
-        # imagehash is an optional dependency — graceful degradation
-        raise HTTPException(
-            status_code=501,
-            detail="The 'imagehash' library is not installed. Run: pip install imagehash"
-        )
+    if current_job_state.get("is_active"):
+        return {
+            "status": "busy",
+            "error": "job_already_running",
+            "message": (
+                f"A {current_job_state.get('job_type') or 'sorting'} job is already running: "
+                f"{current_job_state.get('progress', '?')}% of "
+                f"{current_job_state.get('total_files', '?')} files."
+            ),
+            "guidance": (
+                "Do NOT start another job. LocalLens tracks one job at a time. Tell the user "
+                "what is already running and offer to wait for it or abort it, then retry."
+            ),
+            "current_job": current_job_state,
+        }
 
-    ignore_set = set(request.ignore_list or [])
     threshold = max(0.0, min(1.0, request.similarity_threshold or 0.95))
     # Convert similarity 0-1 to hamming distance threshold.
     # pHash produces 64-bit hashes; max hamming distance is 64.
     # A similarity of 0.95 means max_distance = 64 * (1 - 0.95) = 3.2 → 3
     max_distance = int(64 * (1.0 - threshold))
 
-    # --- Collect all supported image files ---
-    image_files = []
-    for dirpath, _, filenames in walk_ignoring(source_folder, ignore_set):
-        for f in filenames:
-            if f.lower().endswith(SUPPORTED_EXTENSIONS):
-                image_files.append(os.path.join(dirpath, f))
+    # Claim the job slot HERE rather than leaving it to the task. Background tasks
+    # only run after this response is sent, which would otherwise leave two holes:
+    # a second POST arriving in the gap would pass the guard above, and a caller
+    # that waits for is_active before trusting a terminal status would never see a
+    # small folder start — it would finish before the first poll and read as stale.
+    current_job_state.update({
+        "is_active": True,
+        "status": "running",
+        "progress": 0,
+        "message": "Starting duplicate scan...",
+        "job_type": "duplicates",
+    })
 
-    if not image_files:
-        return {"status": "ok", "duplicate_groups": [], "total_scanned": 0, "total_duplicates": 0}
-
-    # --- Compute perceptual hashes ---
-    file_hashes = []
-    skipped = 0
-    for fp in image_files:
-        try:
-            with PILImage.open(fp) as img:
-                h = imagehash.phash(img)
-            file_hashes.append((fp, h))
-        except Exception:
-            skipped += 1  # Corrupt or unreadable image
-            continue
-
-    # --- Group by similarity ---
-    # Simple O(n²) comparison — acceptable for typical photo libraries (<50k files)
-    used = set()
-    groups = []
-    for i, (path_a, hash_a) in enumerate(file_hashes):
-        if i in used:
-            continue
-        group = [path_a]
-        for j in range(i + 1, len(file_hashes)):
-            if j in used:
-                continue
-            path_b, hash_b = file_hashes[j]
-            if hash_a - hash_b <= max_distance:
-                group.append(path_b)
-                used.add(j)
-        if len(group) > 1:
-            groups.append(group)
-            used.add(i)
-
-    total_dupes = sum(len(g) for g in groups)
+    background_tasks.add_task(run_find_duplicates_task, {
+        "source_folder": source_folder,
+        "ignore_list": request.ignore_list or [],
+        "max_distance": max_distance,
+    })
     return {
-        "status": "ok",
-        "duplicate_groups": groups,
-        "total_scanned": len(file_hashes),
-        "total_duplicates": total_dupes,
-        "skipped_files": skipped,
+        "status": "started",
+        "job_type": "duplicates",
+        "source_folder": source_folder,
         "similarity_threshold": threshold,
+        "message": "Duplicate scan started. Hashing every photo takes a while on a large folder.",
+        "guidance": "Poll job status for progress; the groups appear there when it completes.",
     }
 
 
@@ -1174,9 +1390,17 @@ async def export_report_endpoint(request: ExportReportRequest):
             logo_path=logo_path,
         )
     except ImportError:
+        # Never suggest "pip install" here. The shipped backend is a self-contained
+        # PyInstaller bundle with no pip and no site-packages, so that instruction is
+        # unactionable — and an LLM client reads it as a command and runs it against
+        # its own interpreter, which sent a real user chasing a fix that could not work.
+        # The only true remedy for a missing bundled component is a newer build.
         raise HTTPException(
             status_code=501,
-            detail="The 'reportlab' library is not installed. Run: pip install reportlab"
+            detail=(
+                "PDF export is unavailable in this build: the 'reportlab' library is not "
+                "installed in the bundled backend. Update LocalLens to a build that includes it."
+            )
         )
     except Exception as e:
         logging.error(f"PDF generation failed: {e}", exc_info=True)
