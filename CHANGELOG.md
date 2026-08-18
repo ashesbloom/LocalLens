@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-08-18
+
+### Fixed
+
+- **Finding duplicate photos now works.** The feature has never worked in any released version — asking the agent to find duplicates always failed, because a library it needed was never included in the build. It no longer needs that library at all, so it works everywhere.
+- **Duplicate scans no longer time out on large libraries.** The scan used to run inside a single request and gave up on big archives. It now runs in the background with live progress, and can be cancelled part-way like any other job.
+- **Rotated photos are now recognised as duplicates.** A photo straight off your phone and the same photo re-exported by another app are stored differently even though they look identical, and duplicate detection used to miss the pair entirely. It now reads them the way your photo viewer does, so they match.
+- **RAW photos are included in duplicate scans** (DNG, CR2, NEF, ARW and friends), using the same reader the rest of LocalLens already uses. Anything that genuinely can't be read is reported as skipped rather than passed over silently.
+- **Error messages no longer tell your AI assistant to run installer commands.** When a feature is missing from a build, LocalLens said "run pip install ..." — advice that cannot work against a packaged app, and which sent at least one person on a long detour. It now says plainly that the build is missing a component and to update the app.
+
+### Known issues
+
+- PDF report export is still unavailable in released builds — the same missing-from-the-build cause, tracked separately.
+
 ## [3.0.0] - 2026-08-13
 ### Added
 
