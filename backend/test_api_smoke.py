@@ -132,6 +132,22 @@ def _drain_stdout(pipe, lines, lock):
     pipe.close()
 
 
+def _captured_output(lines, lock):
+    with lock:
+        return "".join(lines)
+
+
+def _terminate_and_wait(proc, timeout=10):
+    """Escalate: terminate() first, kill() if the child ignores SIGTERM. Shared by
+    every startup-failure path and by stop_backend's post-shutdown backstop, so a
+    child that won't die gracefully never leaks regardless of which path failed."""
+    proc.terminate()
+    try:
+        proc.wait(timeout=timeout)
+    except Exception:
+        proc.kill()
+
+
 def start_backend(built_path, sandbox_home):
     """Launch the backend as a subprocess sandboxed into sandbox_home, and return
     (proc, base_url, port, lines, lock) once it has printed its port line."""
@@ -174,9 +190,8 @@ def start_backend(built_path, sandbox_home):
         time.sleep(0.2)
 
     if port is None:
-        proc.terminate()
-        with lock:
-            captured = "".join(lines)
+        captured = _captured_output(lines, lock)
+        _terminate_and_wait(proc)
         raise RuntimeError(
             f"backend never printed PYTHON_BACKEND_PORT within {STARTUP_TIMEOUT_S}s "
             f"(exit code: {proc.poll()})\n--- captured stdout/stderr ---\n{captured}"
@@ -186,7 +201,7 @@ def start_backend(built_path, sandbox_home):
     return proc, base_url, port, lines, lock
 
 
-def verify_sandbox(sandbox_home, port):
+def verify_sandbox(sandbox_home, port, lines, lock):
     """The whole point of overriding HOME/APPDATA is that the backend never touches
     the real install. Confirm it actually landed in the sandbox rather than assuming."""
     data_dir = (sandbox_home / "LocalLens") if sys.platform == "win32" else (sandbox_home / ".config" / "LocalLens")
@@ -195,13 +210,19 @@ def verify_sandbox(sandbox_home, port):
     while time.monotonic() < deadline and not port_file.exists():
         time.sleep(0.1)
     if not port_file.exists():
-        raise RuntimeError(f"sandbox override did not take effect — {port_file} was never created")
+        raise RuntimeError(
+            f"sandbox override did not take effect — {port_file} was never created\n"
+            f"--- captured stdout/stderr ---\n{_captured_output(lines, lock)}"
+        )
     on_disk = int(port_file.read_text().strip())
     if on_disk != port:
-        raise RuntimeError(f"{port_file} says port {on_disk}, but the backend printed {port}")
+        raise RuntimeError(
+            f"{port_file} says port {on_disk}, but the backend printed {port}\n"
+            f"--- captured stdout/stderr ---\n{_captured_output(lines, lock)}"
+        )
 
 
-def wait_for_health(base_url, deadline):
+def wait_for_health(base_url, deadline, lines, lock):
     """Wait for the HTTP server to accept connections — NOT for check 1's assertion.
     Gating on the response body here would make a broken /api/health hang for the
     full startup budget instead of failing fast as a normal ❌ check."""
@@ -213,11 +234,14 @@ def wait_for_health(base_url, deadline):
         except Exception as e:
             last_err = e
         time.sleep(0.3)
-    raise RuntimeError(f"backend never answered /api/health within the startup budget: {last_err}")
+    raise RuntimeError(
+        f"backend never answered /api/health within the startup budget: {last_err}\n"
+        f"--- captured stdout/stderr ---\n{_captured_output(lines, lock)}"
+    )
 
 
 def stop_backend(proc, base_url):
-    """Ask nicely first, then terminate() as a backstop."""
+    """Ask nicely first, then escalate via _terminate_and_wait as a backstop."""
     if proc is None:
         return
     try:
@@ -229,11 +253,7 @@ def stop_backend(proc, base_url):
         return
     except Exception:
         pass
-    proc.terminate()
-    try:
-        proc.wait(timeout=10)
-    except Exception:
-        proc.kill()
+    _terminate_and_wait(proc)
 
 
 # ==============================================================================
@@ -329,6 +349,11 @@ def check_start_sorting(base_url, source, dest):
     assert files_written == FIXTURE_COUNT, f"files_written={files_written}, expected {FIXTURE_COUNT}"
 
     on_disk = sum(len(files) for _, _, files in os.walk(dest))
+    # Loosened per R3: NOT on_disk == FIXTURE_COUNT. process_photos() also writes
+    # dest/logs/organization_log_<timestamp>.log, so a real run lands FIXTURE_COUNT+1
+    # files on disk against files_written == FIXTURE_COUNT — asserting equality here
+    # would flake on that log file, which isn't a photo and isn't what this check
+    # exists to catch. Verified by actually running it (dest had 6 files for 5 writes).
     assert on_disk > 0, "destination directory is empty after the sort"
     return f"complete, files_written={FIXTURE_COUNT}, {on_disk} file(s) on disk"
 
@@ -390,8 +415,8 @@ def main():
         source, original, duplicate = make_fixtures(fixtures_root)
 
         proc, base_url, port, lines, lock = start_backend(args.built, sandbox_home)
-        verify_sandbox(sandbox_home, port)
-        wait_for_health(base_url, time.monotonic() + STARTUP_TIMEOUT_S)
+        verify_sandbox(sandbox_home, port, lines, lock)
+        wait_for_health(base_url, time.monotonic() + STARTUP_TIMEOUT_S, lines, lock)
         print(f"backend up on port {port}, sandboxed into {sandbox_home}")
 
         step("[1] GET /api/health", lambda: check_health(base_url))
