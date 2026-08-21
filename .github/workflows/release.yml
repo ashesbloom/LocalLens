@@ -36,21 +36,30 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri
 
       - name: Create Python virtual environment
         run: |
@@ -70,30 +79,10 @@ jobs:
           source .venv/bin/activate
           python -m PyInstaller backend_server.spec
 
-      - name: Smoke test backend startup (macOS)
+      - name: Release preflight checks (macOS)
         run: |
-          cd backend
-          source .venv/bin/activate
-          ./dist/backend_server/backend_server > backend-smoke.log 2>&1 &
-          backend_pid=$!
-          sleep 10
-
-          echo "=== backend smoke log ==="
-          cat backend-smoke.log
-
-          if grep -E "(ModuleNotFoundError|ImportError|Failed to execute script)" backend-smoke.log; then
-            echo "Backend smoke test failed: startup import error detected"
-            kill "$backend_pid" 2>/dev/null || true
-            exit 1
-          fi
-
-          if ! kill -0 "$backend_pid" 2>/dev/null; then
-            echo "Backend smoke test failed: backend process exited early"
-            exit 1
-          fi
-
-          echo "Backend smoke test passed: process is running without import errors"
-          kill "$backend_pid" 2>/dev/null || true
+          source backend/.venv/bin/activate
+          python scripts/preflight.py --release ${{ github.ref_name }} --built backend/dist/backend_server/backend_server
 
       - name: Install frontend requirements
         run: |
@@ -269,19 +258,28 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri
 
       # Backend: Create virtual environment and install requirements
       - name: Create Python virtual environment
@@ -302,6 +300,10 @@ jobs:
           cd backend
           .\venv\Scripts\activate
           python -m PyInstaller backend_server.spec
+
+      - name: Release preflight checks (Windows)
+        run: |
+          python scripts/preflight.py --release ${{ github.ref_name }} --built backend/dist/backend_server.exe
 
       # Frontend: Install requirements in src-tauri folder
       - name: Install frontend requirements
