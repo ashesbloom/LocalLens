@@ -1175,7 +1175,14 @@ async def delete_files_endpoint(request: DeleteFilesRequest):
     total_freed_bytes = 0
 
     for fp in request.file_paths:
-        expanded = os.path.expanduser(fp)
+        # normpath, not just expanduser: on Windows os.path IS ntpath, so this folds
+        # '//server/share\dir\f.jpg' to '\\server\share\dir\f.jpg'. send2trash's legacy
+        # backend (the one used without pywin32) detects UNC via startswith('\\') and
+        # otherwise builds '\\?\' + path — the one Win32 form that rejects forward
+        # slashes, so a hybrid path fails there while os.path.isfile below accepts it.
+        # On POSIX normpath leaves backslashes alone (legal filename chars), so no
+        # platform guard. See test_delete_paths.py.
+        expanded = os.path.normpath(os.path.expanduser(fp))
         if not os.path.isfile(expanded):
             failed.append({"path": fp, "error": "File does not exist"})
             continue
@@ -1240,7 +1247,12 @@ async def find_duplicates_endpoint(request: FindDuplicatesRequest, background_ta
     Callers tell this backend from the older synchronous one by the absence of a
     "duplicate_groups" key here, so do not add one to this response.
     """
-    source_folder = os.path.expanduser(request.source_folder) if request.source_folder else ""
+    # normpath so every path this scan emits is already canonical for the platform.
+    # os.path.join() below appends the native separator, so an unnormalised
+    # '//server/share' would yield hybrid '//server/share\dir\f.jpg' paths that
+    # /api/delete-files then has to un-mangle. Keep the empty-string guard: normpath("")
+    # is "." and would silently scan the CWD.
+    source_folder = os.path.normpath(os.path.expanduser(request.source_folder)) if request.source_folder else ""
     if not source_folder or not os.path.isdir(source_folder):
         raise HTTPException(status_code=400, detail="Source path is not a valid directory.")
 
