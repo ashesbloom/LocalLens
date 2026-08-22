@@ -22,7 +22,7 @@ import tempfile
 logging.disable(logging.WARNING)
 
 from organizer_logic import (
-    walk_ignoring, effective_ignore_set, _is_ignored, _core_processing_loop,
+    walk_ignoring, effective_ignore_set, _is_ignored, _core_processing_loop, _norm,
 )
 from main import _count_source_files
 
@@ -115,12 +115,16 @@ def test_denormalised_paths_still_prune(root, ignore_list):
 
 def test_destination_inside_source_is_auto_excluded(root):
     """Sorting into a subfolder of the source must not let the job eat its own output."""
+    # Compare through _norm, the way the production callers do. effective_ignore_set
+    # stores _norm()ed paths, and _norm applies normcase — a no-op on POSIX but a
+    # lowercase on Windows, where "...\\Sorted" would never match "...\\sorted".
+    # Asserting on the raw path passes on macOS by luck and fails on every Windows run.
     nested = os.path.join(root, "Sorted")
-    assert nested in effective_ignore_set(root, nested, []), \
+    assert _norm(nested) in effective_ignore_set(root, nested, []), \
         "nested destination was not auto-excluded"
 
     deeper = os.path.join(root, "a", "b", "Sorted")
-    assert deeper in effective_ignore_set(root, deeper, []), \
+    assert _norm(deeper) in effective_ignore_set(root, deeper, []), \
         "deeply nested destination was not auto-excluded"
 
     # dest == source would otherwise exclude everything and process zero files.
