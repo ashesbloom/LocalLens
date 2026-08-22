@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-08-22
+### Fixed
+
+- **Deleting duplicates works on network drives again.** On Windows, deleting duplicates from a network share (a NAS or any \\server\share path) failed for every single file, even though the preview beforehand reported success. The preview and the delete now resolve paths the same way, so what you are shown is what gets removed.
+- **PDF report export works in released builds.** Listed as a known issue in 3.0.1 — the feature was missing a component from the build itself. It is now included, and every release is checked against the packaged app rather than a developer machine.
+- **Auto-scheduling says when it cannot run.** Creating a schedule in a released build reported success and then never ran anything, because the scheduler is not part of the packaged app. It now tells you plainly that the schedule is saved but will not run, instead of failing silently.
+
 ## [3.0.1] - 2026-08-18
 
 ### Fixed
