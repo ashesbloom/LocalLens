@@ -135,6 +135,29 @@ def run_stage_unit_tests(python_exe: Path, backend_dir: Path) -> StageResult:
     start = time.monotonic()
     ok = True
 
+    # Undeclared-import audit. Runs on THIS interpreter, not the backend venv's: it is
+    # stdlib-only by design, and pointing it at the venv would tempt it to inspect an
+    # installed environment instead of the dependency files, which is exactly the
+    # blindness it exists to fix. Both requirements files, or apscheduler and watchdog
+    # read as undeclared when they are simply declared in the pro file.
+    repo_root = backend_dir.parent
+    t0 = time.monotonic()
+    proc = run_bounded(
+        [sys.executable, str(repo_root / "scripts" / "check_optional_imports.py"),
+         "--source", str(backend_dir),
+         "--requirements", str(backend_dir / "requirements.txt"),
+         str(backend_dir / "requirements_pro.txt")],
+        cwd=str(repo_root), timeout=60,
+    )
+    dt = time.monotonic() - t0
+    if proc.returncode == 0:
+        print(f"  ok    undeclared-import audit ({dt:.1f}s)")
+    else:
+        ok = False
+        print(f"  FAIL  undeclared-import audit ({dt:.1f}s)")
+        for line in (proc.stdout + proc.stderr).strip().splitlines():
+            print(f"        {line}")
+
     test_files = sorted(p for p in backend_dir.glob("test_*.py") if p.name != "test_api_smoke.py")
     if not test_files:
         print("  (no backend/test_*.py files found)")
