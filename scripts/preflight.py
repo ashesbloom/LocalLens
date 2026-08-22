@@ -63,12 +63,39 @@ class StageResult:
     warned: bool = False
 
 
+def run_bounded(cmd, cwd=None, timeout=300):
+    """
+    subprocess.run with a mandatory timeout, reported as an ordinary failure.
+
+    Unbounded, a wedged test or a smoke harness that never returns would hold the
+    CI runner until the job's own timeout — the whole slot, for one hung process.
+    Returns a CompletedProcess either way so call sites need no special case.
+    """
+    try:
+        return subprocess.run(
+            cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout
+        )
+    except subprocess.TimeoutExpired as exc:
+        captured = exc.stdout or ""
+        if isinstance(captured, bytes):
+            captured = captured.decode(errors="replace")
+        return subprocess.CompletedProcess(
+            cmd, 124, captured, f"preflight: timed out after {timeout}s"
+        )
+
+
 def find_backend_python(repo_root: Path) -> Path:
     """The backend venv's interpreter, so subprocesses see the same deps main.py does."""
     backend = repo_root / "backend"
+    # Both spellings: this repo uses backend/venv, but release.yml's macOS job
+    # creates backend/.venv. Missing the dotted one silently falls through to
+    # sys.executable, which lacks the backend's deps unless the caller happened
+    # to activate the venv first.
     for candidate in (
-        backend / "venv" / "bin" / "python",          # macOS / Linux
+        backend / "venv" / "bin" / "python",           # macOS / Linux
         backend / "venv" / "Scripts" / "python.exe",   # Windows
+        backend / ".venv" / "bin" / "python",
+        backend / ".venv" / "Scripts" / "python.exe",
     ):
         if candidate.exists():
             return candidate
@@ -105,7 +132,6 @@ print("no duplicate routes")
 
 
 def run_stage_unit_tests(python_exe: Path, backend_dir: Path) -> StageResult:
-    print("\n== Stage 1/2: unit tests ==")
     start = time.monotonic()
     ok = True
 
@@ -115,9 +141,8 @@ def run_stage_unit_tests(python_exe: Path, backend_dir: Path) -> StageResult:
 
     for f in test_files:
         t0 = time.monotonic()
-        proc = subprocess.run(
-            [str(python_exe), str(f)], cwd=str(backend_dir), capture_output=True, text=True
-        )
+        # 300s: the slowest test today (test_face_engine.py) takes ~9s.
+        proc = run_bounded([str(python_exe), str(f)], cwd=str(backend_dir), timeout=300)
         dt = time.monotonic() - t0
         if proc.returncode == 0:
             print(f"  ok    {f.name} ({dt:.1f}s)")
@@ -128,9 +153,8 @@ def run_stage_unit_tests(python_exe: Path, backend_dir: Path) -> StageResult:
                 print(f"        {line}")
 
     t0 = time.monotonic()
-    proc = subprocess.run(
-        [str(python_exe), "-c", _ROUTE_CHECK_SNIPPET],
-        cwd=str(backend_dir), capture_output=True, text=True,
+    proc = run_bounded(
+        [str(python_exe), "-c", _ROUTE_CHECK_SNIPPET], cwd=str(backend_dir), timeout=120
     )
     dt = time.monotonic() - t0
     if proc.returncode == 0:
@@ -148,7 +172,6 @@ _SMOKE_SUMMARY_RE = re.compile(r"^\d+/\d+ checks passed\.$")
 
 
 def run_stage_api_smoke(python_exe: Path, backend_dir: Path, built, expect_version) -> StageResult:
-    print("\n== Stage 2/2: api smoke ==")
     start = time.monotonic()
     cmd = [str(python_exe), "test_api_smoke.py"]
     if built:
@@ -156,7 +179,9 @@ def run_stage_api_smoke(python_exe: Path, backend_dir: Path, built, expect_versi
     if expect_version:
         cmd += ["--expect-version", expect_version]
 
-    proc = subprocess.run(cmd, cwd=str(backend_dir), capture_output=True, text=True)
+    # 900s: the smoke itself runs in ~2min, but a frozen one-file Windows build
+    # unpacks ~140MB before it prints its port line.
+    proc = run_bounded(cmd, cwd=str(backend_dir), timeout=900)
     dt = time.monotonic() - start
     output_lines = (proc.stdout + proc.stderr).strip().splitlines()
     for line in output_lines:
@@ -211,7 +236,6 @@ def run_stage_version_consistency(repo_root: Path, version: str) -> StageResult:
     """AGENTS.md §5: the four canonical files must agree with each other and
     with the vX.Y.Z argument. Any disagreement is a hard fail (R9) — a stale
     file here is exactly how APP_VERSION got forgotten during v2.4.1."""
-    print("\n== Version consistency ==")
     start = time.monotonic()
     ok = True
     warned = False
@@ -281,7 +305,6 @@ def run_stage_release_notes(repo_root: Path, version: str) -> StageResult:
     (heading style, bullet count, blank line, tables, a docs/RELEASE_NOTES_*.md)
     is a warning: the shipped v3.0.1 baseline already violates several of
     these, and a gate that fails on its own baseline gets switched off."""
-    print("\n== Release notes ==")
     start = time.monotonic()
     ok = True
     warned = False
@@ -307,7 +330,7 @@ def run_stage_release_notes(repo_root: Path, version: str) -> StageResult:
         "\n"
         'printf "%s" "$notes"\n'
     )
-    proc = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    proc = run_bounded(["bash", "-c", script], timeout=30)
     notes = proc.stdout
     if not notes.strip():
         ok = False
@@ -373,19 +396,30 @@ def main() -> int:
 
     # AGENTS.md's own order: version consistency, then the checks, then release
     # notes — so one run reports all three even if an early one fails.
+    total = 4 if args.release else 2
+    step = [0]
+
+    def header(name):
+        step[0] += 1
+        print(f"\n== Step {step[0]}/{total}: {name} ==")
+
     stages = []
     if args.release:
+        header("version consistency")
         stages.append(run_stage_version_consistency(repo_root, args.release))
 
+    header("unit tests")
     stages.append(run_stage_unit_tests(python_exe, backend_dir))
 
+    header("api smoke")
     if args.fast:
-        print("\n== Stage 2/2: api smoke ==\n  SKIP  api smoke (--fast)")
+        print("  SKIP  api smoke (--fast)")
         stages.append(StageResult("api smoke", True, 0.0, skipped=True))
     else:
         stages.append(run_stage_api_smoke(python_exe, backend_dir, args.built, args.expect_version))
 
     if args.release:
+        header("release notes")
         stages.append(run_stage_release_notes(repo_root, args.release))
 
     print("\n" + "=" * 60)
