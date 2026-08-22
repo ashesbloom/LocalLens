@@ -88,16 +88,29 @@ def test_denormalised_paths_still_prune(root, ignore_list):
         head, tail = os.path.split(p)
         return head + os.sep * 2 + tail
 
-    for label, mangled in [
+    cases = [
         ("trailing separator", [p + os.sep for p in ignore_list]),
         ("doubled separator",  [double_interior_sep(p) for p in ignore_list]),
         ("redundant '.'",      [os.path.join(p, ".") for p in ignore_list]),
         ("parent traversal",   [os.path.join(p, "..", os.path.basename(p)) for p in ignore_list]),
-        ("relative path",      [os.path.relpath(p) for p in ignore_list]),
-    ]:
+    ]
+
+    # os.path.relpath raises on Windows when the two paths sit on different drives
+    # ("path is on mount 'C:', start on mount 'D:'") — which is exactly the CI layout,
+    # temp dir on C: and the checkout on D:. A cross-drive relative path is not
+    # something a caller could send either, so the case is unrepresentable rather than
+    # failing. Skip it there instead of faking it.
+    drive = os.path.splitdrive(os.getcwd())[0]
+    if all(os.path.splitdrive(p)[0] == drive for p in ignore_list):
+        cases.append(("relative path", [os.path.relpath(p) for p in ignore_list]))
+        relative_note = "slash / '.' / relative"
+    else:
+        relative_note = "slash / '.'; relative skipped, temp dir is on another drive"
+
+    for label, mangled in cases:
         count = _count_source_files(root, mangled)
         assert count == 2, f"{label}: filter did not apply — expected 2, got {count}"
-    print("✅ ignore paths still prune when denormalised (slash / '.' / relative)")
+    print(f"✅ ignore paths still prune when denormalised ({relative_note})")
 
 
 def test_destination_inside_source_is_auto_excluded(root):
