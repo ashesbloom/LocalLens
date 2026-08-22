@@ -13,6 +13,10 @@ python-multipart
 PyInstaller==6.19.0
 setuptools<81
 send2trash
+# PDF export (/api/export-report -> report_pdf.py). Undeclared until now, so it was
+# absent from every packaged build while working fine in dev venvs — the same shape
+# as the imagehash bug. main.py's ImportError -> 501 handler stays as the fallback.
+reportlab
 
 
 # ============================================================================
