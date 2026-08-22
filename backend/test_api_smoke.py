@@ -137,6 +137,24 @@ def _captured_output(lines, lock):
         return "".join(lines)
 
 
+def _startup_diagnosis(lines, lock):
+    """
+    A known-fatal cause read out of the backend's own output, or "".
+
+    Without this, a port clash surfaces as "sandbox override did not take effect",
+    because the backend writes port.txt, fails to bind, and deletes it again on the
+    way down — so the symptom points at the sandbox and the cause is four lines up
+    in the captured log. In dev mode the port is hardcoded to 8000, so anyone with
+    LocalLens already running hits this.
+    """
+    out = _captured_output(lines, lock)
+    if "address already in use" in out.lower():
+        return ("another process is already listening on that port — in dev mode the "
+                "backend always uses 8000. Stop the running LocalLens (or pass --built "
+                "to test a packaged build, which picks a free port) and retry.")
+    return ""
+
+
 def _terminate_and_wait(proc, timeout=10):
     """Escalate: terminate() first, kill() if the child ignores SIGTERM. Shared by
     every startup-failure path and by stop_backend's post-shutdown backstop, so a
@@ -210,9 +228,10 @@ def verify_sandbox(sandbox_home, port, lines, lock):
     while time.monotonic() < deadline and not port_file.exists():
         time.sleep(0.1)
     if not port_file.exists():
+        why = _startup_diagnosis(lines, lock)
+        headline = why or f"sandbox override did not take effect — {port_file} was never created"
         raise RuntimeError(
-            f"sandbox override did not take effect — {port_file} was never created\n"
-            f"--- captured stdout/stderr ---\n{_captured_output(lines, lock)}"
+            f"{headline}\n--- captured stdout/stderr ---\n{_captured_output(lines, lock)}"
         )
     on_disk = int(port_file.read_text().strip())
     if on_disk != port:
