@@ -1684,25 +1684,6 @@ async def open_enrolled_folder(request: OpenEnrolledFolderRequest):
         print(f"Error opening enrolled folder: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to open folder: {str(e)}")
 
-@app.post("/api/open-folder")
-async def open_folder(request: OpenFolderRequest):
-    """Opens a given folder path in the system's file explorer."""
-    folder_path = os.path.realpath(request.folder_path)
-    if not os.path.isdir(folder_path):
-        raise HTTPException(status_code=404, detail=f"Directory not found: {folder_path}")
-    try:
-        if sys.platform == "win32":
-            # FIX: Removed check=True as explorer.exe can return 1 on success.
-            subprocess.run(['explorer', folder_path])
-        elif sys.platform == "darwin":
-            subprocess.run(["open", folder_path], check=True)
-        else:
-            subprocess.run(["xdg-open", folder_path], check=True)
-        return {"status": "success", "message": f"Opened '{os.path.basename(folder_path)}' in file explorer."}
-    except Exception as e:
-        print(f"Error opening folder: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to open folder via OS command: {str(e)}")
-
 @app.post("/api/delete-enrolled-face")
 async def delete_enrolled_face(request: OpenEnrolledFolderRequest):
     """
