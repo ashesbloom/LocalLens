@@ -188,6 +188,36 @@ def _is_daemon_alive() -> bool:
         pid_file.unlink(missing_ok=True)
         return False
 
+def _daemon_availability() -> "tuple[bool, str]":
+    """
+    Whether the scheduler daemon CAN run in this build — a different question from
+    _is_daemon_alive(), which only says whether one is running right now. Callers need
+    both: "not started yet" and "cannot start here" look identical otherwise, and a
+    schedule created in the second case is stored and never fires.
+
+    Returns (available, reason). `reason` is user-facing when available is False.
+    """
+    if not (Path(__file__).parent / "scheduler_daemon.py").exists():
+        return False, (
+            "Auto-scheduling is not available in this build: the scheduler daemon is not "
+            "included in it. Schedules you create are saved, but nothing will run them. "
+            "Update LocalLens to a build that includes it."
+        )
+    # Deliberately checked even when the script IS present. Frozen, sys.executable is the
+    # backend binary, so launching [sys.executable, daemon_script] boots a second backend
+    # that overwrites port.txt and hijacks port discovery — we saw 3 backends spawn in the
+    # wild, which is why /api/scheduler/daemon-command was removed (see its note below).
+    # Bundling the script into the spec without fixing that launcher would re-arm it; this
+    # branch keeps availability False until the launcher itself is fixed.
+    if getattr(sys, "frozen", False):
+        return False, (
+            "Auto-scheduling is not available in this build: the scheduler daemon cannot be "
+            "launched from a packaged build. Schedules you create are saved, but nothing "
+            "will run them."
+        )
+    return True, ""
+
+
 def _ensure_daemon_running():
     """Start the scheduler daemon if it's not running and there are active schedules."""
     global _daemon_proc
@@ -207,10 +237,11 @@ def _ensure_daemon_running():
             return
 
     # Launch the daemon as a background subprocess
-    daemon_script = Path(__file__).parent / "scheduler_daemon.py"
-    if not daemon_script.exists():
-        print("Warning: scheduler_daemon.py not found — auto-scheduling disabled.")
+    available, reason = _daemon_availability()
+    if not available:
+        print(f"Warning: {reason}")
         return
+    daemon_script = Path(__file__).parent / "scheduler_daemon.py"
 
     log_file = APP_DATA_DIR / "scheduler.log"
     try:
@@ -1745,7 +1776,19 @@ async def create_schedule(config: ScheduleCreateRequest):
         # Note: daemon is launched by the MCP agent (via _launch_daemon_terminal) or
         # auto-started on backend boot. We do NOT launch it here to avoid hidden
         # duplicate processes that steal the PID file from the visible terminal.
-        return {"status": "success", "schedule_id": sched["schedule_id"], "next_sweep_at": sched["next_sweep_at"]}
+        available, reason = _daemon_availability()
+        result = {
+            "status": "success",
+            "schedule_id": sched["schedule_id"],
+            "next_sweep_at": sched["next_sweep_at"],
+            "daemon_available": available,
+        }
+        if not available:
+            # The schedule really was stored, and it runs on a source install — so this
+            # stays a 200 rather than a 501. But returning bare "success" for something
+            # that can never fire in this build is the same lie the delete dry-run told.
+            result["warning"] = reason
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -1762,8 +1805,11 @@ async def list_schedules():
                 pid = int((APP_DATA_DIR / "scheduler.pid").read_text().strip())
             except Exception:
                 pass
+        available, reason = _daemon_availability()
         return {
             "daemon_running": alive,
+            "daemon_available": available,
+            "daemon_unavailable_reason": reason or None,
             "daemon_pid": pid,
             "schedules": scheduler_service.list_schedules()
         }
@@ -1781,8 +1827,11 @@ async def scheduler_daemon_status():
                 pid = int((APP_DATA_DIR / "scheduler.pid").read_text().strip())
             except Exception:
                 pass
+        available, reason = _daemon_availability()
         return {
             "daemon_running": alive,
+            "daemon_available": available,
+            "daemon_unavailable_reason": reason or None,
             "daemon_pid": pid,
             "log_file": str(APP_DATA_DIR / "scheduler.log"),
         }

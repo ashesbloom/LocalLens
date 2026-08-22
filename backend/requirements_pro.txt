@@ -1,2 +1,13 @@
+# Pro extras — the scheduler daemon only (scheduler_daemon.py).
+#
+# NOTHING INSTALLS THIS FILE. release.yml installs requirements.txt alone, and the
+# daemon is not bundled into backend_server.spec either, so auto-scheduling is a
+# source-install feature by design. The API says so: _daemon_availability() in
+# main.py reports daemon_available=false and /api/scheduler/create returns a warning
+# rather than a bare success for a schedule that can never fire.
+#
+# Declared here anyway so the undeclared-import audit stays honest — these imports
+# ARE accounted for; they are just not shipped.
+
 watchdog>=4.0
 apscheduler>=3.10
