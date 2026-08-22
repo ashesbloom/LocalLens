@@ -44,6 +44,7 @@ Exit code: 0 iff every stage passed. Warnings never affect it.
 
 import argparse
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -63,6 +64,16 @@ class StageResult:
     warned: bool = False
 
 
+# Windows defaults stdio to cp1252 when the output is captured, and every test file
+# here prints ✅/❌. Reconfigure ours, and force the children's below — otherwise the
+# gate dies with UnicodeEncodeError on the runner while passing on any UTF-8 machine.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
+
+
 def run_bounded(cmd, cwd=None, timeout=300):
     """
     subprocess.run with a mandatory timeout, reported as an ordinary failure.
@@ -71,9 +82,15 @@ def run_bounded(cmd, cwd=None, timeout=300):
     CI runner until the job's own timeout — the whole slot, for one hung process.
     Returns a CompletedProcess either way so call sites need no special case.
     """
+    # PYTHONUTF8/PYTHONIOENCODING force the child to emit UTF-8; encoding= makes us
+    # decode it as UTF-8 rather than the locale default. Both halves are needed.
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     try:
         return subprocess.run(
-            cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout
+            cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace", env=env,
         )
     except subprocess.TimeoutExpired as exc:
         captured = exc.stdout or ""
@@ -198,7 +215,10 @@ def run_stage_api_smoke(python_exe: Path, backend_dir: Path, built, expect_versi
     start = time.monotonic()
     cmd = [str(python_exe), "test_api_smoke.py"]
     if built:
-        cmd += ["--built", built]
+        # Resolve against OUR cwd before handing it over: the smoke runs with
+        # cwd=backend/, so a repo-root-relative path like backend/dist/... would
+        # resolve to backend/backend/dist/... there.
+        cmd += ["--built", str(Path(built).resolve())]
     if expect_version:
         cmd += ["--expect-version", expect_version]
 
