@@ -1,0 +1,24 @@
+{
+  "name": "locallens-community",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check:changelog": "node scripts/check-changelog-copy.mjs",
+    "check:analytics": "node src/data/analytics.test.mjs",
+    "check": "npm run check:changelog && npm run check:analytics"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
+    "gsap": "^3.15.0"
+  },
+  "devDependencies": {
+    "vite": "^8.2.2",
+    "@vitejs/plugin-react": "^6.1.0"
+  }
+}

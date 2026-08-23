@@ -1,0 +1,45 @@
+@import './fonts.css';
+
+:root {
+  --void: #04070B;
+  --panel: #0A100D;
+  --line: rgba(53,240,138,0.14);
+  --phos: #35F08A;
+  --phos-soft: #8FF7BF;
+  --phos-dim: #0F5C33;
+  --phos-mid: #1E9C5C;
+  --iris: #E86A24;
+  --cool: #2FA8E0;
+  --paper: #C9E8D6;
+  --display: 'Martian Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --body: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--void);
+  color: var(--paper);
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--phos);
+}
+
+a:hover {
+  color: var(--phos-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--phos);
+  outline-offset: 2px;
+}

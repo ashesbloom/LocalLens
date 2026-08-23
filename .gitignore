@@ -217,6 +217,7 @@ cython_debug/
 # These files store local paths and settings that should not be in version control.
 /backend/presets/
 /.backend/for dev/Reach.txt
+/for dev/homebrew_official.md
 
 # Ignore any log files that might be generated in the backend directory.
 /backend/*.log
@@ -230,11 +231,13 @@ backend_server-aarch64-unknown-linux-gnu
 backend_server-aarch64-apple-darwin
 backend_server-x86_64-apple-darwin
 backend_server-i686-unknown-linux-gnu
-website/
+website/*
+!website/locallens-Community/
 locallens_mcp_agent/
 locallens_mcp_agent_v1/
 backend/launch_daemon.command
 about/
+marketing/
 
 
 #user local profile
