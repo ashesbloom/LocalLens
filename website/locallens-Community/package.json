@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check:changelog": "node scripts/check-changelog-copy.mjs",
     "check:analytics": "node src/data/analytics.test.mjs",
-    "check": "npm run check:changelog && npm run check:analytics"
+    "check:shell": "node src/shell/commands.test.mjs",
+    "check": "npm run check:changelog && npm run check:analytics && npm run check:shell"
   },
   "dependencies": {
     "react": "^19.2.8",

@@ -33,6 +33,7 @@ body {
 
 a {
   color: var(--phos);
+  text-decoration: none;
 }
 
 a:hover {

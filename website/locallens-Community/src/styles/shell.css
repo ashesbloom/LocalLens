@@ -1,0 +1,135 @@
+/* ── lifted verbatim from design/_shell.css — heights, padding, sizes, letter-spacing ──
+   :root, the reset, body type, and a/a:hover already live in tokens.css (Task 1); not
+   repeated here. Do not round any of the values below. */
+
+.scan { position: absolute; inset: 0; pointer-events: none; z-index: 5;
+        background: repeating-linear-gradient(to bottom,
+          rgba(53,240,138,0.030) 0px, rgba(53,240,138,0.030) 1px,
+          transparent 1px, transparent 3px); }
+
+.frame { position: relative; min-height: 100%; display: flex; flex-direction: column; }
+
+/* ── header ─────────────────────────────────────────── */
+.hdr { display: flex; align-items: center; justify-content: space-between;
+       gap: 32px; height: 56px; padding: 0 28px; flex: 0 0 auto;
+       border-bottom: 1px solid var(--line); background: var(--void); }
+.hdr-prompt { font-family: var(--body); font-size: 13px; color: var(--phos);
+              letter-spacing: 0.01em; white-space: nowrap; }
+.hdr-prompt .sym { color: var(--phos-mid); }
+.nav { display: flex; align-items: center; gap: 4px; }
+.nav-item { display: flex; align-items: center; gap: 7px; padding: 7px 12px;
+            font-size: 12.5px; color: var(--phos); border: 1px solid transparent;
+            border-radius: 3px; white-space: nowrap; }
+.nav-item svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.nav-item.on { border-color: var(--phos); color: var(--phos-soft);
+               background: rgba(53,240,138,0.07); }
+.hdr-right { display: flex; align-items: center; gap: 8px; font-size: 12px;
+             color: var(--phos-mid); white-space: nowrap; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--phos);
+       box-shadow: 0 0 7px var(--phos); flex: 0 0 auto; }
+
+/* ── body ───────────────────────────────────────────── */
+.out { flex: 1 1 auto; padding: 40px 48px 32px; display: flex;
+       flex-direction: column; gap: 34px; }
+.echo { font-size: 13.5px; color: var(--phos-mid); }
+.echo b { color: var(--phos); font-weight: 400; }
+.caret { display: inline-block; width: 8px; height: 15px; vertical-align: -2px;
+         background: var(--phos); margin-left: 3px; }
+
+/* ── status ─────────────────────────────────────────── */
+.status { display: flex; align-items: center; justify-content: space-between;
+          gap: 24px; height: 36px; padding: 0 28px; flex: 0 0 auto;
+          border-top: 1px solid var(--line); font-size: 11.5px;
+          color: var(--phos-dim); background: var(--void); }
+.status .mid { color: var(--phos-mid); }
+.status b { color: var(--phos); font-weight: 400; }
+
+/* ── shared type ────────────────────────────────────── */
+.h1 { font-family: var(--display); font-weight: 700; font-size: 34px;
+      line-height: 1.15; letter-spacing: -0.01em; color: var(--phos-soft); margin: 0; }
+.lbl { font-family: var(--display); font-size: 11px; font-weight: 600;
+       letter-spacing: 0.18em; text-transform: uppercase; color: var(--phos-mid); }
+.lede { color: var(--paper); max-width: 52ch; margin: 0; text-wrap: pretty; }
+.kv { display: grid; grid-template-columns: 152px 1fr; gap: 4px 16px; font-size: 13.5px; }
+.kv dt { color: var(--phos-mid); margin: 0; }
+.kv dd { color: var(--paper); margin: 0; }
+
+/* ── full-height chrome, single scrolling region ──────────────────────────────────
+   Not in the static mockup (a one-shot screenshot never needed to scroll). .frame's
+   min-height:100% (above) only resolves against a real height chain. */
+html, body, #root { height: 100%; }
+.out { min-height: 0; overflow-y: auto; }
+
+/* ── command line: the real input living in the header prompt ────────────────────── */
+.hdr-cmd { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.prompt-short { display: none; }
+.cmd-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin: 0 0 0 6px;
+  width: 16ch;
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--paper);
+  caret-color: var(--phos);
+}
+.cmd-caret { animation: caret-blink 1s step-end infinite; }
+@keyframes caret-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .cmd-caret { animation: none; }
+}
+
+/* Safety valve: whichever width the header is asked to fit into, the nav is the one
+   thing that yields — it scrolls internally rather than ever forcing the page wider
+   than the viewport. Header/status keep their fixed heights at every width. */
+.nav {
+  min-width: 0; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin; scrollbar-color: var(--phos-dim) transparent;
+}
+.nav::-webkit-scrollbar { height: 4px; }
+.nav::-webkit-scrollbar-thumb { background: var(--phos-dim); border-radius: 2px; }
+
+/* ── transient shell message: help / ls / stats / command-not-found ──────────────── */
+.msg { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--paper); }
+.msg-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+.msg-row .n { color: var(--phos); min-width: 90px; }
+.msg-row .d { flex: 1 1 240px; }
+.msg-row .m { color: var(--phos-dim); margin-left: auto; }
+
+/* ── skip-to-content ───────────────────────────────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  top: -48px;
+  left: 8px;
+  z-index: 20;
+  background: var(--panel);
+  color: var(--phos);
+  padding: 8px 14px;
+  border: 1px solid var(--phos);
+  border-radius: 3px;
+  font-size: 12px;
+}
+.skip-link:focus { top: 8px; }
+
+/* ── boot sequence ─────────────────────────────────────────────────────────────── */
+.boot { min-height: 100vh; padding: 40px 48px; }
+.boot-lines { display: flex; flex-direction: column; gap: 4px;
+              font-size: 13px; color: var(--phos-mid); line-height: 1.8; }
+.boot-lines div:last-child { color: var(--phos); }
+
+/* ── narrow screens (per design/Mobile.dc.html) ───────────────────────────────────
+   Values below are lifted from Mobile.dc.html's own mobile overrides. The command
+   input hides here (brief: "the input may be hidden") — the nav still works via the
+   scroll behaviour above. */
+@media (max-width: 600px) {
+  .hdr { height: 52px; padding: 0 16px; }
+  .hdr-prompt { font-size: 12px; }
+  .prompt-full { display: none; }
+  .prompt-short { display: inline; }
+  .cmd-input, .cmd-caret { display: none; }
+  .nav-item { min-height: 44px; font-size: 12px; }
+  .out { padding: 24px 16px 20px; gap: 26px; }
+  .status { height: 34px; padding: 0 16px; font-size: 10.5px; }
+}
