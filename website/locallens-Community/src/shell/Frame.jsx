@@ -4,6 +4,7 @@ import Nav from './Nav.jsx'
 import CommandLine from './CommandLine.jsx'
 import StatusBar from './StatusBar.jsx'
 import Echo from './Echo.jsx'
+import SectionRows from './SectionRows.jsx'
 import { useBoot } from './useBoot.js'
 import { pageview } from '../data/analytics.js'
 import { getStats } from '../data/stats.js'
@@ -76,14 +77,7 @@ export default function Frame() {
 function ShellMessage({ message }) {
   return (
     <div className="msg" role="status" aria-live="polite">
-      {message.kind === 'ls' &&
-        message.entries.map((e) => (
-          <div className="msg-row" key={e.name}>
-            <span className="n">{e.name}</span>
-            <span className="d">{e.blurb}</span>
-            <span className="m">{e.meta}</span>
-          </div>
-        ))}
+      {message.kind === 'ls' && <SectionRows entries={message.entries} />}
       {message.kind === 'stats' && (
         <>
           <div className="msg-row">

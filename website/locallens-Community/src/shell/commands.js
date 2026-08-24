@@ -1,7 +1,9 @@
 // Single source of truth for every route/command. Nav.jsx and CommandLine.jsx both derive
 // from ROUTES so they can never disagree about what routes exist; commands.test.mjs asserts
 // that. Pure data + lookup helpers, no JSX/React import — this file (and its test) must run
-// under plain `node`.
+// under plain `node`. (version.js is a plain data module too — no JSX — so importing it here
+// keeps that guarantee.)
+import { APP_VERSION } from '../data/version.js'
 
 export const ROUTES = [
   {
@@ -87,10 +89,19 @@ export function routeForPath(pathname) {
   return ROUTES.find((r) => r.path === pathname) ?? null
 }
 
-// `ls` content — same section list the Home page shows. Meta is '—' for every entry: no
-// data source is wired up yet (open-issue counts, tool counts, etc. would be fabricated).
+// `ls` content — same section list the Home page shows. Meta is real where the site
+// actually has the number (the shipped version; the MCP agent's verified tool count) and
+// '—' everywhere else — open-issue counts and view counts are not fetched yet (Task 7).
+const LS_META = {
+  post: '—',
+  announce: `v${APP_VERSION}`,
+  blog: '—',
+  agent: '26 tools',
+  contact: '—',
+}
+
 export function lsEntries() {
-  return NAV_ITEMS.map((r) => ({ name: `${r.cmd}/`, blurb: r.blurb, meta: '—' }))
+  return NAV_ITEMS.map((r) => ({ name: `${r.cmd}/`, blurb: r.blurb, meta: LS_META[r.cmd] ?? '—' }))
 }
 
 // Derived from ROUTES, not hand-maintained — one line per navigable command, plus one line

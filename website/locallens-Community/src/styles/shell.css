@@ -132,4 +132,8 @@ html, body, #root { height: 100%; }
   .nav-item { min-height: 44px; font-size: 12px; }
   .out { padding: 24px 16px 20px; gap: 26px; }
   .status { height: 34px; padding: 0 16px; font-size: 10.5px; }
+  .kv { grid-template-columns: 1fr; gap: 0 0; font-size: 13px; }
+  .kv dt {
+    margin-top: 10px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  }
 }

@@ -10,6 +10,7 @@ import Agent from './routes/Agent.jsx'
 import Contact from './routes/Contact.jsx'
 import './styles/tokens.css'
 import './styles/shell.css'
+import './styles/home.css'
 
 // Catch-all 404 — same command-not-found styling CommandLine uses, plus a real link home.
 function NotFound() {
