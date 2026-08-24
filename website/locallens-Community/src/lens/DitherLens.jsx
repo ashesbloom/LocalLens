@@ -9,6 +9,12 @@ const STAGGER_SPREAD = 0.55
 // Period of the idle "breathing" wobble, in seconds (gsap.ticker time is seconds, not ms).
 const BREATHE_PERIOD = 7
 const BREATHE_AMOUNT = 0.12
+// A slow breathing drift doesn't need display-rate redraws — capping it is what gets p95
+// frame time under the 30fps budget on a throttled mid-range phone (task-3-report.md,
+// Finding 1 fix #2). The focus tween and the ~6s decay back to drift are excluded from this
+// cap: that's fast, visible motion where full rate matters. Value tuned against measurement
+// — see the report for what was tried and why this one.
+const IDLE_FRAME_INTERVAL = 1 / 24 // seconds — gsap.ticker time is seconds, not ms
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 const lerp = (a, b, t) => a + (b - a) * t
@@ -190,7 +196,7 @@ export default function DitherLens() {
   const runningRef = useRef(false)
   const animState = useRef({ progress: 0, irisBloom: 0 })
   const timelineRef = useRef(null)
-  const drawRef = useRef(null)
+  const lastIdleDrawRef = useRef(-Infinity)
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current
@@ -209,17 +215,28 @@ export default function DitherLens() {
       sizeRef.current = { px, cellPx: px / CELLS, scale: px / CELLS / REF_CELL }
     }
 
-    function draw(now) {
+    function draw(now, force = false) {
       const ctx = ctxRef.current
       const cells = cellsRef.current
       const colors = colorsRef.current
       const size = sizeRef.current
       if (!ctx || !cells || !colors || !size) return
+
+      const { progress, irisBloom } = animState.current
+      const idle = progress <= 0 && irisBloom <= 0
+
+      // Idle drift is a slow breathing wobble — it doesn't need a redraw every display
+      // frame. Skip the tick entirely (not even touching the canvas) unless the cap
+      // interval has elapsed or the caller forced a one-off repaint (initial paint, or a
+      // resize while the ticker loop is paused). Not throttled while focusing in or
+      // decaying back to drift — that fast motion is where full rate is actually visible.
+      if (idle && !force && now - lastIdleDrawRef.current < IDLE_FRAME_INTERVAL) return
+      if (idle) lastIdleDrawRef.current = now
+
       const { px, cellPx, scale } = size
       ctx.fillStyle = colors.voidHex
       ctx.fillRect(0, 0, px, px)
 
-      const { progress, irisBloom } = animState.current
       const breathe = reducedMotionRef.current ? 1 : 1 + BREATHE_AMOUNT * Math.sin((now * 2 * Math.PI) / BREATHE_PERIOD)
 
       // Idle fast path: at rest (progress <= 0) every cell's localT is exactly 0, so
@@ -227,7 +244,7 @@ export default function DitherLens() {
       // about them changes frame to frame. Skips the per-cell lerp entirely and batches
       // each colour run (cells are pre-sorted by driftStr) into one Path2D + one fill()
       // call instead of one fill() per cell. This is the loop the perf review profiled.
-      if (progress <= 0 && irisBloom <= 0) {
+      if (idle) {
         let curColor = null
         let path = null
         for (const cell of cells) {
@@ -273,21 +290,28 @@ export default function DitherLens() {
         ctx.fill()
       }
     }
-    drawRef.current = draw
+
+    // gsap.ticker invokes its listeners as (time, deltaTime, frame) — registering `draw`
+    // directly would land `deltaTime` in `draw`'s `force` parameter (always a truthy
+    // number), permanently defeating the idle throttle above. This one-arg wrapper is what
+    // actually goes on the ticker; direct calls elsewhere pass `force` explicitly.
+    function onTick(time) {
+      draw(time)
+    }
 
     function drawOnce() {
       measure()
-      draw(gsap.ticker.time)
+      draw(gsap.ticker.time, true) // force: bypass the idle cap for a deliberate one-off paint
     }
 
     function updateRunning() {
       const should = readyRef.current && !reducedMotionRef.current && intersectingRef.current && pageVisibleRef.current
       if (should && !runningRef.current) {
         runningRef.current = true
-        gsap.ticker.add(draw)
+        gsap.ticker.add(onTick)
       } else if (!should && runningRef.current) {
         runningRef.current = false
-        gsap.ticker.remove(draw)
+        gsap.ticker.remove(onTick)
       }
     }
 
@@ -339,7 +363,7 @@ export default function DitherLens() {
     const ro = new ResizeObserver(() => {
       if (!readyRef.current) return
       measure()
-      if (!runningRef.current) draw(gsap.ticker.time) // keep it correct while paused
+      if (!runningRef.current) draw(gsap.ticker.time, true) // keep it correct while paused
     })
     ro.observe(canvas)
 
@@ -349,7 +373,7 @@ export default function DitherLens() {
       io.disconnect()
       ro.disconnect()
       document.removeEventListener('visibilitychange', onVisibilityChange)
-      gsap.ticker.remove(draw)
+      gsap.ticker.remove(onTick)
       timelineRef.current?.kill()
     }
   }, [])
