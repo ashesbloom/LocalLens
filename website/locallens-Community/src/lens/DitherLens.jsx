@@ -24,6 +24,29 @@ function lerpColor(a, b, t) {
   return `rgb(${Math.round(lerp(a[0], b[0], t))},${Math.round(lerp(a[1], b[1], t))},${Math.round(lerp(a[2], b[2], t))})`
 }
 
+function rgbString([r, g, b]) {
+  return `rgb(${r},${g},${b})`
+}
+
+// Cells never change ink/tier/rad after the field is built, but the RGB they resolve to
+// depends on the (also fixed-once-read) CSS tokens — so this precomputes, once, everything
+// draw()'s idle fast path needs: the fixed "at rest" radius (`r0`) and colour (`driftStr`,
+// plus the arrays `driftArr`/`tierArr` the transition path still needs to lerp between).
+// Sorting by that fixed colour groups same-coloured cells contiguously, so the idle path
+// below can batch a whole run into one Path2D + one fill() call instead of one fill() per
+// cell — see the perf fix in task-3-report.md (Finding 1: idle drift was ~26fps under 6x
+// CPU throttle at 390px because this exact per-cell fillStyle/lerp ran unconditionally,
+// every frame, even though at rest nothing about it was actually changing frame to frame).
+function prepareCellColors(cells, colors) {
+  for (const cell of cells) {
+    cell.r0 = dotRadius(cell.ink)
+    cell.tierArr = colors[cell.tier]
+    cell.driftArr = cell.rad > 0.3 ? colors.dim : cell.tierArr
+    cell.driftStr = rgbString(cell.driftArr)
+  }
+  cells.sort((a, b) => (a.driftStr < b.driftStr ? -1 : a.driftStr > b.driftStr ? 1 : 0))
+}
+
 // Reads the actual token values rather than re-hardcoding hexes that could drift from
 // tokens.css.
 function readColors() {
@@ -199,8 +222,37 @@ export default function DitherLens() {
       const { progress, irisBloom } = animState.current
       const breathe = reducedMotionRef.current ? 1 : 1 + BREATHE_AMOUNT * Math.sin((now * 2 * Math.PI) / BREATHE_PERIOD)
 
+      // Idle fast path: at rest (progress <= 0) every cell's localT is exactly 0, so
+      // position/radius/colour all collapse to their precomputed "drift" values — nothing
+      // about them changes frame to frame. Skips the per-cell lerp entirely and batches
+      // each colour run (cells are pre-sorted by driftStr) into one Path2D + one fill()
+      // call instead of one fill() per cell. This is the loop the perf review profiled.
+      if (progress <= 0 && irisBloom <= 0) {
+        let curColor = null
+        let path = null
+        for (const cell of cells) {
+          if (cell.driftStr !== curColor) {
+            if (path) ctx.fill(path)
+            curColor = cell.driftStr
+            ctx.fillStyle = curColor
+            path = new Path2D()
+          }
+          const { x, y, r0, ox, oy } = cell
+          const cx = x * cellPx + cellPx / 2 + ox * scale * breathe
+          const cy = y * cellPx + cellPx / 2 + oy * scale * breathe
+          const r = Math.max(0.4, r0 * scale * 0.82)
+          path.moveTo(cx + r, cy)
+          path.arc(cx, cy, r, 0, Math.PI * 2)
+        }
+        if (path) ctx.fill(path)
+        return
+      }
+
+      // Transition path (focusing in, or the drift creeping back over ~6s): colour,
+      // position and radius all genuinely blend per cell here, so this keeps the full
+      // per-cell lerp.
       for (const cell of cells) {
-        const { x, y, ink, tier, rad, ox, oy } = cell
+        const { x, y, rad, ox, oy, r0, tierArr, driftArr } = cell
         const localT = clamp(progress * (1 + STAGGER_SPREAD) - rad * STAGGER_SPREAD, 0, 1)
 
         const focusX = x * cellPx + cellPx / 2
@@ -211,11 +263,10 @@ export default function DitherLens() {
         const cy = lerp(driftY, focusY, localT)
 
         const bloomBoost = irisBloom * Math.exp(-((rad * 6) ** 2)) * 0.5
-        const baseR = (dotRadius(ink) + bloomBoost) * scale
+        const baseR = (r0 + bloomBoost) * scale
         const r = lerp(baseR * 0.82, baseR, localT)
 
-        const driftColor = rad > 0.3 ? colors.dim : colors[tier]
-        ctx.fillStyle = lerpColor(driftColor, colors[tier], localT)
+        ctx.fillStyle = lerpColor(driftArr, tierArr, localT)
 
         ctx.beginPath()
         ctx.arc(cx, cy, Math.max(0.4, r), 0, Math.PI * 2)
@@ -262,6 +313,7 @@ export default function DitherLens() {
       if (cancelled) return
       cellsRef.current = buildActiveCells(img)
       colorsRef.current = readColors()
+      prepareCellColors(cellsRef.current, colorsRef.current)
       readyRef.current = true
       drawOnce()
       updateRunning()
