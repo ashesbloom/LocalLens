@@ -1,0 +1,120 @@
+/* Article reading view (/blog/:id) — title/lede/meta-strip/foot classes ported from
+   design/Article.dc.html (`.art-*`), not rounded. content.blocks has no "category" field
+   (task-5-brief.md already found this for the index), so the meta strip's four columns are
+   author / published / read time / original — the last one is where attribution.requiredLink
+   lives, visibly, per the licence condition (task-6-brief.md). `.term` already exists in
+   agent.css but isn't reused here: it renders a fixed mockup transcript, not real post data. */
+
+.art-title {
+  margin: 0; font-family: var(--display); font-weight: 700; font-size: 40px;
+  line-height: 1.16; letter-spacing: -0.02em; color: var(--phos-soft); max-width: 24ch;
+}
+.art-lede { margin: 0; font-size: 15px; line-height: 1.7; color: var(--paper); max-width: 68ch; }
+
+.art-meta {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px;
+  padding: 18px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.art-meta .c { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.art-meta .k {
+  font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--phos-dim);
+}
+.art-meta .v { font-size: 13px; color: var(--paper); overflow-wrap: anywhere; }
+
+/* ── body: the two rendering paths (postHtml.js's legacy walk, Article.jsx's block
+   renderer) share every one of these rules — same tags in, same look out ────────────── */
+/* Plain block flow, not flex — `float` has no effect at all on a flex item (spec), which
+   silently broke every floated figure below (found in screenshot verification: a
+   float:right/offset:-180 image rendered as an inert flex child, no text wrap, no offset).
+   Child spacing is margin-bottom instead of the `gap` a flex/grid container would give it. */
+.art-body { font-size: 14.5px; line-height: 1.75; }
+.art-body::after { content: ''; display: block; clear: both; } /* contains any floated figure */
+.art-body > * { margin: 0 0 16px; }
+.art-body > *:last-child { margin-bottom: 0; }
+.art-body p { max-width: 68ch; color: var(--paper); }
+.art-body p strong, .art-body strong { color: var(--phos-soft); font-weight: 500; }
+.art-body h1, .art-body h2, .art-body h3, .art-body h4, .art-body h5, .art-body h6 {
+  font-family: var(--display); font-weight: 700; color: var(--phos-soft); line-height: 1.3;
+}
+.art-body h1 { font-size: 24px; }
+.art-body h2 { font-size: 21px; }
+.art-body h3 { font-size: 18px; }
+.art-body h4, .art-body h5, .art-body h6 { font-size: 15.5px; }
+.art-body ul, .art-body ol { padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.art-body li { color: var(--paper); max-width: 66ch; }
+.art-body blockquote {
+  padding: 4px 0 4px 16px; border-left: 2px solid var(--phos-dim);
+  color: var(--paper); opacity: 0.85; max-width: 64ch;
+}
+.art-body pre {
+  padding: 16px 18px; border: 1px solid var(--line); border-radius: 4px;
+  background: #020405; overflow-x: auto; font-size: 12.5px; line-height: 1.6;
+}
+.art-body pre code { color: var(--phos); }
+.art-body code {
+  background: rgba(53,240,138,0.08); color: var(--phos-soft); padding: 1px 5px;
+  border-radius: 2px; font-size: 0.92em;
+}
+.art-body a { text-decoration: underline; text-underline-offset: 2px; }
+
+.art-body figure { margin: 20px 0; }
+/* width:100% of the figure, not max-width — the figure is already sized to the author's
+   declared column percentage (data-width, below); a small source image (a low-res GIF, say)
+   must still fill that box rather than sitting tiny inside it. */
+.art-body figure img { display: block; width: 100%; height: auto; border-radius: 3px; }
+.art-body figcaption {
+  margin-top: 6px; font-size: 12px; color: var(--phos-dim); text-align: center;
+}
+
+/* Author layout (contract: llms.txt) — honoured at desktop width only. The mobile-first base
+   above (figure always full width, no float) is the narrow-screen behaviour the brief calls
+   for; this block is the enhancement, not the override, which sidesteps ever having to beat
+   an attribute selector's specificity with a media query. */
+@media (min-width: 601px) {
+  .art-body figure[data-float='left'] { float: left; margin: 6px 24px 16px 0; }
+  .art-body figure[data-float='right'] { float: right; margin: 6px 0 16px 24px; }
+  .art-body figure[data-float='none'] { margin: 20px auto; }
+
+  .art-body figure[data-width='25'] { width: 25%; }
+  .art-body figure[data-width='33'] { width: 33%; }
+  .art-body figure[data-width='40'] { width: 40%; }
+  .art-body figure[data-width='50'] { width: 50%; }
+  .art-body figure[data-width='60'] { width: 60%; }
+  .art-body figure[data-width='75'] { width: 75%; }
+  .art-body figure[data-width='100'] { width: 100%; }
+
+  /* Negative pushes outside the column, toward the outer margin the image is floated
+     against; positive pulls it back in (contract: llms.txt). float:none has no outward
+     side of its own, so it takes the same treatment as 'left'. */
+  .art-body figure[data-float='right'][data-offset='-180'] { margin-right: -180px; }
+  .art-body figure[data-float='right'][data-offset='-120'] { margin-right: -120px; }
+  .art-body figure[data-float='right'][data-offset='-60'] { margin-right: -60px; }
+  .art-body figure[data-float='right'][data-offset='60'] { margin-right: 60px; }
+  .art-body figure[data-float='right'][data-offset='120'] { margin-right: 120px; }
+  .art-body figure[data-float='right'][data-offset='180'] { margin-right: 180px; }
+
+  .art-body figure[data-float='left'][data-offset='-180'],
+  .art-body figure[data-float='none'][data-offset='-180'] { margin-left: -180px; }
+  .art-body figure[data-float='left'][data-offset='-120'],
+  .art-body figure[data-float='none'][data-offset='-120'] { margin-left: -120px; }
+  .art-body figure[data-float='left'][data-offset='-60'],
+  .art-body figure[data-float='none'][data-offset='-60'] { margin-left: -60px; }
+  .art-body figure[data-float='left'][data-offset='60'],
+  .art-body figure[data-float='none'][data-offset='60'] { margin-left: 60px; }
+  .art-body figure[data-float='left'][data-offset='120'],
+  .art-body figure[data-float='none'][data-offset='120'] { margin-left: 120px; }
+  .art-body figure[data-float='left'][data-offset='180'],
+  .art-body figure[data-float='none'][data-offset='180'] { margin-left: 180px; }
+}
+
+.art-foot {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px;
+  padding-top: 22px; border-top: 1px solid var(--line); font-size: 12.5px;
+}
+.art-foot a { color: var(--phos); max-width: 60ch; }
+
+@media (max-width: 600px) {
+  .art-title { font-size: 28px; max-width: none; }
+  .art-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+  .art-body pre { padding: 12px 14px; }
+}

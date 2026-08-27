@@ -6,6 +6,7 @@ import Home from './routes/Home.jsx'
 import Post from './routes/Post.jsx'
 import Announce from './routes/Announce.jsx'
 import Blog from './routes/Blog.jsx'
+import Article from './routes/Article.jsx'
 import Agent from './routes/Agent.jsx'
 import Contact from './routes/Contact.jsx'
 import './styles/tokens.css'
@@ -13,6 +14,7 @@ import './styles/shell.css'
 import './styles/home.css'
 import './styles/announce.css'
 import './styles/blog.css'
+import './styles/article.css'
 import './styles/agent.css'
 
 // Catch-all 404 — same command-not-found styling CommandLine uses, plus a real link home.
@@ -37,6 +39,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="/post" element={<Post />} />
           <Route path="/announce" element={<Announce />} />
           <Route path="/blog" element={<Blog />} />
+          <Route path="/blog/:id" element={<Article />} />
           <Route path="/agent" element={<Agent />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="*" element={<NotFound />} />

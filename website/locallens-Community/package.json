@@ -13,7 +13,8 @@
     "check:shell": "node src/shell/commands.test.mjs",
     "check:lens": "node src/lens/dither.test.mjs",
     "check:blog": "node src/data/blog.test.mjs",
-    "check": "npm run check:changelog && npm run check:changelog-parse && npm run check:analytics && npm run check:shell && npm run check:lens && npm run check:blog"
+    "check:postHtml": "node src/data/postHtml.test.mjs",
+    "check": "npm run check:changelog && npm run check:changelog-parse && npm run check:analytics && npm run check:shell && npm run check:lens && npm run check:blog && npm run check:postHtml"
   },
   "dependencies": {
     "react": "^19.2.8",

@@ -1,17 +1,8 @@
 import { useEffect, useState } from 'react'
-import { fetchBlogPosts } from '../data/blog.js'
+import { Link } from 'react-router-dom'
+import { fetchBlogPosts, formatDate } from '../data/blog.js'
 
 const BLOG_HOME = 'https://blogs-1626.onrender.com'
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-// Human date for the latest band — 'DD Mon YYYY', matching Announce's CurrentBand format.
-// Unlike the changelog's bare 'YYYY-MM-DD' (see changelog.js's own formatDate), publishedAt
-// is a full ISO instant, so new Date() carries no ambiguity here — it renders in the
-// viewer's local time zone, which is normal for a "published" timestamp.
-function formatDate(iso) {
-  const d = new Date(iso)
-  return `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
-}
 
 // The listing rows use the raw ISO date prefix — design/Blog.dc.html shows '2026-08-22', an
 // ls-style date, not the human form. A display convenience, not a time-zone claim.
@@ -20,17 +11,18 @@ function isoDate(iso) {
 }
 
 function LatestBand({ post }) {
-  const label = `Read "${post.title}" by ${post.author} — opens in a new tab`
+  const label = `Read "${post.title}" by ${post.author}`
   return (
     <section className="band">
       <span className="pill up">latest</span>
-      {/* The whole card is the link — canonicalUrl must stay visible wherever this post's
-          content appears (attribution is a licence condition, not decoration: brief). */}
-      <a className="feat" href={post.canonicalUrl} target="_blank" rel="noopener noreferrer" aria-label={label}>
+      {/* Task 6: reads inside our own chrome now, at /blog/:id — the external canonicalUrl
+          moves to the article page itself (attribution.requiredLink must stay reachable
+          wherever this post's content appears; it just no longer has to live here too). */}
+      <Link className="feat" to={`/blog/${post.id}`} aria-label={label}>
         <div className="feat-main">
           <h3>{post.title}</h3>
           <p>{post.excerpt}</p>
-          <span className="read">read ↗</span>
+          <span className="read">read →</span>
         </div>
         <div className="adata">
           <span className="lbl">Article data</span>
@@ -51,7 +43,7 @@ function LatestBand({ post }) {
             <dd className="dim">{post.filename}</dd>
           </dl>
         </div>
-      </a>
+      </Link>
     </section>
   )
 }
@@ -68,21 +60,14 @@ function Listing({ posts }) {
       </div>
       <div className="lsblog">
         {posts.map((post) => {
-          const label = `Read "${post.title}" by ${post.author} — opens in a new tab`
+          const label = `Read "${post.title}" by ${post.author}`
           return (
-            <a
-              className="lsb-row"
-              key={post.id}
-              href={post.canonicalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={label}
-            >
+            <Link className="lsb-row" key={post.id} to={`/blog/${post.id}`} aria-label={label}>
               <span className="dt">{isoDate(post.publishedAt)}</span>
               <span className="au">{post.author}</span>
               <span className="fn">{post.filename}</span>
               <span className="rt">{post.readingTimeMinutes} min</span>
-            </a>
+            </Link>
           )
         })}
       </div>

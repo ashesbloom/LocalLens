@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import gsap from 'gsap'
 import { ScrambleTextPlugin } from 'gsap/ScrambleTextPlugin'
 import { routeForPath } from './commands.js'
+import { cachedPostFilename } from '../data/blog.js'
 
 // Register once, at module level — never inside the component (it re-renders on every route).
 gsap.registerPlugin(ScrambleTextPlugin)
@@ -10,6 +11,17 @@ gsap.registerPlugin(ScrambleTextPlugin)
 function commandFor(pathname) {
   const route = routeForPath(pathname)
   if (route) return route.cmd
+
+  // /blog/:id has no static ROUTES entry (it's a param route, not a typeable command) — give
+  // it a real "reading a file" echo instead of falling through to the bare-path fallback
+  // below. cachedPostFilename is a synchronous, cache-only lookup (Article.jsx does the
+  // actual fetch): a hit — the common case, arriving from the Blog index, which just
+  // populated that cache — prints the post's real <slug>.md; a miss (direct link, or the
+  // index's 300s TTL already expired) falls back to the id itself, which is still a real,
+  // sensible file name (task-6-brief.md).
+  const articleId = pathname.match(/^\/blog\/([^/]+)$/)?.[1]
+  if (articleId) return `cat blog/${cachedPostFilename(articleId) ?? `${articleId}.md`}`
+
   // No matching route (404) — echo what was actually typed in the URL, not a guess.
   return pathname.replace(/^\//, '') || 'home'
 }
