@@ -1,0 +1,18 @@
+/* LL Agent page — reuses announce.css's .band/.pill.up/.meta/.rows/.row/.st vocabulary as-is
+   (see task-5-report.md for why: no Agent artboard was ever drawn, so this page is built from
+   the vocabulary the other pages already established, not a new one). Only the install code
+   block and its copy button are new — `.term` is the transcript-block look defined in
+   design/Article.dc.html, its first real consumer. */
+
+.term {
+  margin: 0; padding: 22px 24px; border: 1px solid var(--line); border-radius: 4px;
+  background: #020405; font-size: 12.5px; line-height: 1.75; color: var(--paper);
+  overflow-x: auto; white-space: pre;
+}
+
+.install-block { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.copy-btn { min-width: 64px; }
+
+@media (max-width: 600px) {
+  .term { padding: 16px 14px; font-size: 12px; }
+}

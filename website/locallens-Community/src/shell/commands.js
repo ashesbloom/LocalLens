@@ -92,11 +92,14 @@ export function routeForPath(pathname) {
 // `ls` content — same section list the Home page shows. Meta is real where the site
 // actually has the number (the shipped version; the MCP agent's verified tool count) and
 // '—' everywhere else — open-issue counts and view counts are not fetched yet (Task 7).
+// The 16/10 split is a registered claim (marketing/CLAIMS.md) that must not be flattened
+// into a bare "26 tools" (task-5-brief.md) — shown here as '16+10' to keep both numbers
+// visible even in this compact column.
 const LS_META = {
   post: '—',
   announce: `v${APP_VERSION}`,
   blog: '—',
-  agent: '26 tools',
+  agent: '16+10 tools',
   contact: '—',
 }
 
