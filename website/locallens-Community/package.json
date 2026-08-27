@@ -8,10 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "check:changelog": "node scripts/check-changelog-copy.mjs",
+    "check:changelog-parse": "node src/data/changelog.test.mjs",
     "check:analytics": "node src/data/analytics.test.mjs",
     "check:shell": "node src/shell/commands.test.mjs",
     "check:lens": "node src/lens/dither.test.mjs",
-    "check": "npm run check:changelog && npm run check:analytics && npm run check:shell && npm run check:lens"
+    "check": "npm run check:changelog && npm run check:changelog-parse && npm run check:analytics && npm run check:shell && npm run check:lens"
   },
   "dependencies": {
     "react": "^19.2.8",

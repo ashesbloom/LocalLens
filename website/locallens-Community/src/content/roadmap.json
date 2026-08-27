@@ -1,0 +1,31 @@
+{
+  "upcoming": [
+    {
+      "state": "building",
+      "title": "Scheduler inside the packaged app",
+      "detail": "Schedules save but never run in a released build today — the scheduler is not part of the bundle. Manage it from the Agent tray app until this lands."
+    },
+    {
+      "state": "planned",
+      "title": "Signed macOS builds",
+      "detail": "No xattr step and no Gatekeeper workaround on the manual DMG. Homebrew already handles this; the direct download does not."
+    },
+    {
+      "state": "planned",
+      "title": "Linux build",
+      "detail": "The backend already runs there. Packaging and the updater are what is missing."
+    }
+  ],
+  "labs": [
+    {
+      "state": "testing",
+      "title": "Smart Album suggestions",
+      "detail": "Groups photos into albums it thinks belong together. Accuracy is not there yet, so it stays unpromoted inside the app."
+    },
+    {
+      "state": "early",
+      "title": "A local chat UI",
+      "detail": "Talking to LocalLens without Claude Desktop in the loop. Unsupported, and it may never ship."
+    }
+  ]
+}

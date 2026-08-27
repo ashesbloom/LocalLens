@@ -1,0 +1,122 @@
+/* Announce page — the four bands (current/upcoming/labs/archive). Spacing, type sizes and
+   the colour legend (--iris = current only, --cool = labs only, everything else green) are
+   lifted verbatim from design/Announce.dc.html; do not round any of the values below. */
+
+.band { display: flex; flex-direction: column; gap: 16px; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+  font-family: var(--display); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.2em; text-transform: uppercase; padding: 6px 12px; border-radius: 2px;
+}
+.pill.cur {
+  color: var(--iris); border: 1px solid rgba(232,106,36,0.5); background: rgba(232,106,36,0.09);
+}
+.pill.cur .dot { background: var(--iris); box-shadow: 0 0 7px var(--iris); }
+.pill.up {
+  color: var(--phos); border: 1px solid rgba(53,240,138,0.4); background: rgba(53,240,138,0.06);
+}
+.pill.lab {
+  color: var(--cool); border: 1px solid rgba(47,168,224,0.45); background: rgba(47,168,224,0.08);
+}
+
+/* ── current ────────────────────────────────────────────────────────────────────── */
+.cur-panel {
+  display: grid; grid-template-columns: 340px 1fr; gap: 44px; padding: 30px 32px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--panel);
+  box-shadow: inset 3px 0 0 var(--iris);
+}
+.ver {
+  font-family: var(--display); font-weight: 700; font-size: 62px; line-height: 1;
+  letter-spacing: -0.02em; color: var(--phos-soft); margin: 0 0 20px;
+}
+.ver small {
+  display: block; font-size: 11px; font-weight: 500; letter-spacing: 0.2em;
+  color: var(--phos-dim); margin-bottom: 10px;
+}
+.meta { display: grid; grid-template-columns: 108px 1fr; gap: 5px 14px; font-size: 12.5px; }
+.meta dt { color: var(--phos-dim); margin: 0; }
+.meta dd { color: var(--paper); margin: 0; }
+.chip {
+  display: inline-block; padding: 1px 7px; font-size: 11px; border-radius: 2px;
+  background: rgba(53,240,138,0.12); color: var(--phos);
+}
+.ver-note { font-size: 11.5px; color: var(--phos-dim); margin: 10px 0 0; max-width: 34ch; }
+
+.notes { display: flex; flex-direction: column; gap: 13px; }
+.notes h4 {
+  font-family: var(--display); font-size: 11px; font-weight: 600; margin: 0;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--phos-mid);
+}
+.notes-sub {
+  font-family: var(--display); font-size: 10px; font-weight: 600; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--phos-dim); margin: 10px 0 6px;
+}
+.notes-sub:first-child { margin-top: 0; }
+.note { display: grid; grid-template-columns: 14px 1fr; gap: 10px; font-size: 13px; line-height: 1.6; }
+.note .b { color: var(--phos-dim); }
+.note strong { color: var(--phos-soft); font-weight: 500; }
+.note code, .row p code {
+  background: rgba(53,240,138,0.08); color: var(--phos-soft); padding: 1px 5px;
+  border-radius: 2px; font-size: 0.92em;
+}
+.note-children { margin: 6px 0 0; padding-left: 18px; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.note-children li { position: relative; font-size: 12.5px; color: var(--paper); opacity: 0.72; }
+.note-children li::before { content: '·'; position: absolute; left: -14px; color: var(--phos-dim); }
+
+.acts { display: flex; gap: 10px; margin-top: 4px; }
+.btn { font-size: 12px; padding: 7px 14px; border: 1px solid var(--line); border-radius: 3px; color: var(--phos); }
+.btn.pri { border-color: rgba(232,106,36,0.55); color: var(--iris); }
+.btn:hover { color: var(--phos-soft); }
+.btn.pri:hover { color: var(--iris); border-color: var(--iris); }
+
+/* ── upcoming / labs rows ──────────────────────────────────────────────────────── */
+.rows { display: flex; flex-direction: column; gap: 2px; }
+.row {
+  display: grid; grid-template-columns: 104px 1fr; gap: 22px; padding: 16px 16px;
+  border: 1px solid var(--line); border-radius: 3px; background: rgba(10,16,13,0.55); align-items: start;
+}
+.row .st {
+  display: flex; align-items: center; justify-content: center; height: 24px; margin-top: -3px;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--phos-mid);
+  border-radius: 2px; border: 1px solid rgba(53,240,138,0.28); background: rgba(53,240,138,0.05);
+}
+.row.lab .st { color: var(--cool); border-color: rgba(47,168,224,0.35); background: rgba(47,168,224,0.07); }
+.row h5 { margin: 0 0 5px; font-size: 13.5px; font-weight: 500; line-height: 1.35; color: var(--phos-soft); }
+.row p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--paper); opacity: 0.78; max-width: 96ch; }
+
+/* ── archive ────────────────────────────────────────────────────────────────────── */
+.arch-head { display: flex; align-items: center; gap: 16px; }
+.arch-head .ln { flex: 1 1 auto; height: 1px; background: var(--line); }
+.arch-head span:not(.ln) { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--phos-dim); }
+.arch { display: flex; flex-direction: column; }
+.arch-row {
+  display: grid; grid-template-columns: 78px 108px 1fr; gap: 22px; padding: 11px 14px;
+  font-size: 13px; border-bottom: 1px solid rgba(53,240,138,0.05);
+  width: 100%; text-align: left; background: none; border-top: none; border-left: none; border-right: none;
+  color: inherit; font-family: inherit; cursor: pointer;
+}
+.arch-row .v { font-family: var(--display); font-weight: 600; color: var(--phos); }
+.arch-row .d { color: var(--phos-mid); font-size: 12px; }
+.arch-row .s { color: var(--paper); }
+.arch-row:hover .v { color: var(--phos-soft); }
+.arch-detail { padding: 2px 14px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+/* ── narrow screens ───────────────────────────────────────────────────────────────
+   No mockup covers Announce at mobile widths — layout below follows the same stacking
+   approach home.css/shell.css already use for .hero/.ls-row at this breakpoint. */
+@media (max-width: 600px) {
+  .cur-panel { grid-template-columns: 1fr; gap: 26px; padding: 22px 18px; }
+  .ver { font-size: 44px; margin-bottom: 14px; }
+  .meta { grid-template-columns: 96px 1fr; }
+
+  .row { grid-template-columns: 1fr; gap: 8px; padding: 14px; }
+  .row .st { justify-self: start; margin-top: 0; }
+
+  .arch-row {
+    grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 4px 12px; padding: 12px 4px;
+  }
+  .arch-row .v { grid-column: 1; grid-row: 1; }
+  .arch-row .d { grid-column: 2; grid-row: 1; text-align: right; }
+  .arch-row .s { grid-column: 1 / -1; grid-row: 2; }
+}
