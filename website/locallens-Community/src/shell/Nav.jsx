@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { track } from '../data/analytics.js'
 import { NAV_ITEMS } from './commands.js'
 
 // Inline SVG icons, lifted stroke-for-stroke from the approved artboard (Main.dc.html).
@@ -38,17 +39,31 @@ const ICONS = {
 export default function Nav() {
   return (
     <nav className="nav" aria-label="Sections">
-      {NAV_ITEMS.map((route) => (
-        <NavLink
-          key={route.cmd}
-          to={route.path}
-          end
-          className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}
-        >
-          {ICONS[route.icon]}
-          <span>{route.label}</span>
-        </NavLink>
-      ))}
+      {NAV_ITEMS.map((route) =>
+        route.url ? (
+          <a
+            key={route.cmd}
+            href={route.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="nav-item"
+            onClick={() => track('agent_click', { from: 'nav' })}
+          >
+            {ICONS[route.icon]}
+            <span>{route.label}</span>
+          </a>
+        ) : (
+          <NavLink
+            key={route.cmd}
+            to={route.path}
+            end
+            className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}
+          >
+            {ICONS[route.icon]}
+            <span>{route.label}</span>
+          </NavLink>
+        ),
+      )}
     </nav>
   )
 }

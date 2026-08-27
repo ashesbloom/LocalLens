@@ -3,7 +3,8 @@
    (task-5-brief.md already found this for the index), so the meta strip's four columns are
    author / published / read time / original — the last one is where attribution.requiredLink
    lives, visibly, per the licence condition (task-6-brief.md). `.term` already exists in
-   agent.css but isn't reused here: it renders a fixed mockup transcript, not real post data. */
+   the (now removed) agent page but isn't reused here: that one rendered a fixed mockup
+   transcript, not real post data. */
 
 .art-title {
   margin: 0; font-family: var(--display); font-weight: 700; font-size: 40px;

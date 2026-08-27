@@ -34,9 +34,13 @@ export const ROUTES = [
     nav: true,
   },
   {
+    // External: the MCP agent has its own site, so there is no /agent route here — the nav
+    // item and the command open it directly. `path` stays null and `url` carries it; Nav and
+    // CommandLine branch on `url`, and commands.test.mjs asserts both shapes.
     cmd: 'agent',
     aliases: ['ll-agent', 'mcp'],
-    path: '/agent',
+    path: null,
+    url: 'https://locallensmcp.vercel.app',
     label: 'LL Agent',
     icon: 'agent',
     blurb: 'run LocalLens from Claude Desktop',
@@ -113,7 +117,7 @@ export function lsEntries() {
 export function helpLines() {
   const routeLines = ROUTES.map((r) => {
     const names = [r.cmd, ...r.aliases].join(', ')
-    return `${names} — go to ${r.path}`
+    return r.url ? `${names} — open ${r.url} in a new tab` : `${names} — go to ${r.path}`
   })
   const systemLines = [
     'help — list every command',

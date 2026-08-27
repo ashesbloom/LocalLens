@@ -39,7 +39,12 @@ export default function CommandLine({ setMessage }) {
     const route = resolveRoute(raw)
     if (route) {
       setMessage(null)
-      navigate(route.path)
+      if (route.url) {
+        window.open(route.url, '_blank', 'noopener,noreferrer')
+        track('agent_click', { from: `command:${route.cmd}` })
+      } else {
+        navigate(route.path)
+      }
       return
     }
 
