@@ -93,28 +93,28 @@ export default function Agent() {
 
       <section className="band">
         <span className="pill up">tools</span>
-        <p className="lede">16 tools free, no licence required. 10 more with an active Pro licence — 26 in total.</p>
+        <p className="lede">15 tools free, no licence required. 11 more with an active Pro licence — 26 in total.</p>
         <div className="rows">
           <div className="row">
             <span className="st">free</span>
             <div>
-              <h5>16 tools — no licence required</h5>
+              <h5>15 tools — no licence required</h5>
               <p>
                 status and progress (check_app_status, get_stats, get_job_progress) · folder ops
-                (analyse_folder, start_sorting, start_find_group, abort_job, open_folder) · path
-                presets (get_path_presets, remember_paths, forget_paths) · faces
-                (get_enrolled_faces) · licence (activate_pro_license, get_license_status,
-                revoke_pro_license) · help (locallens_help)
+                (analyse_folder, start_sorting, abort_job, open_folder) · path presets
+                (get_path_presets, remember_paths, forget_paths) · faces (get_enrolled_faces) ·
+                licence (activate_pro_license, get_license_status, revoke_pro_license) · help
+                (locallens_help)
               </p>
             </div>
           </div>
           <div className="row">
             <span className="st">pro</span>
             <div>
-              <h5>10 tools — active Pro licence</h5>
+              <h5>11 tools — active Pro licence</h5>
               <p>
-                face enrolment (add_face_enroll) · duplicates (find_duplicates,
-                delete_duplicates) · reporting (export_report) · automation
+                face enrolment (add_face_enroll) · search (start_find_group) · duplicates
+                (find_duplicates, delete_duplicates) · reporting (export_report) · automation
                 (schedule_auto_organize, create_active_folder, list_schedules, manage_schedule,
                 open_scheduler_dashboard) · smart albums (smart_album_suggestions)
               </p>

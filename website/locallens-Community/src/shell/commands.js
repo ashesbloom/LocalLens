@@ -92,14 +92,15 @@ export function routeForPath(pathname) {
 // `ls` content — same section list the Home page shows. Meta is real where the site
 // actually has the number (the shipped version; the MCP agent's verified tool count) and
 // '—' everywhere else — open-issue counts and view counts are not fetched yet (Task 7).
-// The 16/10 split is a registered claim (marketing/CLAIMS.md) that must not be flattened
-// into a bare "26 tools" (task-5-brief.md) — shown here as '16+10' to keep both numbers
-// visible even in this compact column.
+// The 15/11 split (by @require_pro decorator in locallens_mcp_agent/src/mcp_server/tools/*.py
+// — the README and marketing/CLAIMS.md both say 16/10, which miscounts start_find_group as
+// free when it is Pro-gated) must not be flattened into a bare "26 tools" (task-5-brief.md) —
+// shown here as '15+11' to keep both numbers visible even in this compact column.
 const LS_META = {
   post: '—',
   announce: `v${APP_VERSION}`,
   blog: '—',
-  agent: '16+10 tools',
+  agent: '15+11 tools',
   contact: '—',
 }
 

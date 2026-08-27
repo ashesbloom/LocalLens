@@ -22,9 +22,19 @@ export function slugify(title) {
   return slug
 }
 
-// Normalises one raw API summary. Two real-data facts this guards against (verified against
-// the live API, not just the contract — task-5-brief.md): `readingTimeMinutes` is sometimes a
-// number and sometimes a string, and `cover`/`author.name` need defensive handling.
+// A title with no alphanumerics at all (emoji-only, punctuation-only) slugifies to '' — a real
+// live post is titled '🐈‍⬛' (cat + zero-width joiner + black square), which has no
+// alphanumerics for the regex to keep. A bare '.md' with nothing in front of it is not an
+// acceptable row, so fall back to the post id: it's real, unique, and already what
+// canonicalUrl is built from.
+function filenameFor(title, id) {
+  return `${slugify(title) || id}.md`
+}
+
+// Normalises one raw API summary. Real-data facts this guards against (verified against the
+// live API, not just the contract — task-5-brief.md): `readingTimeMinutes` is sometimes a
+// number and sometimes a string, `cover`/`author.name` need defensive handling, and a title
+// can slugify to empty (see filenameFor above).
 function normalizePost(raw) {
   return {
     id: raw.id,
@@ -36,7 +46,7 @@ function normalizePost(raw) {
     readingTimeMinutes: Number(raw.readingTimeMinutes) || 0,
     canonicalUrl: raw.canonicalUrl,
     cover: raw.cover ?? null,
-    filename: `${slugify(raw.title)}.md`,
+    filename: filenameFor(raw.title, raw.id),
   }
 }
 
