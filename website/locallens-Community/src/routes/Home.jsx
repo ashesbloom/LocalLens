@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import DitherLens from '../lens/DitherLens.jsx'
 import SectionRows from '../shell/SectionRows.jsx'
 import { lsEntries } from '../shell/commands.js'
@@ -8,6 +9,29 @@ import { track } from '../data/analytics.js'
 // from the module so the two can't drift apart.
 const RELEASE_DATE = '22 Aug 2026'
 
+// The two explainers. Kept as data so the card band and its markup stay one shape apart —
+// they are the same card twice, and the only honest difference between them is the audience.
+const READS = [
+  {
+    to: '/how',
+    file: 'how-it-works.md',
+    tag: 'Walkthrough',
+    title: 'Basic Understanding of LocalLens',
+    blurb:
+      'What actually happens to a folder of photos: what gets read, how the folders are decided, and why nothing leaves your machine.',
+    meta: '6 diagrams · 5 min · no jargon',
+  },
+  {
+    to: '/pipeline',
+    file: 'pipeline.md',
+    tag: 'Engineering',
+    title: 'Inside the Pipeline',
+    blurb:
+      'The detection ladder, the encoding cache, the write path — and the measured numbers behind each decision.',
+    meta: '6 diagrams · 12 min · for engineers',
+  },
+]
+
 export default function Home() {
   return (
     <>
@@ -16,7 +40,7 @@ export default function Home() {
       <section className="hero">
         <div className="lens-wrap">
           <DitherLens />
-          <span className="lens-cap">click to focus</span>
+          <span className="lens-cap">hover to focus</span>
         </div>
         <div className="hero-text">
           <h1 className="h1">
@@ -49,6 +73,24 @@ export default function Home() {
             <dt>photos uploaded</dt>
             <dd>0</dd>
           </dl>
+        </div>
+      </section>
+      <section className="reads">
+        <p className="echo">
+          locallens@community:~$ <b>cat how-it-works.md pipeline.md</b>
+        </p>
+        <div className="read-cards">
+          {READS.map((read) => (
+            <Link className="read-card" to={read.to} key={read.to}>
+              <span className="read-top">
+                <span className="lbl">{read.tag}</span>
+                <span className="read-file">{read.file}</span>
+              </span>
+              <span className="read-title">{read.title}</span>
+              <span className="read-blurb">{read.blurb}</span>
+              <span className="read-meta">{read.meta}</span>
+            </Link>
+          ))}
         </div>
       </section>
       <section className="ls">

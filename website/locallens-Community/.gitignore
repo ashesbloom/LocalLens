@@ -9,3 +9,10 @@ public/CHANGELOG.md
 .env
 
 .DS_Store
+
+# Local secrets for `wrangler pages dev` (Turnstile secret, IP salt, admin key). The real
+# values live in the Cloudflare dashboard; this file only ever holds local test ones.
+.dev.vars
+
+# Local D1/R2 state created by `wrangler pages dev`.
+.wrangler/

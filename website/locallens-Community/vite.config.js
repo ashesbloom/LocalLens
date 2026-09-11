@@ -20,4 +20,16 @@ function changelogPlugin() {
 
 export default defineConfig({
   plugins: [react(), changelogPlugin()],
+  server: {
+    // The community board's API lives in functions/ and is served by wrangler, not by vite.
+    // Without this proxy, /api/posts falls into vite's SPA fallback and answers index.html
+    // with a 200 on GET (which the client used to read as an empty board) and 404 on POST.
+    // `npm run dev` starts both processes; see scripts/dev.mjs.
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8788',
+        changeOrigin: false,
+      },
+    },
+  },
 })

@@ -11,6 +11,23 @@
   --iris: #E86A24;
   --cool: #2FA8E0;
   --paper: #C9E8D6;
+  /* Dimmed body text and a hairline one step firmer than --line. Both were already being
+     open-coded (announce.css uses `opacity: 0.78` on .row p and raw rgba() for row borders);
+     the diagrams on /how and /pipeline need them as real colours, since SVG text cannot
+     inherit an opacity trick without also fading its strokes. */
+  --paper-dim: #7C9A88;
+  --line-firm: rgba(53, 240, 138, 0.34);
+  /* Tag hues for the community board. Deliberately clear of --iris and --cool, which mean
+     "current release" and "Labs" everywhere else on this site and must not start meaning
+     "bug" here as well. Warm orange is therefore absent from this ramp on purpose.
+     These colour the tag glyph only, never a block of text, so contrast is carried by the
+     phosphor label sitting next to the glyph rather than by the hue itself. */
+  --tag-bug: #FF4D6D;
+  --tag-feature: #C79BFF;
+  --tag-performance: #FFD166;
+  --tag-faces: #FF9BD2;
+  --tag-help: #8AB4FF;
+  --tag-general: var(--paper-dim);
   --display: 'Martian Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --body: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }

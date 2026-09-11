@@ -1,0 +1,367 @@
+/* The community board: composer, then a rule, then filters, then the feed.
+   Loaded by main.jsx alongside the other route stylesheets. */
+
+/* Centred column. Left-aligned at 1440px the page was a narrow strip of text against a
+   thousand pixels of nothing; the measure below is what long-form reading wants anyway. */
+.board {
+  display: flex; flex-direction: column; gap: 32px;
+  width: 100%; max-width: 760px; margin-inline: auto;
+}
+.board-head { display: flex; flex-direction: column; gap: 10px; }
+.board-head .lede { max-width: none; }
+
+/* ── the composer ───────────────────────────────────────────────────────────────
+   "Slightly lifted" is phosphor, not elevation. A CRT has no drop shadow, so the slab
+   lifts with a hairline plus a wide, dim bloom. On focus the bloom tightens rather than
+   spreading, which reads as attention rather than as the panel growing. */
+.cmp { display: flex; flex-direction: column; gap: 9px; }
+.cmp-slab {
+  position: relative;
+  display: flex; flex-direction: column;
+  padding: 15px 18px 14px 32px;
+  background: var(--panel);
+  border-radius: 5px;
+  box-shadow: 0 0 0 1px var(--line-firm), 0 0 42px -12px rgba(53, 240, 138, 0.16);
+  transition: box-shadow 160ms ease;
+}
+.cmp-slab:focus-within {
+  box-shadow: 0 0 0 1px var(--phos-mid), 0 0 26px -10px rgba(53, 240, 138, 0.3);
+}
+
+/* The hatched gutter from the sketch: ticks running down the left edge, the texture a
+   terminal puts beside a block still being typed into. */
+.cmp-slab::before {
+  content: '';
+  position: absolute; left: 13px; top: 14px; bottom: 12px; width: 7px;
+  background: repeating-linear-gradient(to bottom, var(--phos-dim) 0 1px, transparent 1px 5px);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* ── rows inside the slab ────────────────────────────────────────────────────────
+   Each row is separated by a hairline rather than by whitespace: the sketch draws one
+   block, not four stacked cards. */
+.cmp-row, .cmp-tools, .cmp-foot { display: flex; align-items: center; gap: 10px; }
+.cmp-tagrow { padding-bottom: 10px; }
+/* The tag field. Styled as the quiet label it replaces until you touch it, because it is
+   the label -- a bordered input here would read as a required field rather than an option.
+   flex: 0 0 auto keeps it put while the chips beside it scroll on a narrow screen. */
+.cmp-tagnew {
+  flex: 0 0 auto; width: 18ch; min-width: 0;
+  padding: 4px 6px;
+  font: inherit; font-size: 11.5px;
+  color: var(--phos-soft); background: transparent;
+  border: 1px solid transparent; border-radius: 3px;
+  caret-color: var(--phos);
+}
+.cmp-tagnew::placeholder { color: var(--phos-dim); letter-spacing: 0.06em; }
+.cmp-tagnew:hover { border-color: var(--line); }
+.cmp-tagnew:focus { outline: none; border-color: var(--phos-mid); background: var(--void); }
+
+/* ── tag chips ──────────────────────────────────────────────────────────────────
+   The hue lives on the glyph. The chip stays phosphor on panel, so a row of six does not
+   turn a green page into a paint chart. */
+.cmp-tags {
+  display: flex; align-items: center; gap: 4px;
+  min-width: 0; flex: 1 1 auto; justify-content: flex-end;
+  overflow-x: auto; overflow-y: hidden;
+  padding-bottom: 2px; margin-bottom: -2px;
+  scrollbar-width: thin; scrollbar-color: var(--phos-dim) transparent;
+}
+.cmp-tags::-webkit-scrollbar { height: 2px; }
+.cmp-tags::-webkit-scrollbar-thumb { background: var(--phos-dim); border-radius: 2px; }
+
+.tag-chip {
+  display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto;
+  padding: 4px 9px 4px 7px;
+  font: inherit; font-size: 11.5px; line-height: 1;
+  color: var(--paper-dim); background: transparent;
+  border: 1px solid transparent; border-left: 2px solid transparent;
+  border-radius: 3px; cursor: pointer;
+  transition: color 110ms linear, border-color 110ms linear;
+}
+.tag-chip .tag-glyph { color: var(--hue, var(--phos-mid)); font-size: 12px; }
+.tag-chip:hover { color: var(--paper); }
+.tag-chip.on {
+  color: var(--phos-soft);
+  border-color: var(--line-firm); border-left-color: var(--hue, var(--phos));
+  background: rgba(53, 240, 138, 0.05);
+}
+.tag-chip.add { color: var(--phos-dim); }
+.tag-chip.add:hover { color: var(--phos-mid); }
+
+[data-tag='bug'] { --hue: var(--tag-bug); }
+[data-tag='feature'] { --hue: var(--tag-feature); }
+[data-tag='performance'] { --hue: var(--tag-performance); }
+[data-tag='faces'] { --hue: var(--tag-faces); }
+[data-tag='help'] { --hue: var(--tag-help); }
+[data-tag='general'] { --hue: var(--tag-general); }
+
+.cmp-field {
+  padding: 5px 8px;
+  font: inherit; font-size: 12.5px;
+  color: var(--paper); background: var(--void);
+  border: 1px solid var(--line); border-radius: 3px;
+  caret-color: var(--phos);
+}
+.cmp-field:focus { outline: none; border-color: var(--phos-mid); }
+.cmp-field::placeholder { color: var(--phos-dim); }
+.cmp-mini {
+  padding: 5px 9px;
+  font: inherit; font-size: 11.5px;
+  color: var(--phos); background: transparent;
+  border: 1px solid var(--line-firm); border-radius: 3px; cursor: pointer;
+}
+.cmp-mini:hover { color: var(--phos-soft); border-color: var(--phos-mid); }
+
+/* ── the controls ───────────────────────────────────────────────────────────────
+   Glyphs, not icons. Each one is close to the markdown it inserts, so the row teaches
+   the syntax while you use it. No borders until hover: the sketch draws these bare. */
+.cmp-tools {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 6px 0;
+}
+.cmp-toolrow { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; width: 100%; }
+.cmp-toolgap { width: 1px; height: 15px; background: var(--line); margin: 0 7px; }
+.cmp-tool {
+  min-width: 26px; height: 24px; padding: 0 7px;
+  font-family: var(--body); font-size: 12px; line-height: 1;
+  color: var(--phos-mid); background: transparent;
+  border: 1px solid transparent; border-radius: 3px; cursor: pointer;
+  transition: color 100ms linear, background 100ms linear;
+}
+.cmp-tool:hover { color: var(--phos-soft); background: rgba(53, 240, 138, 0.07); }
+.cmp-preview { margin-left: auto; color: var(--phos-dim); }
+.cmp-preview.on { color: var(--void); background: var(--phos-mid); }
+
+/* ── the body ───────────────────────────────────────────────────────────────────── */
+.cmp-body { position: relative; padding: 12px 0 10px; }
+.cmp-input {
+  display: block; width: 100%;
+  min-height: 108px; resize: vertical;
+  padding: 0; margin: 0;
+  font-family: var(--body); font-size: 13.5px; line-height: 1.7;
+  color: var(--paper); background: transparent;
+  border: none; outline: none;
+  caret-color: var(--phos);
+}
+.cmp-rendered { min-height: 108px; font-size: 13.5px; }
+
+.cmp-ghost {
+  position: absolute; left: 0; top: 12px;
+  display: flex; align-items: center; gap: 9px;
+  pointer-events: none; font-size: 13.5px; line-height: 1.7;
+}
+.cmp-caret {
+  display: inline-block; width: 9px; height: 17px;
+  background: var(--phos);
+  animation: cmp-blink 1.1s step-end infinite;
+}
+.cmp-hint { color: var(--phos-dim); }
+@keyframes cmp-blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+
+/* ── footer row ─────────────────────────────────────────────────────────────────── */
+.cmp-foot { border-top: 1px solid var(--line); padding-top: 11px; flex-wrap: wrap; }
+.cmp-who { flex: 1 1 160px; min-width: 0; }
+.cmp-count { font-size: 11px; color: var(--phos-dim); }
+.cmp-count.over { color: var(--tag-bug); }
+.cmp-expand {
+  padding: 6px 11px;
+  font: inherit; font-size: 11.5px;
+  color: var(--phos-dim); background: transparent;
+  border: 1px solid transparent; border-radius: 3px; cursor: pointer;
+}
+.cmp-expand:hover { color: var(--phos); border-color: var(--line-firm); }
+.cmp-post {
+  padding: 6px 20px;
+  font: inherit; font-size: 12.5px;
+  color: var(--void); background: var(--phos);
+  border: 1px solid var(--phos); border-radius: 3px; cursor: pointer;
+  transition: background 110ms linear;
+}
+.cmp-post:hover:not(:disabled) { background: var(--phos-soft); border-color: var(--phos-soft); }
+.cmp-post:disabled { color: var(--phos-dim); background: transparent; border-color: var(--line-firm); cursor: not-allowed; }
+
+/* Only takes up room on the visits where Cloudflare shows a challenge. */
+.cmp-turnstile:empty { display: none; }
+.cmp-turnstile { margin-top: 10px; }
+.cmp-problem { margin: 0; font-size: 12.5px; color: var(--tag-bug); }
+.cmp-note { margin: 0; font-size: 12px; color: var(--tag-performance); }
+
+/* ── expanded ───────────────────────────────────────────────────────────────────
+   A fixed slab rather than a <dialog>: showModal() would remount the textarea and drop
+   the cursor mid-sentence. Escape and the backdrop both close it (PostComposer.jsx). */
+.cmp-shade { position: fixed; inset: 0; z-index: 40; background: rgba(4, 7, 11, 0.82); }
+.cmp.is-expanded { position: fixed; inset: 5vh 50% 5vh 50%; z-index: 41;
+                   width: min(880px, 90vw); margin-inline: calc(min(880px, 90vw) / -2); }
+.cmp.is-expanded .cmp-slab { height: 100%; }
+.cmp.is-expanded .cmp-body { flex: 1 1 auto; display: flex; }
+.cmp.is-expanded .cmp-input { height: 100%; resize: none; }
+.cmp.is-expanded .cmp-rendered { flex: 1 1 auto; overflow-y: auto; }
+
+/* ── the rule between composing and reading ───────────────────────────────────── */
+.fd { display: flex; flex-direction: column; gap: 16px; }
+.fd-rule {
+  display: flex; align-items: center; gap: 14px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--line-firm);
+}
+.fd-rule-label {
+  font-family: var(--display); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--phos-mid);
+}
+.fd-sorts { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+.fd-sep { color: var(--line-firm); }
+.fd-sort {
+  padding: 2px 4px; font: inherit; font-size: 11.5px;
+  color: var(--phos-dim); background: transparent; border: none; cursor: pointer;
+}
+.fd-sort:hover { color: var(--paper); }
+.fd-sort.on { color: var(--phos-soft); }
+
+.fd-filters { display: flex; flex-wrap: wrap; gap: 3px; }
+.fd-filter {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 9px;
+  font: inherit; font-size: 11.5px; line-height: 1;
+  color: var(--phos-dim); background: transparent;
+  border: 1px solid transparent; border-radius: 3px; cursor: pointer;
+}
+.fd-filter .tag-glyph { color: var(--hue, var(--phos-mid)); }
+.fd-filter:hover { color: var(--paper); }
+.fd-filter.on { color: var(--phos-soft); border-color: var(--line-firm); background: rgba(53, 240, 138, 0.05); }
+.fd-count { color: var(--phos-dim); font-size: 10.5px; }
+.fd-filter.on .fd-count { color: var(--phos-mid); }
+
+.fd-note { margin: 0; font-size: 13px; color: var(--phos-dim); }
+.fd-bad { color: var(--tag-bug); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ── one post ───────────────────────────────────────────────────────────────────── */
+.fd-post {
+  display: grid; grid-template-columns: 34px 1fr; gap: 0 12px;
+  padding: 15px 0 16px;
+  border-top: 1px solid var(--line);
+}
+.fd-post:first-of-type { border-top: none; padding-top: 2px; }
+.fd-post.solo { border-top: none; }
+.fd-main { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+
+/* ── votes ───────────────────────────────────────────────────────────────────────
+   The arrow you used stays lit, and pressing it again withdraws. Colour only on the arrow
+   that is active: a column of green triangles beside every post would out-shout the posts. */
+.vt { display: flex; flex-direction: column; align-items: center; gap: 1px; padding-top: 1px; }
+.vt-arrow {
+  width: 24px; height: 20px; padding: 0;
+  font: inherit; font-size: 10px; line-height: 1;
+  color: var(--phos-dim); background: transparent;
+  border: none; border-radius: 3px; cursor: pointer;
+  transition: color 100ms linear;
+}
+.vt-arrow:hover:not(:disabled) { color: var(--phos-soft); background: rgba(53, 240, 138, 0.07); }
+.vt-arrow.on { color: var(--phos); }
+.vt-arrow:disabled { cursor: default; opacity: 0.5; }
+.vt-score { font-size: 12px; color: var(--paper-dim); font-variant-numeric: tabular-nums; }
+.vt-score.voted { color: var(--phos-soft); }
+
+/* ── what you can do to a post ──────────────────────────────────────────────────── */
+.fd-edited, .fd-yours { font-size: 10.5px; color: var(--phos-dim); }
+.fd-yours { color: var(--phos-mid); }
+.fd-acts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.fd-act {
+  padding: 0; font: inherit; font-size: 11.5px;
+  color: var(--phos-dim); background: transparent; border: none; cursor: pointer;
+}
+.fd-act:hover { color: var(--phos-soft); }
+.fd-act.danger:hover { color: var(--tag-bug); }
+.fd-act:disabled { cursor: default; opacity: 0.5; }
+.fd-back { margin: 0; font-size: 12.5px; }
+
+/* ── editing in place ───────────────────────────────────────────────────────────
+   A plain textarea, deliberately without the composer's control row: two editors kept in
+   step for the sake of a typo fix is not a trade worth making. */
+.fd-edit { display: flex; flex-direction: column; gap: 9px; }
+.fd-editbox {
+  min-height: 90px;
+  padding: 10px 12px;
+  background: var(--panel); border: 1px solid var(--line-firm); border-radius: 4px;
+}
+.fd-editfoot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.fd-hint { font-size: 11px; color: var(--phos-dim); }
+.fd-meta { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 11.5px; }
+.fd-who { color: var(--phos-mid); }
+.fd-when { color: var(--phos-dim); }
+
+.fd-body { font-size: 13.5px; line-height: 1.75; color: var(--paper); }
+.fd-body > :first-child { margin-top: 0; }
+.fd-body > :last-child { margin-bottom: 0; }
+.fd-body p { margin: 0 0 10px; }
+.fd-body h3, .fd-body h4, .fd-body h5, .fd-body h6 {
+  margin: 15px 0 6px;
+  font-family: var(--display); font-weight: 700; letter-spacing: -0.01em;
+  color: var(--phos-soft);
+}
+.fd-body h3 { font-size: 15px; }
+.fd-body h4, .fd-body h5, .fd-body h6 { font-size: 13.5px; }
+.fd-body ul, .fd-body ol { margin: 0 0 10px; padding-left: 20px; }
+.fd-body li { margin: 3px 0; }
+.fd-body blockquote {
+  margin: 0 0 10px; padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--phos-dim); color: var(--paper-dim);
+}
+.fd-body code {
+  padding: 1px 5px; font-size: 12.5px;
+  color: var(--phos-soft); background: rgba(53, 240, 138, 0.07);
+  border: 1px solid var(--line); border-radius: 2px;
+}
+.fd-body pre {
+  margin: 0 0 10px; padding: 11px 13px; overflow-x: auto;
+  background: var(--void); border: 1px solid var(--line); border-radius: 4px;
+}
+.fd-body pre code { padding: 0; background: none; border: none; }
+.fd-body img { max-width: 100%; height: auto; border-radius: 3px; }
+.fd-body hr { margin: 14px 0; border: none; border-top: 1px solid var(--line); }
+
+.fd-more {
+  align-self: flex-start; padding: 6px 14px;
+  font: inherit; font-size: 12.5px;
+  color: var(--phos); background: transparent;
+  border: 1px solid var(--line-firm); border-radius: 3px; cursor: pointer;
+}
+.fd-more:hover { color: var(--phos-soft); border-color: var(--phos-mid); }
+
+/* ── replies ─────────────────────────────────────────────────────────────────────
+   A flat panel under the post it belongs to, opened by the same kind of quiet text button
+   as "open" and "copy link" beside it -- reading the count before opening it is the point. */
+.rp-panel {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 10px; padding: 12px 14px;
+  background: var(--void); border: 1px solid var(--line); border-radius: 4px;
+}
+.rp-item { display: flex; flex-direction: column; gap: 5px; }
+.rp-item + .rp-item { padding-top: 12px; border-top: 1px solid var(--line); }
+.rp-meta { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 11px; }
+.rp-who { color: var(--phos-mid); }
+.rp-when { color: var(--phos-dim); }
+.rp-body { font-size: 13px; }
+.rp-body p { margin: 0 0 6px; }
+
+.rp-form { display: flex; flex-direction: column; gap: 8px; }
+.rp-box { min-height: 52px; font-size: 13px; }
+.rp-formfoot { display: flex; align-items: center; gap: 10px; }
+.rp-who-field { flex: 1 1 160px; min-width: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cmp-slab, .cmp-tool { transition: none; }
+  .cmp-caret { animation: none; }
+}
+
+@media (max-width: 640px) {
+  .cmp-slab { padding: 13px 12px 12px 26px; }
+  .cmp-slab::before { left: 9px; }
+  .cmp-tagrow { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .cmp-tags { justify-content: flex-start; width: 100%; }
+  .cmp-who { flex-basis: 100%; }
+  .cmp-tagnew { width: 100%; }
+  .fd-post { grid-template-columns: 28px 1fr; gap: 0 8px; }
+  .cmp.is-expanded { inset: 0; width: 100vw; margin-inline: -50vw; border-radius: 0; }
+}

@@ -1,11 +1,19 @@
 import { useLayoutEffect, useRef } from 'react'
 import gsap from 'gsap'
 import lensSrc from './lens-source.png'
-import { CELLS, REF_CELL, combineInk, passesBayer, dotRadius, colorTier, driftOffset } from './dither.js'
+import { CELLS, REF_CELL, FOCUS_CELLS, combineInk, passesBayer, dotRadius, colorTier, driftOffset, focusFalloff } from './dither.js'
 
 // How far the focus wave spreads outward from the iris (in normalised radius units) before
 // every cell has caught up — see `localT` below. Not specified by the brief, a judgment call.
+// Only the keyboard path uses this now; the pointer lens is local and has no wave to stagger.
 const STAGGER_SPREAD = 0.55
+// How quickly the lens fades in under the cursor and back out when it leaves. Out is slower
+// than in: arriving should feel immediate, leaving should feel like the grain settling.
+const HOVER_IN = 0.28
+const HOVER_OUT = 0.55
+// How hard the lens chases the cursor, per frame. Below 1 it trails slightly, which reads as
+// glass with weight rather than as a spotlight welded to the pointer.
+const TRACK = 0.3
 // Period of the idle "breathing" wobble, in seconds (gsap.ticker time is seconds, not ms).
 const BREATHE_PERIOD = 7
 const BREATHE_AMOUNT = 0.12
@@ -195,7 +203,13 @@ export default function DitherLens() {
   const pageVisibleRef = useRef(true)
   const runningRef = useRef(false)
   const animState = useRef({ progress: 0, irisBloom: 0 })
+  // The pointer lens. `gx`/`gy` are the drawn position in grid cells and `tx`/`ty` the raw
+  // cursor, so draw() can ease one toward the other; `presence` is tweened 0..1 so the lens
+  // fades rather than popping. A ref, never state — this changes on every pointermove and a
+  // re-render per mouse pixel would be absurd.
+  const hoverRef = useRef({ gx: CELLS / 2, gy: CELLS / 2, tx: CELLS / 2, ty: CELLS / 2, presence: 0, seen: false })
   const timelineRef = useRef(null)
+  const hoverTweenRef = useRef(null)
   const lastIdleDrawRef = useRef(-Infinity)
 
   useLayoutEffect(() => {
@@ -223,7 +237,17 @@ export default function DitherLens() {
       if (!ctx || !cells || !colors || !size) return
 
       const { progress, irisBloom } = animState.current
-      const idle = progress <= 0 && irisBloom <= 0
+      const hover = hoverRef.current
+
+      // Ease the drawn lens position toward the raw cursor. Done here rather than in the
+      // pointermove handler so it is frame-paced: a mouse can emit far more events per second
+      // than there are frames, and easing per event would make the trail speed depend on the
+      // pointing device.
+      hover.gx += (hover.tx - hover.gx) * TRACK
+      hover.gy += (hover.ty - hover.gy) * TRACK
+
+      const hovering = hover.presence > 0
+      const idle = progress <= 0 && irisBloom <= 0 && !hovering
 
       // Idle drift is a slow breathing wobble — it doesn't need a redraw every display
       // frame. Skip the tick entirely (not even touching the canvas) unless the cap
@@ -265,8 +289,57 @@ export default function DitherLens() {
         return
       }
 
-      // Transition path (focusing in, or the drift creeping back over ~6s): colour,
-      // position and radius all genuinely blend per cell here, so this keeps the full
+      // Hover path: the lens is local, so most of the field is still exactly at drift and
+      // must not pay for a per-cell lerp. Cells outside the lens keep the batched Path2D
+      // treatment above; only the few hundred the lens actually touches take the slow path.
+      // This is what keeps a continuous hover about as cheap as sitting idle — without the
+      // split, moving the mouse would drag all ~4,300 cells onto the per-cell path on every
+      // frame, which is the exact cost the earlier perf work removed.
+      //
+      // `progress <= 0` guards it: once the keyboard focus wave is running, every cell is
+      // moving and the full path below is the correct one.
+      if (hovering && progress <= 0) {
+        const { gx, gy, presence } = hover
+        let curColor = null
+        let path = null
+        for (const cell of cells) {
+          // focusFalloff returns EXACTLY 0 past its radius, which is what makes this test
+          // reliable rather than a threshold guess.
+          if (focusFalloff(cell.x - gx, cell.y - gy) > 0) continue
+          if (cell.driftStr !== curColor) {
+            if (path) ctx.fill(path)
+            curColor = cell.driftStr
+            ctx.fillStyle = curColor
+            path = new Path2D()
+          }
+          const { x, y, r0, ox, oy } = cell
+          const cx = x * cellPx + cellPx / 2 + ox * scale * breathe
+          const cy = y * cellPx + cellPx / 2 + oy * scale * breathe
+          const r = Math.max(0.4, r0 * scale * 0.82)
+          path.moveTo(cx + r, cy)
+          path.arc(cx, cy, r, 0, Math.PI * 2)
+        }
+        if (path) ctx.fill(path)
+
+        for (const cell of cells) {
+          const localT = focusFalloff(cell.x - gx, cell.y - gy) * presence
+          if (localT <= 0) continue
+          const { x, y, ox, oy, r0, tierArr, driftArr } = cell
+          const focusX = x * cellPx + cellPx / 2
+          const focusY = y * cellPx + cellPx / 2
+          const cx = lerp(focusX + ox * scale * breathe, focusX, localT)
+          const cy = lerp(focusY + oy * scale * breathe, focusY, localT)
+          const baseR = r0 * scale
+          ctx.fillStyle = lerpColor(driftArr, tierArr, localT)
+          ctx.beginPath()
+          ctx.arc(cx, cy, Math.max(0.4, lerp(baseR * 0.82, baseR, localT)), 0, Math.PI * 2)
+          ctx.fill()
+        }
+        return
+      }
+
+      // Transition path (the keyboard focus wave, or the drift creeping back over ~6s):
+      // colour, position and radius all genuinely blend per cell here, so this keeps the full
       // per-cell lerp.
       for (const cell of cells) {
         const { x, y, rad, ox, oy, r0, tierArr, driftArr } = cell
@@ -378,6 +451,9 @@ export default function DitherLens() {
     }
   }, [])
 
+  // The whole-mark focus wave. No longer reachable by pointer — the lens below replaced that
+  // — but kept as the keyboard equivalent: hover is not available without a pointer, and
+  // removing this outright would leave keyboard users with no way to see the mark at all.
   function triggerFocus() {
     if (reducedMotionRef.current || !readyRef.current) return
     const state = animState.current
@@ -396,14 +472,71 @@ export default function DitherLens() {
     triggerFocus()
   }
 
+  // Cursor position in grid cells. Reading the rect per move is what keeps this correct
+  // through a resize or a page scroll without listening for either.
+  function trackPointer(e) {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    if (!rect.width || !rect.height) return
+    const hover = hoverRef.current
+    hover.tx = ((e.clientX - rect.left) / rect.width) * CELLS
+    hover.ty = ((e.clientY - rect.top) / rect.height) * CELLS
+    // First contact: put the drawn position exactly under the cursor rather than letting it
+    // slide in from wherever the lens was last left, which would read as a stray comet.
+    if (!hover.seen) {
+      hover.gx = hover.tx
+      hover.gy = hover.ty
+      hover.seen = true
+    }
+  }
+
+  function setPresence(to) {
+    if (reducedMotionRef.current || !readyRef.current) return
+    hoverTweenRef.current?.kill()
+    hoverTweenRef.current = gsap.to(hoverRef.current, {
+      presence: to,
+      duration: to > 0 ? HOVER_IN : HOVER_OUT,
+      ease: to > 0 ? 'power2.out' : 'power2.inOut',
+      // Once the lens is fully gone the field is back at drift, and `seen` resets so the
+      // next approach lands under the cursor instead of trailing in from the last exit.
+      onComplete: () => {
+        if (to === 0) hoverRef.current.seen = false
+      },
+    })
+  }
+
+  function onPointerEnter(e) {
+    trackPointer(e)
+    setPresence(1)
+  }
+
+  function onPointerMove(e) {
+    const hover = hoverRef.current
+    trackPointer(e)
+    // A pointer can arrive without an enter event (the cursor already sitting over the canvas
+    // when the page loads, for one), so move engages the lens too rather than only updating
+    // a position nobody is showing.
+    if (hover.presence <= 0) setPresence(1)
+  }
+
+  function onPointerLeave() {
+    setPresence(0)
+  }
+
   return (
     <canvas
       ref={canvasRef}
       className="lens-canvas"
       role="img"
-      aria-label="The LocalLens mark, rendered as green phosphor grain. Press Enter or click to bring it into focus."
+      aria-label="The LocalLens mark, rendered as green phosphor grain. Move the pointer over it to focus what is under the cursor, or press Enter to bring the whole mark into focus."
       tabIndex={0}
-      onClick={triggerFocus}
+      onPointerEnter={onPointerEnter}
+      onPointerMove={onPointerMove}
+      onPointerLeave={onPointerLeave}
+      // A touch that turns into a page scroll fires cancel, not leave. Without this the lens
+      // would stay lit under a finger that is no longer there.
+      onPointerCancel={onPointerLeave}
       onKeyDown={onKeyDown}
     />
   )

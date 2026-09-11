@@ -2,7 +2,7 @@
 // only the pure maths (no canvas, no DOM) — the image-sampling half of the lens lives in
 // DitherLens.jsx and isn't reachable from plain node.
 import assert from 'node:assert/strict'
-import { FLOOR, CELLS, combineInk, passesBayer, dotRadius, driftOffset, colorTier } from './dither.js'
+import { FLOOR, CELLS, combineInk, passesBayer, dotRadius, driftOffset, colorTier, focusFalloff, FOCUS_CELLS } from './dither.js'
 
 let checks = 0
 function check(cond, msg) {
@@ -102,5 +102,38 @@ for (const rad of radii) {
   check(mag > prevMag, `drift magnitude at rad=${rad} (${mag}) must exceed the previous, smaller radius`)
   prevMag = mag
 }
+
+// --- focusFalloff: the hover lens ---------------------------------------------------
+check(focusFalloff(0, 0) === 1, 'a cell under the cursor is fully in focus')
+check(focusFalloff(FOCUS_CELLS, 0) === 0, 'a cell exactly at the radius is fully out')
+check(focusFalloff(FOCUS_CELLS + 1, 0) === 0, 'and so is anything beyond it')
+
+// This exact-zero is what keeps a hover cheap: the renderer leaves every cell the lens does
+// not touch on its batched drift path. A falloff that only approached zero would drag all
+// ~4,300 cells onto the per-cell lerp path on every frame of every hover.
+check(focusFalloff(60, 60) === 0, 'a far cell is EXACTLY zero, not merely small')
+check(focusFalloff(0, FOCUS_CELLS * 2) === 0, 'the radius applies on both axes')
+
+// Radially symmetric: the lens is a disc, not a square.
+check(focusFalloff(6, 0) === focusFalloff(0, 6), 'the falloff is the same in x and y')
+check(focusFalloff(6, 0) === focusFalloff(-6, 0), 'and the same either side of the cursor')
+check(Math.abs(focusFalloff(3, 4) - focusFalloff(5, 0)) < 1e-12, 'it depends on distance, not on the axes')
+
+// Monotonic, and smooth at both ends -- a linear ramp would show a seam where the gradient
+// turns a corner at the rim.
+let prev = 1.0000001
+for (const d of [0, 4, 8, 12, 16, 20, 23]) {
+  const v = focusFalloff(d, 0)
+  check(v < prev, `falloff keeps decreasing outward (d=${d})`)
+  check(v > 0 && v <= 1, `and stays inside 0..1 (d=${d})`)
+  prev = v
+}
+check(focusFalloff(FOCUS_CELLS / 2, 0) === 0.5, 'smoothstep puts the half-way cell at exactly half')
+// Flat at the ends is what makes it read as glass: the rate of change dies off at the rim.
+check(focusFalloff(FOCUS_CELLS * 0.95, 0) < 0.05, 'the outer edge tapers rather than stopping abruptly')
+check(focusFalloff(FOCUS_CELLS * 0.05, 0) > 0.95, 'and the middle stays flat and fully focused')
+
+check(focusFalloff(0, 0, 0) === 0, 'a zero radius focuses nothing rather than dividing by zero')
+check(focusFalloff(5, 0, 50) > focusFalloff(5, 0, 10), 'a wider lens focuses a given cell more')
 
 console.log(`ok — dither.test.mjs (${checks} checks)`)

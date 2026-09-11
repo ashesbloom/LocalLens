@@ -9,8 +9,10 @@ import { cachedPostFilename } from '../data/blog.js'
 gsap.registerPlugin(ScrambleTextPlugin)
 
 function commandFor(pathname) {
+  // A route may override the echoed command: the two explainer pages are documents, so
+  // `cat how-it-works.md` reads truer than the bare `how` you would type to get there.
   const route = routeForPath(pathname)
-  if (route) return route.cmd
+  if (route) return route.echo ?? route.cmd
 
   // /blog/:id has no static ROUTES entry (it's a param route, not a typeable command) — give
   // it a real "reading a file" echo instead of falling through to the bare-path fallback
@@ -21,6 +23,10 @@ function commandFor(pathname) {
   // sensible file name (task-6-brief.md).
   const articleId = pathname.match(/^\/blog\/([^/]+)$/)?.[1]
   if (articleId) return `cat blog/${cachedPostFilename(articleId) ?? `${articleId}.md`}`
+
+  // A single board post. Its id is already the file name -- there is no slug to look up.
+  const boardId = pathname.match(/^\/post\/([^/]+)$/)?.[1]
+  if (boardId) return `cat post/${boardId}.md`
 
   // No matching route (404) — echo what was actually typed in the URL, not a guess.
   return pathname.replace(/^\//, '') || 'home'

@@ -4,9 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "node scripts/dev.mjs",
+    "dev:vite": "vite",
+    "build": "vite build && npm run check:sitekey",
+    "check:sitekey": "! grep -rq 1x00000000000000000000AA dist/assets",
     "preview": "vite preview",
+    "db:init": "npx --yes wrangler@4 d1 execute locallens-community --local --persist-to=.wrangler/state --file=schema.sql",
     "check:changelog": "node scripts/check-changelog-copy.mjs",
     "check:changelog-parse": "node src/data/changelog.test.mjs",
     "check:analytics": "node src/data/analytics.test.mjs",
@@ -14,7 +17,15 @@
     "check:lens": "node src/lens/dither.test.mjs",
     "check:blog": "node src/data/blog.test.mjs",
     "check:postHtml": "node src/data/postHtml.test.mjs",
-    "check": "npm run check:changelog && npm run check:changelog-parse && npm run check:analytics && npm run check:shell && npm run check:lens && npm run check:blog && npm run check:postHtml"
+    "check": "npm run check:changelog && npm run check:changelog-parse && npm run check:analytics && npm run check:shell && npm run check:spark && npm run check:lens && npm run check:blog && npm run check:postHtml && npm run check:markdown && npm run check:postrules && npm run check:endpoints && npm run check:posts && npm run check:mdedit && npm run check:mine",
+    "check:markdown": "node src/data/markdown.test.mjs",
+    "check:postrules": "node src/data/postRules.test.mjs",
+    "check:endpoints": "node scripts/check-endpoints.mjs",
+    "check:posts": "node src/data/posts.test.mjs",
+    "check:mdedit": "node src/data/mdEdit.test.mjs",
+    "db:reset": "npx --yes wrangler@4 d1 execute locallens-community --local --persist-to=.wrangler/state --file=schema-drop.sql && npm run db:init",
+    "check:mine": "node src/data/mine.test.mjs",
+    "check:spark": "node src/shell/spark.test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

@@ -1,0 +1,27 @@
+name = "locallens-community"
+compatibility_date = "2026-01-15"
+pages_build_output_dir = "dist"
+
+# The board's database. `wrangler pages dev` creates a local copy on first use, so nothing
+# here needs a real Cloudflare account to develop against.
+[[d1_databases]]
+binding = "DB"
+database_name = "locallens-community"
+database_id = "PLACEHOLDER-set-after-wrangler-d1-create"
+
+# Image storage (phase 3) is deliberately NOT declared yet. Nothing reads or writes it --
+# there is no upload endpoint -- and a binding to a bucket that does not exist is one more
+# thing that can fail a deploy. sweepOrphanUploads already no-ops on an absent bucket. Add
+# this back the day the upload endpoint lands:
+#   [[r2_buckets]]
+#   binding = "IMG"
+#   bucket_name = "locallens-community-img"
+
+# Set with `wrangler pages secret put`, never here. This file is the source of truth for
+# bindings and [vars], so anything written here is fixed until the next build -- which is why
+# all four are secrets, including the one that is not really secret:
+#   TURNSTILE_SECRET  server-side half of the bot check
+#   IP_SALT           salt for the rate-limit hash; rotating it resets every counter
+#   ADMIN_KEY         the x-admin-key header that authorises DELETE
+#   POSTING_ENABLED   "0" makes the board read-only. A secret rather than a [vars] entry
+#                     precisely so flipping it takes effect immediately, with no redeploy.

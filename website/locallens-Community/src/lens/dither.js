@@ -67,3 +67,25 @@ export function driftOffset(dx, dy, halfExtent) {
   const push = 7.0 * rad + 3.0 * Math.sin(angle * 3 + rad * 8)
   return { ox: Math.cos(angle) * push, oy: Math.sin(angle) * push, rad }
 }
+
+// ── hover focus ────────────────────────────────────────────────────────────────────
+// How far the focus reaches from the cursor, in grid cells. The lens is a local instrument:
+// it sharpens what it is held over and leaves the rest as grain, so this is deliberately a
+// fraction of the 132-cell field rather than most of it.
+export const FOCUS_CELLS = 24
+
+// How sharply a cell snaps into focus with distance from the cursor. 1 at the cursor, 0 at
+// FOCUS_CELLS and beyond.
+//
+// Smoothstep rather than a linear ramp: a linear falloff leaves a visible circular seam where
+// the gradient turns a corner, which reads as a hard-edged hole cut in the grain instead of
+// as glass. Returning EXACTLY 0 past the radius is load-bearing, not a rounding detail — the
+// renderer uses it to keep every untouched cell on its batched drift path, which is what
+// stops a hover costing a per-cell lerp across the whole field.
+export function focusFalloff(dx, dy, radius = FOCUS_CELLS) {
+  if (radius <= 0) return 0
+  const d = Math.hypot(dx, dy) / radius
+  if (d >= 1) return 0
+  const t = 1 - d
+  return t * t * (3 - 2 * t)
+}

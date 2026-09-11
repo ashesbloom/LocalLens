@@ -2,36 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { fetchBlogPost, formatDate } from '../data/blog.js'
 import { parseLegacyHtml } from '../data/postHtml.js'
+import { SafeNodes } from '../shell/SafeNode.jsx'
 
 const BLOG_HOME = 'https://blogs-1626.onrender.com'
-
-// Void HTML elements — rendered with no children prop at all (not even an empty array),
-// since react-dom warns if a void element receives one.
-const VOID_TAGS = new Set(['br', 'hr', 'img'])
-
-// Recursively renders the plain-object tree postHtml.js produced from the legacy
-// content.html — never dangerouslySetInnerHTML (hard rule, task-6-brief.md). Every attribute
-// on every node already passed postHtml.js's allowlist; this component just turns data into
-// elements, it makes no trust decisions of its own.
-function SafeNode({ node }) {
-  if (typeof node === 'string') return node
-  const { tag, attrs, children } = node
-  const Tag = tag
-  if (VOID_TAGS.has(tag)) {
-    return <Tag {...(tag === 'img' ? { loading: 'lazy', ...attrs } : attrs)} />
-  }
-  return (
-    <Tag {...attrs}>
-      {children.map((child, i) => (
-        <SafeNode key={i} node={child} />
-      ))}
-    </Tag>
-  )
-}
-
-function SafeNodes({ nodes }) {
-  return nodes.map((node, i) => <SafeNode key={i} node={node} />)
-}
 
 // Structured image block -> a <figure data-float data-width data-offset>, the exact shape the
 // contract says content.html renders the same layout as (llms.txt: "The same values appear in

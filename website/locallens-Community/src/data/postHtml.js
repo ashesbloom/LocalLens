@@ -30,7 +30,7 @@ const ATTRS_BY_TAG = {
 
 // href/src scheme check (brief): http:, https:, mailto:, or protocol-relative/relative are
 // fine; anything else (javascript:, data:, vbscript:, ...) is rejected outright.
-function isSafeUrl(raw) {
+export function isSafeUrl(raw) {
   const url = String(raw ?? '').trim()
   if (!url) return false
   if (/^(https?|mailto):/i.test(url)) return true

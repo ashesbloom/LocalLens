@@ -1,0 +1,99 @@
+/* Keyboard layer — the <kbd> chip and the help dialog.
+   The chip is the one new visual element the shortcut work introduces, so it is deliberately
+   minimal: a phosphor keycap, one hairline, one darker bottom edge for the sense of a key
+   sitting slightly proud. No gradients, no shadow. */
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 21px;
+  padding: 0 6px;
+  font-family: var(--body);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--phos-soft);
+  background: var(--panel);
+  border: 1px solid var(--line-firm);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/* ── status-bar affordances ───────────────────────────────────────────────────── */
+.status-keys { display: flex; align-items: center; gap: 16px; }
+.kb-hint { display: inline-flex; align-items: center; gap: 4px; color: var(--phos-dim); }
+.kb-hint .kb-what, .kb-hint .kb-wait { margin-left: 3px; }
+.kb-hint.on { color: var(--phos); }
+.kb-hint.on kbd { border-color: var(--phos); color: var(--phos); }
+.kb-open {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 0; border: none; background: none; cursor: pointer;
+  font-family: inherit; font-size: inherit; color: var(--phos-dim);
+}
+.kb-open:hover { color: var(--phos); }
+.kb-open:hover kbd { border-color: var(--phos); }
+
+/* ── help dialog ──────────────────────────────────────────────────────────────── */
+/* <dialog> is display:none until opened, so `display` must be set on [open] rather than on
+   the element — setting it unconditionally would render the panel on every page. */
+.keys-dialog {
+  padding: 0;
+  border: none;
+  background: none;
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+.keys-dialog[open] { display: flex; align-items: flex-start; justify-content: center; }
+.keys-dialog::backdrop { background: rgba(4, 7, 11, 0.86); }
+
+.keys-panel {
+  width: min(100% - 32px, 880px);
+  margin: clamp(24px, 8vh, 88px) 0;
+  padding: 26px 30px 22px;
+  background: var(--panel);
+  border: 1px solid var(--line-firm);
+  border-radius: 4px;
+  color: var(--paper);
+  font-family: var(--body);
+  font-size: 13.5px;
+}
+.keys-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding-bottom: 16px; margin-bottom: 20px; border-bottom: 1px solid var(--line);
+}
+.keys-close {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 0; border: none; background: none; cursor: pointer;
+  font-family: inherit; font-size: 11.5px; color: var(--phos-dim);
+}
+.keys-close:hover { color: var(--phos); }
+.keys-close:hover kbd { border-color: var(--phos); }
+
+.keys-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(248px, 1fr)); gap: 26px 34px; }
+.keys-group { display: flex; flex-direction: column; gap: 3px; }
+.keys-group .lbl { margin: 0; }
+.keys-hint { margin: 0 0 9px; font-size: 11px; color: var(--phos-dim); }
+.keys-rows { display: flex; flex-direction: column; gap: 7px; }
+.keys-row { display: grid; grid-template-columns: 74px 1fr; gap: 4px 12px; align-items: center; }
+.keys-combo { display: inline-flex; gap: 4px; }
+.keys-label { color: var(--paper); font-size: 12.5px; }
+.keys-note { grid-column: 2; font-size: 11px; color: var(--phos-dim); margin-top: -3px; }
+
+.keys-foot {
+  margin: 22px 0 0; padding-top: 15px; border-top: 1px solid var(--line);
+  font-size: 11.5px; color: var(--phos-dim);
+}
+.keys-foot b { color: var(--phos); font-weight: 400; }
+
+@media (max-width: 600px) {
+  /* The chord and arrow hints are keyboard-only affordances and there is no keyboard here;
+     the ? button stays, since a Bluetooth keyboard on a tablet still hits this width. */
+  .kb-hint { display: none; }
+  .keys-panel { padding: 20px 18px 18px; font-size: 13px; }
+  .keys-groups { grid-template-columns: 1fr; gap: 22px; }
+}

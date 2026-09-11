@@ -36,3 +36,45 @@
   .ls-row .d { grid-column: 1; grid-row: 2; opacity: 0.75; font-size: 11.5px; }
   .ls-row .m { grid-column: 2; grid-row: 1 / span 2; align-self: center; white-space: nowrap; }
 }
+
+/* ── the two explainers ───────────────────────────────────────────────────────────
+   Given real weight on the front page (they answer the questions people arrive with)
+   without becoming a marketing hero: the same terminal furniture everything else here
+   uses, just larger and with a border around it. */
+.reads { display: flex; flex-direction: column; gap: 12px; }
+.read-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.read-card {
+  display: flex; flex-direction: column; gap: 9px;
+  padding: 22px 24px 20px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--panel);
+  color: inherit;
+  /* The left edge is the only decoration, and it is the thing that lights up on hover —
+     a card that moves or glows would fight the lens sitting right above it. */
+  box-shadow: inset 2px 0 0 var(--phos-dim);
+  transition: box-shadow 120ms linear, border-color 120ms linear;
+}
+.read-card:hover, .read-card:focus-visible {
+  border-color: var(--line-firm);
+  box-shadow: inset 2px 0 0 var(--phos);
+}
+.read-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.read-file { font-size: 11.5px; color: var(--phos-dim); }
+.read-title {
+  font-family: var(--display); font-weight: 700; font-size: 19px; line-height: 1.2;
+  letter-spacing: -0.01em; color: var(--phos-soft);
+}
+.read-card:hover .read-title { color: var(--phos); }
+.read-blurb { font-size: 13px; line-height: 1.6; color: var(--paper); opacity: 0.82; }
+.read-meta { margin-top: 2px; font-size: 11.5px; color: var(--phos-dim); }
+
+@media (prefers-reduced-motion: reduce) {
+  .read-card { transition: none; }
+}
+
+@media (max-width: 760px) {
+  .read-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .read-card { padding: 18px 18px 16px; }
+  .read-title { font-size: 17px; }
+}
