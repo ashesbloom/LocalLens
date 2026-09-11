@@ -57,5 +57,5 @@ if (!existsSync('.wrangler/state')) {
   console.log('\x1b[2m[dev]\x1b[0m no local database yet — run `npm run db:init` if the board 500s')
 }
 
-run('api', 'npx', ['--yes', 'wrangler@4', 'pages', 'dev', '--port', String(API_PORT), '--persist-to=.wrangler/state'])
+run('api', 'npx', ['wrangler', 'pages', 'dev', '--port', String(API_PORT), '--persist-to=.wrangler/state'])
 run('app', 'npx', ['vite'])

@@ -9,7 +9,7 @@
     "build": "vite build && npm run check:sitekey",
     "check:sitekey": "! grep -rq 1x00000000000000000000AA dist/assets",
     "preview": "vite preview",
-    "db:init": "npx --yes wrangler@4 d1 execute locallens-community --local --persist-to=.wrangler/state --file=schema.sql",
+    "db:init": "wrangler d1 execute locallens-community --local --persist-to=.wrangler/state --file=schema.sql",
     "check:changelog": "node scripts/check-changelog-copy.mjs",
     "check:changelog-parse": "node src/data/changelog.test.mjs",
     "check:analytics": "node src/data/analytics.test.mjs",
@@ -23,18 +23,19 @@
     "check:endpoints": "node scripts/check-endpoints.mjs",
     "check:posts": "node src/data/posts.test.mjs",
     "check:mdedit": "node src/data/mdEdit.test.mjs",
-    "db:reset": "npx --yes wrangler@4 d1 execute locallens-community --local --persist-to=.wrangler/state --file=schema-drop.sql && npm run db:init",
+    "db:reset": "wrangler d1 execute locallens-community --local --persist-to=.wrangler/state --file=schema-drop.sql && npm run db:init",
     "check:mine": "node src/data/mine.test.mjs",
     "check:spark": "node src/shell/spark.test.mjs"
   },
   "dependencies": {
+    "gsap": "^3.15.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.2",
-    "gsap": "^3.15.0"
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.0",
     "vite": "^8.2.2",
-    "@vitejs/plugin-react": "^6.1.0"
+    "wrangler": "^4.131.0"
   }
 }
