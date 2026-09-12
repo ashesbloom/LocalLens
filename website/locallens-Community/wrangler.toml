@@ -7,7 +7,7 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "locallens-community"
-database_id = "PLACEHOLDER-set-after-wrangler-d1-create"
+database_id = "4ec55639-20fb-4d1d-996f-874fc131d01e"
 
 # Image storage (phase 3) is deliberately NOT declared yet. Nothing reads or writes it --
 # there is no upload endpoint -- and a binding to a bucket that does not exist is one more
