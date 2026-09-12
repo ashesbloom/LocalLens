@@ -55,9 +55,15 @@ npx wrangler pages secret put ADMIN_KEY
 npx wrangler pages secret put POSTING_ENABLED   # "1"
 ```
 
-`POSTING_ENABLED` is the kill switch: set it to `0` and the board goes read-only within
-seconds, with no redeploy. It is a secret rather than a `wrangler.toml` variable for exactly
-that reason.
+Set them before the first deployment — Cloudflare's own guidance is that a secret has to
+exist before the deployment that uses it.
+
+`POSTING_ENABLED` is the kill switch: set it to `0` and the board goes read-only while
+everything stays readable. It is a secret rather than a `wrangler.toml` variable because a
+variable there is baked in at build time, so flipping it would take a commit, a push and a
+full rebuild. Changing a secret at worst costs a redeploy of the build already sitting
+there. Whether Pages picks up a changed secret without that redeploy is not documented, so
+assume it needs one.
 
 ## Environment variables
 

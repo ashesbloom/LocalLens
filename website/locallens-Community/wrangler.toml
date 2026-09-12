@@ -24,4 +24,8 @@ database_id = "4ec55639-20fb-4d1d-996f-874fc131d01e"
 #   IP_SALT           salt for the rate-limit hash; rotating it resets every counter
 #   ADMIN_KEY         the x-admin-key header that authorises DELETE
 #   POSTING_ENABLED   "0" makes the board read-only. A secret rather than a [vars] entry
-#                     precisely so flipping it takes effect immediately, with no redeploy.
+#                     because a var here is baked in at build time: flipping it would mean a
+#                     commit, a push and a full rebuild. A secret is changed from the
+#                     dashboard, and at worst costs a redeploy of the build already sitting
+#                     there. Cloudflare does not document whether Pages picks a changed
+#                     secret up without one, so assume it needs the redeploy until measured.
