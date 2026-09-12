@@ -55,15 +55,16 @@ npx wrangler pages secret put ADMIN_KEY
 npx wrangler pages secret put POSTING_ENABLED   # "1"
 ```
 
-Set them before the first deployment — Cloudflare's own guidance is that a secret has to
-exist before the deployment that uses it.
+**A secret only reaches a deployment built after it was set.** Measured, not assumed: with
+the site live, setting `POSTING_ENABLED` to `0` and posting anyway returned the Turnstile
+error rather than the 503 that guard sits in front of, so the running deployment never saw
+the new value. Set secrets first, then deploy. Change one later and you must redeploy --
+from the dashboard's retry button, or by pushing to `community-site`.
 
-`POSTING_ENABLED` is the kill switch: set it to `0` and the board goes read-only while
-everything stays readable. It is a secret rather than a `wrangler.toml` variable because a
-variable there is baked in at build time, so flipping it would take a commit, a push and a
-full rebuild. Changing a secret at worst costs a redeploy of the build already sitting
-there. Whether Pages picks up a changed secret without that redeploy is not documented, so
-assume it needs one.
+`POSTING_ENABLED` is the kill switch: set it to `0`, redeploy, and the board goes read-only
+while everything stays readable. It is a secret rather than a `wrangler.toml` variable
+because a variable there would additionally need a commit and a push, where a secret needs
+only the redeploy.
 
 ## Environment variables
 
