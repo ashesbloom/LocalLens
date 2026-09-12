@@ -13,6 +13,7 @@ import { onRequestGet, onRequestPost } from '../functions/api/posts/index.js'
 import { onRequestDelete, onRequestPut, onRequestGet as onGetOne } from '../functions/api/posts/[id].js'
 import { onRequestPost as onVote } from '../functions/api/posts/[id]/vote.js'
 import { onRequestGet as onTags } from '../functions/api/tags.js'
+import { onRequestGet as onAdminCheck } from '../functions/api/admin.js'
 import { onRequestGet as onReplies, onRequestPost as onReply } from '../functions/api/posts/[id]/replies/index.js'
 import { onRequestDelete as onDeleteReply } from '../functions/api/posts/[id]/replies/[replyId].js'
 import { onRequestGet as onStats, onRequestPost as onVisit } from '../functions/api/stats.js'
@@ -632,5 +633,29 @@ for (const failure of ['error', 500]) {
   check(!written.some((w) => /INTO snapshots/.test(w.sql)), `a GitHub ${failure} records NOTHING — a null stored as a reading would dip the line forever`)
 }
 githubFailure = null
+
+// --- GET /api/admin ------------------------------------------------------------------
+// The prompt used to store whatever was typed and call it admin mode. These pin down that
+// only the real key gets a yes, and that the yes carries nothing else with it.
+{
+  const ask = (headers) => onAdminCheck({ env: BASE_ENV, request: req('GET', '/api/admin', { headers }) })
+
+  const right = await ask({ 'x-admin-key': 'let-me-in-please' })
+  check(right.status === 200, 'the real admin key is accepted')
+  check((await right.json()).admin === true, 'and says so plainly')
+
+  check((await ask({ 'x-admin-key': 'nearly-right' })).status === 404, 'a wrong key is refused')
+  check((await ask({})).status === 404, 'so is no key at all')
+  check((await ask({ 'x-admin-key': '' })).status === 404, 'so is an empty one')
+
+  // The guard that matters most: an unset ADMIN_KEY must refuse everyone rather than let an
+  // empty header match an empty variable.
+  const unset = await onAdminCheck({ env: { ...BASE_ENV, ADMIN_KEY: '' }, request: req('GET', '/api/admin', { headers: { 'x-admin-key': '' } }) })
+  check(unset.status === 404, 'an unset ADMIN_KEY closes the door rather than opening it')
+
+  // A near-miss of the same length would pass a comparison that only checked length.
+  const sameLength = 'let-me-in-pleasX'.slice(0, 'let-me-in-please'.length)
+  check((await ask({ 'x-admin-key': sameLength })).status === 404, 'a same-length near miss is still refused')
+}
 
 console.log(`ok - check-endpoints.mjs (${checks} checks)`)

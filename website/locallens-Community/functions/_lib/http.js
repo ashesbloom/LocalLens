@@ -49,6 +49,16 @@ export function safeEqual(a, b) {
   return diff === 0
 }
 
+// Who the board's admin is, in one place. Both the delete path and the key check ask this,
+// and a security decision with two definitions is a security decision waiting to drift.
+//
+// A missing ADMIN_KEY closes the door rather than opening it -- comparing against an unset
+// variable would otherwise let an empty header through.
+export function isAdmin(request, env) {
+  if (!env.ADMIN_KEY) return false
+  return safeEqual(request.headers.get('x-admin-key') ?? '', env.ADMIN_KEY)
+}
+
 // Reads a JSON body with a hard ceiling, checked from Content-Length BEFORE the body is
 // pulled into memory. Without this, a request claiming to be a post can make the worker
 // allocate as much as the client cares to send.

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { resolveRoute, normalize, collapse, completions, SYSTEM_COMMANDS, helpLines, lsEntries } from './commands.js'
 import { isTypingTarget } from './keys.js'
 import { adminKey, clearAdminKey, setAdminKey } from '../data/mine.js'
+import { checkAdminKey } from '../data/posts.js'
 import { loadStats } from '../data/stats.js'
 import { APP_VERSION } from '../data/version.js'
 import { track } from '../data/analytics.js'
@@ -161,15 +162,27 @@ export default function CommandLine({ setMessage, onOpenHelp }) {
     if (e.key === 'Enter') {
       if (secretMode) {
         e.preventDefault()
-        const stored = setAdminKey(value)
+        // The server decides, not this prompt. It used to store whatever was typed and
+        // announce admin mode either way, so a typo looked exactly like the real key until a
+        // delete quietly failed. Nothing is stored unless /api/admin accepts the key.
+        const typed = value
         setSecretMode(false)
         setValue('')
-        setMessage({
-          kind: 'text',
-          lines: stored
-            ? ['admin mode on — delete appears on every post. `admin off` clears it.']
-            : ['nothing entered — admin mode unchanged'],
-        })
+        setMessage({ kind: 'text', lines: ['checking…'] })
+        checkAdminKey(typed)
+          .then((ok) => {
+            if (ok) setAdminKey(typed)
+            setMessage({
+              kind: 'text',
+              lines: ok
+                ? ['admin mode on — delete appears on every post. `admin off` clears it.']
+                : ['that key was not accepted — admin mode unchanged'],
+            })
+          })
+          .catch(() => {
+            // Could not ask is not the same as was told no, so the key is not rejected here.
+            setMessage({ kind: 'text', lines: ['could not reach the board to check that key'] })
+          })
         return
       }
       const trimmed = value.trim()

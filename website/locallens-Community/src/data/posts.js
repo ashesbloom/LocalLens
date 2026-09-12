@@ -184,4 +184,22 @@ export async function deleteReply(postId, replyId) {
   return replyId
 }
 
+// Does the server accept this key as the board's? The prompt asks before storing anything,
+// so "admin mode on" means the server agreed rather than that something was typed.
+//
+// Returns a boolean instead of throwing: a wrong key is an ordinary answer here, not a
+// failure. A network problem is still a throw, which the caller reports differently -- being
+// unable to ask is not the same as being told no.
+export async function checkAdminKey(key) {
+  const text = String(key ?? '').trim()
+  if (!text) return false
+  try {
+    await call('/api/admin', { headers: { 'x-admin-key': text } })
+    return true
+  } catch (err) {
+    if (err?.status === 404) return false
+    throw err
+  }
+}
+
 export { LIMITS }

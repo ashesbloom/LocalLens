@@ -5,7 +5,7 @@
 // "By its author" means holding the token handed out when the post was created. There are no
 // accounts, so that token is the only identity there is.
 import { LIMITS, validatePost, canStillEdit } from '../../../src/data/postRules.js'
-import { json, fail, safeEqual, sameOrigin, clientIp, readJson } from '../../_lib/http.js'
+import { json, fail, isAdmin, sameOrigin, clientIp, readJson } from '../../_lib/http.js'
 import { hashIp } from '../../_lib/limits.js'
 import { tokenMatches } from '../../_lib/tokens.js'
 import { PUBLIC_COLUMNS, attachMyVotes } from './index.js'
@@ -13,13 +13,6 @@ import { PUBLIC_COLUMNS, attachMyVotes } from './index.js'
 // 404 everywhere rather than 401 or 403: an endpoint that answers differently for a wrong key
 // than for a missing post tells a stranger which posts are worth guessing at.
 const NOTHING = () => fail(404, 'not-found', 'No such post.')
-
-function isAdmin(request, env) {
-  // A missing ADMIN_KEY closes the door rather than opening it -- comparing against an unset
-  // variable would otherwise let an empty header through.
-  if (!env.ADMIN_KEY) return false
-  return safeEqual(request.headers.get('x-admin-key') ?? '', env.ADMIN_KEY)
-}
 
 export async function onRequestGet({ env, params, request }) {
   const post = await env.DB.prepare(`SELECT ${PUBLIC_COLUMNS} FROM posts WHERE id = ?1 AND hidden = 0`)
