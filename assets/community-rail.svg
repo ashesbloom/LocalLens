@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 32" width="500" height="32" role="img">
+  <style>
+    @keyframes ll-blink { 0%, 45% { opacity: 1 } 55%, 100% { opacity: 0 } }
+    .caret { animation: ll-blink 1.15s steps(1, end) infinite }
+    @media (prefers-reduced-motion: reduce) { .caret { animation: none } }
+  </style>
+  <rect x="0.7" y="0.7" width="498.6" height="24.6" rx="7"
+        fill="#04070B" stroke="#35F08A" stroke-width="1.4" opacity="0.92"/>
+  <rect class="caret" x="14" y="7.6" width="7" height="10.8" fill="#35F08A"/>
+  <text x="28" y="17.6" font-family="monospace" font-size="13">
+    <tspan fill="#1E9C5C">locallens@community:~$ </tspan><tspan fill="#35F08A" font-weight="700">LocalLens community website</tspan>
+  </text>
+  <g stroke="#35F08A" stroke-width="1.6" stroke-linecap="round" fill="none">
+    <path d="M468 19 L478 9"/><path d="M478 9 L471.5 9"/><path d="M478 9 L478 15.5"/>
+  </g>
+</svg>
