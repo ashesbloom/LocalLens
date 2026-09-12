@@ -9,6 +9,14 @@
 ![GitHub forks ](https://img.shields.io/github/forks/ashesbloom/LocalLens?style=social&cacheSeconds=60)
 ![Views](https://komarev.com/ghpvc/?username=ashesbloom&repo=Locallens&color=blue&style=plastic&label=Views+so+far)
 
+<p align="center">
+  <a href="https://locallens-community.pages.dev/"><img src="assets/community-rail.svg" width="500" alt="LocalLens community website"></a>
+  <br>
+  <a href="https://locallens-community.pages.dev/post"><img src="assets/community-forum.svg" width="234" alt="Forum: report a bug or request a feature"></a>
+  <a href="https://locallens-community.pages.dev/announce"><img src="assets/community-updates.svg" width="234" alt="Updates: what shipped and what is coming"></a>
+  <a href="https://locallens-community.pages.dev/contact"><img src="assets/community-contact.svg" width="234" alt="Contact: reach the maintainer directly"></a>
+</p>
+
 <br />
 <div align="center">
   <h1>
@@ -115,6 +123,8 @@ How do we keep it fast without crashing your PC? Local Lens uses an adaptive, tw
 
 *This guarantees the best possible result for every photo, adapting to your specific hardware.*
 
+**→ [See what actually happens to your photos, in plain English](https://locallens-community.pages.dev/how)**
+
 ---
 
 ## 🖼️ Supported Formats
@@ -149,6 +159,8 @@ Local Lens uses a hybrid architecture combining the best of web and desktop tech
                           │  └─────────────────────────────────────────────┘  │
                           └───────────────────────────────────────────────────┘
 ```
+
+**→ [The engine in detail: the ladder, the cache, the write path](https://locallens-community.pages.dev/pipeline)**
 
 ## 🛠️ Technology Stack
 
