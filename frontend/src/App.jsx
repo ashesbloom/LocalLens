@@ -26,6 +26,8 @@ import UpdateChecker from './components/UpdateChecker'; // <-- ADD: Auto-update 
 import TutorialOverlay from './components/TutorialOverlay'; // <-- ADD THIS
 import TutorialMenu from './components/TutorialMenu'; // <-- ADD THIS
 import McpAnnounce from './components/McpAnnounce';
+import CommunityIntro from './components/CommunityIntro';
+import { shouldShowIntroFrom } from './components/communityIntroGate';
 import { advance, canAnnounce, initialGate } from './components/announceGate';
 import PrivacyPanel from './components/PrivacyPanel';
 import { useTutorial } from './context/TutorialContext'; // <-- ADD THIS
@@ -46,6 +48,14 @@ function App() {
     const [tutorialGate, setTutorialGate] = useState(
         () => initialGate(localStorage.getItem('has_seen_tutorial'))
     );
+
+    // The community intro is owed to existing users who have never seen the
+    // site. Read once at first render for the same reason as the gate above.
+    const [showCommunityIntro, setShowCommunityIntro] = useState(
+        () => shouldShowIntroFrom(localStorage)
+    );
+    // Lets the intro drive the real menu animation instead of imitating it.
+    const [introExpandsMenu, setIntroExpandsMenu] = useState(false);
     // --- State Management ---
     // Use localStorage to avoid UI flash on reload
     const getInitialOperationMode = () => {
@@ -1669,6 +1679,7 @@ function App() {
                         }
                     }}
                     onStartFromScratch={handleStartTutorial}
+                    forceOpen={introExpandsMenu}
                 />
 
                 {/* Exit Button */}
@@ -2057,6 +2068,16 @@ function App() {
                 }}
             />
             <TutorialOverlay />
+
+            {showCommunityIntro && canAnnounce(tutorialGate) && (
+                <CommunityIntro
+                    onExpandMenu={() => setIntroExpandsMenu(true)}
+                    onClose={() => {
+                        setShowCommunityIntro(false);
+                        setIntroExpandsMenu(false);
+                    }}
+                />
+            )}
 
             {canAnnounce(tutorialGate) && (
                 <McpAnnounce

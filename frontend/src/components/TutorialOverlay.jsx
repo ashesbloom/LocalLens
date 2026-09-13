@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useTutorial } from '../context/TutorialContext';
+import { spotlightPath, capsuleRadius, clampRadius } from './spotlightPath';
 import './TutorialOverlay.css';
 
 // Smooth interpolation for animated transitions
@@ -245,26 +246,14 @@ const TutorialOverlay = () => {
     const modeTheme = currentStep.modeTheme || null;
 
     // Create SVG path with rounded hole (or capsule)
-    const r = spotlightShape === 'capsule' ? Math.min(animatedRect.height / 2, 20) : 8;
     const { x, y, width, height } = animatedRect;
-    
-    const path = `
-        M 0 0
-        H ${windowSize.width}
-        V ${windowSize.height}
-        H 0
-        Z
-        M ${x + r} ${y}
-        H ${x + width - r}
-        Q ${x + width} ${y} ${x + width} ${y + r}
-        V ${y + height - r}
-        Q ${x + width} ${y + height} ${x + width - r} ${y + height}
-        H ${x + r}
-        Q ${x} ${y + height} ${x} ${y + height - r}
-        V ${y + r}
-        Q ${x} ${y} ${x + r} ${y}
-        Z
-    `;
+    const r = clampRadius(
+        spotlightShape === 'capsule' ? capsuleRadius(height) : 8,
+        width,
+        height
+    );
+
+    const path = spotlightPath(animatedRect, windowSize, r);
 
     return (
         <div className="tutorial-overlay-container">

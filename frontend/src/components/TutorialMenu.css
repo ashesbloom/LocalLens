@@ -367,3 +367,256 @@
     font-size: 10px;
     color: #fbbf24;
 }
+
+/* ============================================
+   THE POD — three dots that bloom into bubbles
+   ============================================ */
+
+/* The filter lives in the DOM but must never take up space or catch a click. */
+.hpod-defs {
+    position: absolute;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.hpod {
+    position: relative;
+    width: 44px;
+    height: 44px;
+}
+
+/* ── The trigger's dots ─────────────────────────────────────────────── */
+
+.hpod-dots {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    /* Opening turns the row upright so it points at the stack it just spat
+       out. 0.45s is slower than the bubbles so the dots settle last. */
+    transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.hpod-dots i {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.hpod.open .hpod-dots {
+    transform: rotate(90deg);
+}
+
+/* The outer two draw together as their copies leave — the visual alibi for
+   where the bubbles came from. */
+.hpod.open .hpod-dots i:first-child { transform: translateX(2px) scale(0.8); }
+.hpod.open .hpod-dots i:last-child  { transform: translateX(-2px) scale(0.8); }
+
+/* ── The goo layer ──────────────────────────────────────────────────── */
+
+/* Sits behind everything, tinted with the current mode accent. The filter
+   makes the blobs merge and pinch; the low opacity keeps it a suggestion of
+   liquid under the glass rather than a coloured splat. */
+.hpod-goo-layer {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    width: 180px;
+    height: 200px;
+    margin-left: -90px;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    filter: url(#hpod-goo);
+}
+
+/* The goo exists to explain the motion, then gets out of the way. Once the
+   pills land they cover the blobs anyway, so holding it visible would only
+   tint the glass. */
+@keyframes hpod-goo-life {
+    0%   { opacity: 0; }
+    22%  { opacity: 0.6; }
+    70%  { opacity: 0.45; }
+    100% { opacity: 0; }
+}
+
+.hpod.open .hpod-goo-layer { animation: hpod-goo-life 1s ease forwards; }
+
+.hpod-blob {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    margin-left: -22px;
+    border-radius: 50%;
+    background: rgb(var(--color-primary-rgb, 59, 130, 246));
+}
+
+/* The core never leaves; it is the surface the others tear away from. */
+.hpod-blob-core { transform: scale(0.92); }
+
+.hpod-blob-1,
+.hpod-blob-2 {
+    transform: translateY(0) scale(0.3);
+    transition: transform 0.52s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* The balls are the same 44px as the blobs, so the blob sits just inside
+   each one and the tint never peeks out from behind the glass. */
+.hpod.open .hpod-blob-1 { transform: translateY(54px) scale(0.95); }
+.hpod.open .hpod-blob-2 { transform: translateY(106px) scale(0.95); transition-delay: 0.07s; }
+
+/* ── The bubbles ────────────────────────────────────────────────────── */
+
+.hpod-bubbles {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    padding-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    z-index: 2;
+    transform: translateX(-50%);
+}
+
+.hpod-bubble {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    font-family: inherit;
+
+    /* The same glass as the trigger, kept off the goo layer so the
+       backdrop-filter survives. */
+    background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.17) 0%,
+        rgba(255, 255, 255, 0.06) 100%
+    );
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow:
+        0 8px 26px rgba(0, 0, 0, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    color: rgba(255, 255, 255, 0.92);
+
+    /* Closed: collapsed into the dots, unreachable by mouse or keyboard. */
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-30px) scale(0.2);
+    transition:
+        transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+        opacity 0.28s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.hpod-bubble svg { flex: none; }
+
+.hpod.open .hpod-bubble {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+}
+
+/* Second drop lags the first, so they read as two events rather than one. */
+.hpod.open .hpod-bubble-2 { transition-delay: 0.07s; }
+
+.hpod-bubble:hover {
+    border-color: rgba(var(--color-primary-rgb), 0.5);
+    box-shadow:
+        0 10px 30px rgba(var(--color-primary-rgb), 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    color: #fff;
+}
+
+.hpod-bubble:focus-visible {
+    outline: 2px solid rgba(var(--color-primary-rgb), 0.9);
+    outline-offset: 2px;
+}
+
+.hpod-bubble:active { transform: translateY(0) scale(0.97); }
+
+/* Once the step list is up the bubbles have done their job; clearing them
+   keeps the panel from opening underneath a floating pill. */
+.hpod.steps-open .hpod-bubbles,
+.hpod.steps-open .hpod-goo-layer {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────── */
+
+/* The goo is pure motion, so it goes entirely. The bubbles still need to
+   appear, so they cross-fade in place instead of springing. */
+@media (prefers-reduced-motion: reduce) {
+    .hpod-goo-layer { display: none; }
+
+    .hpod-dots,
+    .hpod-dots i,
+    .hpod.open .hpod-dots,
+    .hpod.open .hpod-dots i:first-child,
+    .hpod.open .hpod-dots i:last-child {
+        transform: none;
+        transition: none;
+    }
+
+    .hpod-bubble {
+        transform: none;
+        transition: opacity 0.15s linear;
+    }
+
+    .hpod.open .hpod-bubble {
+        transform: none;
+        transition-delay: 0s;
+    }
+}
+
+/* ── The hover label ────────────────────────────────────────────────── */
+
+/* Absolutely positioned, so a long name can never stretch the ball. Sits to
+   the right because the pod lives in the top-left corner of the header. */
+.hpod-tip {
+    position: absolute;
+    left: calc(100% + 9px);
+    top: 50%;
+    padding: 0.25rem 0.55rem;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+
+    font-size: 0.72rem;
+    font-weight: 550;
+    letter-spacing: 0.01em;
+    color: rgba(255, 255, 255, 0.92);
+    background: rgba(17, 24, 39, 0.94);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.32);
+
+    opacity: 0;
+    transform: translate(-4px, -50%);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.hpod-bubble:hover .hpod-tip,
+.hpod-bubble:focus-visible .hpod-tip {
+    opacity: 1;
+    transform: translate(0, -50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hpod-tip { transition: opacity 0.1s linear; transform: translate(0, -50%); }
+}

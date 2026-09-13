@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-09-13
+### Added
+
+- **The LocalLens community site is now one click away.** The help button in the top-left is now a three-dot control: open it for the tutorial, or to visit the community site at https://locallens-community.pages.dev — a forum for bugs and feature requests, release announcements, and plain-English explanations of how your photos are actually sorted.
+- A short one-time introduction points out the new control when you first open this version, and never appears again.
+
+### Fixed
+
+- **The update panel no longer closes while you are reading it.** Scrolling inside this notification used to scroll the page behind it and snap the panel shut. It now scrolls on its own, and closes with a proper animation instead of vanishing.
+
+### Changed
+
+- The help and community control now sits at the far left of the header, with the update bell beside it.
+
 ## [3.0.2] - 2026-08-22
 ### Fixed
 

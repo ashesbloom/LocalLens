@@ -1,10 +1,11 @@
 /* UpdateChecker.css - Glassmorphism style matching the app theme */
 /* Uses CSS variables from the active theme (standard/hybrid/find) */
 
+/* Sits to the right of the help/community pod (44px button + 10px gap). */
 .update-checker {
     position: absolute;
     top: 1.5rem;
-    left: 1.5rem;
+    left: calc(1.5rem + 54px);
     z-index: 1000;
 }
 
@@ -179,7 +180,14 @@
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
     
     animation: panel-slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    overflow: hidden;
+
+    /* The panel is its own scroller. Without this the wheel chains to the
+       document, the page scrolls, and the outside-scroll handler closes the
+       panel the moment you try to scroll inside it. */
+    max-height: calc(100vh - 9rem);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
 }
 
 @keyframes panel-slide-in {
@@ -190,6 +198,33 @@
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes panel-slide-out {
+    from {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+}
+
+.update-panel.closing {
+    animation: panel-slide-out 0.22s cubic-bezier(0.4, 0, 1, 1) forwards;
+    pointer-events: none;
+}
+
+/* The panel unmounts on animationend, so the closing animation must never be
+   removed outright — only collapsed to a tick that still fires the event. */
+@media (prefers-reduced-motion: reduce) {
+    .update-panel {
+        animation: none;
+    }
+    .update-panel.closing {
+        animation: panel-slide-out 0.01s linear forwards;
     }
 }
 
@@ -283,8 +318,6 @@
    ======================================== */
 .update-panel-body {
     padding: 1.25rem;
-    max-height: 320px;
-    overflow-y: auto;
 }
 
 .release-notes-title {
@@ -378,18 +411,18 @@
 }
 
 /* Scrollbar */
-.update-panel-body::-webkit-scrollbar {
+.update-panel::-webkit-scrollbar {
     width: 6px;
 }
-.update-panel-body::-webkit-scrollbar-track {
+.update-panel::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 3px;
 }
-.update-panel-body::-webkit-scrollbar-thumb {
+.update-panel::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
     border-radius: 3px;
 }
-.update-panel-body::-webkit-scrollbar-thumb:hover {
+.update-panel::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
 }
 

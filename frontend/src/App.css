@@ -2056,11 +2056,14 @@ p {
    TUTORIAL MENU CONTAINER
    Position next to UpdateChecker
    ======================================== */
+/* The pod leads the header; the update bell follows it. The balls drop
+   straight down from here, so it needs the outer slot to stay clear of the
+   bell's own notification panel. */
 .tutorial-menu-container {
     position: absolute;
     top: 1.5rem;
-    left: calc(1.5rem + 54px); /* Position next to UpdateChecker (44px button + 10px gap) */
-    z-index: 1000;
+    left: 1.5rem;
+    z-index: 1001;
 }
 /* ============================================
    TUTORIAL TEXT SWIPE ANIMATION

@@ -1,0 +1,224 @@
+/* CommunityIntro.css — the one-time pointer at the community site.
+   Glass and type follow McpAnnounce so the two announcements read as the same
+   voice; the accent tracks --color-primary-rgb like the rest of the app. */
+
+.ci-root {
+    position: fixed;
+    inset: 0;
+    z-index: 2500;
+    /* Children opt back in. Leaving this off would make the whole screen a
+       dismiss target, including the hole we just cut. */
+    pointer-events: none;
+}
+
+/* ── Dim layer with the pod cut out ──────────────────────────────────── */
+
+.ci-dim {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    animation: ci-fade 0.28s ease;
+}
+
+/* Only the painted area takes clicks, so the hole stays live and the button
+   underneath is still a button. */
+.ci-dim path {
+    fill: rgba(6, 10, 18, 0.72);
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.ci-ring {
+    fill: none;
+    stroke: rgba(var(--color-primary-rgb, 59, 130, 246), 0.85);
+    stroke-width: 1.5;
+    pointer-events: none;
+    animation: ci-ring-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes ci-fade { from { opacity: 0; } to { opacity: 1; } }
+
+@keyframes ci-ring-pulse {
+    0%, 100% { opacity: 0.45; }
+    50%      { opacity: 1; }
+}
+
+/* ── The slab ───────────────────────────────────────────────────────── */
+
+.ci-slab {
+    position: fixed;
+    pointer-events: auto;
+    padding: 1.25rem 1.25rem 1.1rem;
+    border-radius: 1rem;
+
+    background: linear-gradient(145deg, rgba(42, 55, 74, 0.97) 0%, rgba(31, 41, 55, 0.97) 100%);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    color: #d1d5db;
+    animation: ci-rise 0.34s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes ci-rise {
+    from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+}
+
+.ci-pointer {
+    position: absolute;
+    top: -7px;
+    width: 12px;
+    height: 12px;
+    margin-left: -6px;
+    transform: rotate(45deg);
+    background: rgba(42, 55, 74, 0.97);
+    border-left: 1px solid rgba(255, 255, 255, 0.15);
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.ci-eyebrow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+
+.ci-esc {
+    padding: 0.1rem 0.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 3px;
+    text-transform: none;
+    letter-spacing: 0.04em;
+}
+
+.ci-slab h2 {
+    margin: 0 0 0.45rem;
+    font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+    font-size: 1.2rem;
+    font-weight: 680;
+    line-height: 1.25;
+    color: #f3f4f6;
+}
+
+.ci-lede {
+    margin: 0 0 1rem;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: #9ca3af;
+}
+
+/* ── Destinations ───────────────────────────────────────────────────── */
+
+.ci-list {
+    list-style: none;
+    margin: 0 0 1.1rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.ci-dest {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    text-align: left;
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-radius: 0.55rem;
+    background: rgba(255, 255, 255, 0.04);
+    font-family: inherit;
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.ci-dest:hover {
+    background: rgba(var(--color-primary-rgb), 0.12);
+    border-color: rgba(var(--color-primary-rgb), 0.45);
+}
+
+.ci-dest:focus-visible {
+    outline: 2px solid rgba(var(--color-primary-rgb), 0.9);
+    outline-offset: 1px;
+}
+
+.ci-dest-title {
+    font-size: 0.82rem;
+    font-weight: 620;
+    color: #e5e7eb;
+}
+
+.ci-dest-body {
+    font-size: 0.72rem;
+    line-height: 1.45;
+    color: #9ca3af;
+}
+
+.ci-sub {
+    margin: 0.25rem 0 0 0.65rem;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.7rem;
+    color: rgb(var(--color-primary-rgb, 59, 130, 246));
+    border-bottom: 1px solid rgba(var(--color-primary-rgb), 0.35);
+}
+
+.ci-sub:hover { border-bottom-color: rgb(var(--color-primary-rgb)); }
+
+/* ── Actions ────────────────────────────────────────────────────────── */
+
+.ci-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ci-btn {
+    padding: 0.45rem 0.9rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.05);
+    color: #d1d5db;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.76rem;
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.ci-btn:hover { background: rgba(255, 255, 255, 0.1); }
+
+.ci-btn:focus-visible {
+    outline: 2px solid rgba(var(--color-primary-rgb), 0.9);
+    outline-offset: 2px;
+}
+
+.ci-btn-primary {
+    background: rgb(var(--color-primary-rgb, 59, 130, 246));
+    border-color: transparent;
+    color: #fff;
+    font-weight: 600;
+}
+
+.ci-btn-primary:hover {
+    background: rgba(var(--color-primary-rgb), 0.85);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ci-dim,
+    .ci-slab { animation: none; }
+    .ci-ring { animation: none; opacity: 0.9; }
+}

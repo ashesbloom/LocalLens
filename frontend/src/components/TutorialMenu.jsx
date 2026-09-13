@@ -1,18 +1,52 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { openExternal } from './openExternal';
 import { getGroupedSteps } from '../config/tutorialSteps';
+import { COMMUNITY_LINKS } from './communitySite';
 import './TutorialMenu.css';
 
-const TutorialMenu = ({ onStartFromStep, onStartFromScratch }) => {
+/** A lens ringed by three people — the trigger's own dots, gathered round. */
+const CommunityMark = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="4.5" />
+        <circle cx="12" cy="3.6" r="1.6" fill="currentColor" stroke="none" />
+        <circle cx="4.7" cy="16.2" r="1.6" fill="currentColor" stroke="none" />
+        <circle cx="19.3" cy="16.2" r="1.6" fill="currentColor" stroke="none" />
+    </svg>
+);
+
+const TutorialMark = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+        <circle cx="12" cy="17" r="0.5" fill="currentColor"></circle>
+    </svg>
+);
+
+const TutorialMenu = ({ onStartFromStep, onStartFromScratch, forceOpen = false }) => {
+    // Two stages: the bubbles fan out of the dots, then the Tutorial bubble
+    // opens the step list. Keeping them separate means the community link is
+    // one click away instead of buried under the tutorial's panel.
     const [isOpen, setIsOpen] = useState(false);
+    const [showSteps, setShowSteps] = useState(false);
     const [expandedGroups, setExpandedGroups] = useState({});
     const menuRef = useRef(null);
     const groups = getGroupedSteps();
+
+    // The community intro drives the real animation rather than mimicking it.
+    useEffect(() => {
+        if (forceOpen) setIsOpen(true);
+    }, [forceOpen]);
+
+    const closeAll = () => {
+        setIsOpen(false);
+        setShowSteps(false);
+    };
 
     // Close menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (menuRef.current && !menuRef.current.contains(event.target)) {
-                setIsOpen(false);
+                closeAll();
             }
         };
 
@@ -20,6 +54,13 @@ const TutorialMenu = ({ onStartFromStep, onStartFromScratch }) => {
             document.addEventListener('mousedown', handleClickOutside);
         }
         return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const onKey = (e) => { if (e.key === 'Escape') closeAll(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
     }, [isOpen]);
 
     const toggleGroup = (groupName) => {
@@ -30,13 +71,18 @@ const TutorialMenu = ({ onStartFromStep, onStartFromScratch }) => {
     };
 
     const handleStepClick = (stepIndex) => {
-        setIsOpen(false);
+        closeAll();
         onStartFromStep(stepIndex);
     };
 
     const handleStartFromScratch = () => {
-        setIsOpen(false);
+        closeAll();
         onStartFromScratch();
+    };
+
+    const openCommunity = () => {
+        openExternal(COMMUNITY_LINKS.root);
+        closeAll();
     };
 
     // Group icons
@@ -75,23 +121,80 @@ const TutorialMenu = ({ onStartFromStep, onStartFromScratch }) => {
 
     return (
         <div className="tutorial-menu-container" ref={menuRef}>
-            <button 
-                className={`tutorial-start-btn ${isOpen ? 'active' : ''}`}
-                onClick={() => setIsOpen(!isOpen)}
-                title="Start Tutorial"
-            >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                    <circle cx="12" cy="17" r="0.5" fill="currentColor"></circle>
-                </svg>
-            </button>
+            {/* The goo filter. Blobs drawn through it merge when they touch and
+                pinch apart as they separate — the whole liquid effect. It is
+                applied to the tinted blob layer only: running it over the
+                bubbles themselves would rasterise their backdrop-filter and
+                kill the real glass. */}
+            <svg className="hpod-defs" aria-hidden="true" focusable="false">
+                <defs>
+                    <filter id="hpod-goo">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
+                        <feColorMatrix
+                            in="blur"
+                            mode="matrix"
+                            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -11"
+                        />
+                    </filter>
+                </defs>
+            </svg>
 
-            {isOpen && (
+            <div className={`hpod ${isOpen ? 'open' : ''} ${showSteps ? 'steps-open' : ''}`}>
+                <div className="hpod-goo-layer" aria-hidden="true">
+                    <span className="hpod-blob hpod-blob-core" />
+                    <span className="hpod-blob hpod-blob-1" />
+                    <span className="hpod-blob hpod-blob-2" />
+                </div>
+
+                <button
+                    className={`tutorial-start-btn ${isOpen ? 'active' : ''}`}
+                    onClick={() => (isOpen ? closeAll() : setIsOpen(true))}
+                    aria-expanded={isOpen}
+                    aria-label="Help and community"
+                    title="Help and community"
+                    data-community-anchor
+                >
+                    <span className="hpod-dots" aria-hidden="true">
+                        <i /><i /><i />
+                    </span>
+                </button>
+
+                {/* Balls, not pills: the name rides in the tooltip so the shape
+                    stays the trigger's shape and nothing depends on how long a
+                    label happens to be. */}
+                <div className="hpod-bubbles" role="menu" aria-hidden={!isOpen}>
+                    <button
+                        className="hpod-bubble hpod-bubble-1"
+                        role="menuitem"
+                        tabIndex={isOpen ? 0 : -1}
+                        onClick={() => setShowSteps(v => !v)}
+                        aria-expanded={showSteps}
+                        aria-label="Tutorial"
+                        title="Tutorial"
+                    >
+                        <TutorialMark />
+                        <span className="hpod-tip" aria-hidden="true">Tutorial</span>
+                    </button>
+
+                    <button
+                        className="hpod-bubble hpod-bubble-2"
+                        role="menuitem"
+                        tabIndex={isOpen ? 0 : -1}
+                        onClick={openCommunity}
+                        aria-label="Community website"
+                        title="Community website"
+                    >
+                        <CommunityMark />
+                        <span className="hpod-tip" aria-hidden="true">Community</span>
+                    </button>
+                </div>
+            </div>
+
+            {showSteps && (
                 <div className="tutorial-menu-dropdown">
                     <div className="tutorial-menu-header">
                         <span className="tutorial-menu-title">Tutorial</span>
-                        <button className="tutorial-menu-close" onClick={() => setIsOpen(false)}>
+                        <button className="tutorial-menu-close" onClick={closeAll}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <line x1="18" y1="6" x2="6" y2="18"></line>
                                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -113,7 +216,7 @@ const TutorialMenu = ({ onStartFromStep, onStartFromScratch }) => {
                     <div className="tutorial-menu-groups">
                         {groups.map((group) => (
                             <div key={group.name} className="tutorial-menu-group">
-                                <button 
+                                <button
                                     className={`tutorial-menu-group-header ${expandedGroups[group.name] ? 'expanded' : ''}`}
                                     onClick={() => toggleGroup(group.name)}
                                 >
@@ -126,11 +229,11 @@ const TutorialMenu = ({ onStartFromStep, onStartFromScratch }) => {
                                         <polyline points="6 9 12 15 18 9"></polyline>
                                     </svg>
                                 </button>
-                                
+
                                 {expandedGroups[group.name] && (
                                     <div className="tutorial-menu-steps">
                                         {group.steps.map((step) => (
-                                            <button 
+                                            <button
                                                 key={step.index}
                                                 className={`tutorial-menu-step ${step.isFlagship ? 'flagship' : ''}`}
                                                 onClick={() => handleStepClick(step.index)}

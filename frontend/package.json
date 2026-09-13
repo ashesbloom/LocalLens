@@ -1,7 +1,7 @@
 {
   "name": "local-lens",
   "private": true,
-  "version": "3.0.2",
+  "version": "3.1.0",
   "type": "module",
   "scripts": {
     "dev:pre": "node ensure-backend.js",

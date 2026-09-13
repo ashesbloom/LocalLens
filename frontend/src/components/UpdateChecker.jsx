@@ -72,6 +72,7 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [updateInfo, setUpdateInfo] = useState(null);
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isClosing, setIsClosing] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
     const [error, setError] = useState(null);
@@ -168,11 +169,16 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
         return () => clearTimeout(timer);
     }, []);
 
+    // Every close routes through here so the panel always plays its exit
+    // animation; the actual unmount happens on animationend.
+    const closePanel = () => setIsClosing(true);
+    const openPanel = () => { setIsClosing(false); setIsExpanded(true); };
+
     // Close panel when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (panelRef.current && !panelRef.current.contains(event.target)) {
-                setIsExpanded(false);
+                closePanel();
             }
         };
 
@@ -184,21 +190,33 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
 
     // Close panel when user scrolls OUTSIDE the panel
     useEffect(() => {
+        if (!isExpanded) return;
+
+        // Opening the panel can itself cause a scroll — the browser brings the
+        // bell into view on click, and momentum from a previous wheel keeps
+        // firing. Both would slam the panel shut the instant it opens.
+        // ponytail: fixed grace window; track the scroll source if this ever
+        // proves too short on a slow machine.
+        const openedAt = performance.now();
+
         const handleScroll = (event) => {
-            if (isExpanded) {
-                // Check if the scroll happened inside the panel
-                const isScrollInsidePanel = panelRef.current && panelRef.current.contains(event.target);
-                if (!isScrollInsidePanel) {
-                    setIsExpanded(false);
-                }
+            if (performance.now() - openedAt < 250) return;
+            // Check if the scroll happened inside the panel
+            const isScrollInsidePanel = panelRef.current && panelRef.current.contains(event.target);
+            if (!isScrollInsidePanel) {
+                closePanel();
             }
         };
 
-        if (isExpanded) {
-            // Listen to scroll on window and any scrollable container
-            window.addEventListener('scroll', handleScroll, true);
-        }
-        return () => window.removeEventListener('scroll', handleScroll, true);
+        // 'wheel' fires on intent and targets the element under the cursor, so it
+        // works even when the page itself has nothing to scroll. 'scroll' stays
+        // for scrollbar drags and keyboard scrolling.
+        window.addEventListener('wheel', handleScroll, { capture: true, passive: true });
+        window.addEventListener('scroll', handleScroll, true);
+        return () => {
+            window.removeEventListener('wheel', handleScroll, { capture: true });
+            window.removeEventListener('scroll', handleScroll, true);
+        };
     }, [isExpanded]);
 
     const handleInstallUpdate = async () => {
@@ -379,7 +397,7 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
             {/* Notification Icon - Always visible */}
             <button 
                 className={`update-icon-btn ${updateAvailable ? 'has-update' : ''} ${isExpanded ? 'active' : ''}`}
-                onClick={() => setIsExpanded(!isExpanded)}
+                onClick={() => (isExpanded && !isClosing ? closePanel() : openPanel())}
                 title={updateAvailable ? "Update available!" : `Version ${currentVersion}`}
             >
                 <MatrixRain />
@@ -389,7 +407,17 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
 
             {/* Expanded Panel */}
             {isExpanded && (
-                <div className="update-panel">
+                <div
+                    className={`update-panel${isClosing ? ' closing' : ''}`}
+                    onAnimationEnd={(e) => {
+                        // Ignore animationend bubbling up from children, and the
+                        // slide-in animation's own event.
+                        if (e.target === e.currentTarget && isClosing) {
+                            setIsClosing(false);
+                            setIsExpanded(false);
+                        }
+                    }}
+                >
                     {/* Triangle pointer */}
                     <div className="update-panel-arrow" />
                     
@@ -403,7 +431,7 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
                                 </div>
                                 <button 
                                     className="update-panel-close"
-                                    onClick={() => setIsExpanded(false)}
+                                    onClick={() => closePanel()}
                                 >
                                     <CloseIcon />
                                 </button>
@@ -457,7 +485,7 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
                                     <>
                                         <button 
                                             className="btn-update-later"
-                                            onClick={() => setIsExpanded(false)}
+                                            onClick={() => closePanel()}
                                         >
                                             Later
                                         </button>
@@ -481,7 +509,7 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
                                 </div>
                                 <button 
                                     className="update-panel-close"
-                                    onClick={() => setIsExpanded(false)}
+                                    onClick={() => closePanel()}
                                 >
                                     <CloseIcon />
                                 </button>
@@ -535,7 +563,7 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
                                 className="btn-mcp-setup"
                                 onClick={() => {
                                     openUrl(backendPort ? `http://127.0.0.1:${backendPort}/setup` : MCP_SITE_URL);
-                                    setIsExpanded(false);
+                                    closePanel();
                                 }}
                             >
                                 Set it up
@@ -543,7 +571,7 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
                             {onShowPrivacy && (
                                 <button
                                     className="btn-mcp-privacy"
-                                    onClick={() => { setIsExpanded(false); onShowPrivacy(); }}
+                                    onClick={() => { closePanel(); onShowPrivacy(); }}
                                 >
                                     what we store
                                 </button>
