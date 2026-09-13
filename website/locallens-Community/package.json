@@ -17,7 +17,7 @@
     "check:lens": "node src/lens/dither.test.mjs",
     "check:blog": "node src/data/blog.test.mjs",
     "check:postHtml": "node src/data/postHtml.test.mjs",
-    "check": "npm run check:changelog && npm run check:changelog-parse && npm run check:analytics && npm run check:shell && npm run check:spark && npm run check:lens && npm run check:blog && npm run check:postHtml && npm run check:markdown && npm run check:postrules && npm run check:endpoints && npm run check:posts && npm run check:mdedit && npm run check:mine",
+    "check": "npm run check:changelog && npm run check:syncrelease && npm run check:changelog-parse && npm run check:analytics && npm run check:shell && npm run check:spark && npm run check:lens && npm run check:blog && npm run check:postHtml && npm run check:markdown && npm run check:postrules && npm run check:endpoints && npm run check:posts && npm run check:mdedit && npm run check:mine",
     "check:markdown": "node src/data/markdown.test.mjs",
     "check:postrules": "node src/data/postRules.test.mjs",
     "check:endpoints": "node scripts/check-endpoints.mjs",
@@ -25,7 +25,8 @@
     "check:mdedit": "node src/data/mdEdit.test.mjs",
     "db:reset": "wrangler d1 execute locallens-community --local --persist-to=.wrangler/state --file=schema-drop.sql && npm run db:init",
     "check:mine": "node src/data/mine.test.mjs",
-    "check:spark": "node src/shell/spark.test.mjs"
+    "check:spark": "node src/shell/spark.test.mjs",
+    "check:syncrelease": "node scripts/sync-release.test.mjs"
   },
   "dependencies": {
     "gsap": "^3.15.0",

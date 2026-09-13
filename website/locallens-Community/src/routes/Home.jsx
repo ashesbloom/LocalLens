@@ -7,7 +7,7 @@ import { track } from '../data/analytics.js'
 
 // Real release date for the current APP_VERSION — the version number itself still comes
 // from the module so the two can't drift apart.
-const RELEASE_DATE = '22 Aug 2026'
+const RELEASE_DATE = '13 Sep 2026'
 
 // The two explainers. Kept as data so the card band and its markup stay one shape apart —
 // they are the same card twice, and the only honest difference between them is the audience.

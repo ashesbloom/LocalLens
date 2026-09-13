@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { parseChangelog } from './changelog.js'
+import { APP_VERSION } from './version.js'
 
 const CHANGELOG_PATH = fileURLToPath(new URL('../../../../CHANGELOG.md', import.meta.url))
 const markdown = readFileSync(CHANGELOG_PATH, 'utf8')
@@ -17,10 +18,21 @@ function check(cond, msg) {
 }
 
 // --- newest release ---
-check(releases[0].version === '3.0.2', 'newest parsed release must be 3.0.2')
-check(releases[0].date === '2026-08-22', '3.0.2 must be dated 2026-08-22')
+// Pinned to APP_VERSION rather than a literal: the site's header and its announcement
+// page read from these two sources separately, and the whole point of the check is that
+// they agree. A literal here would instead break on every release, which is how the
+// previous version of this test behaved and why the site shipped a stale version.
+check(
+  releases[0].version === APP_VERSION,
+  `newest parsed release (${releases[0].version}) must match APP_VERSION (${APP_VERSION}) — run scripts/sync-release.mjs`,
+)
 
-const fixed302 = releases[0].sections.find((s) => s.heading === 'Fixed')
+// --- 3.0.2 specifically, found by lookup so it stays true as releases are added ---
+const release302 = releases.find((r) => r.version === '3.0.2')
+check(!!release302, '3.0.2 must be present')
+check(release302.date === '2026-08-22', '3.0.2 must be dated 2026-08-22')
+
+const fixed302 = release302.sections.find((s) => s.heading === 'Fixed')
 check(!!fixed302, '3.0.2 must have a Fixed section')
 check(fixed302.items.length === 3, `3.0.2's Fixed section must have exactly 3 items, got ${fixed302.items.length}`)
 
@@ -36,7 +48,14 @@ check(
 // that, down to 2.0.0. Per the brief's own instruction to "parse what is actually there,
 // not what you expect," this test is pinned to the real file's actual oldest release
 // rather than the brief's stale example. See task-4-report.md, Decisions, for the writeup.
-check(releases.length === 14, `expected 14 parsed releases in the real file, got ${releases.length}`)
+// A floor, not an exact count — the exact count was another value that broke on every
+// release. The duplicate check keeps the original intent: catching a parser that drops
+// or double-counts entries.
+check(releases.length >= 14, `expected at least 14 parsed releases in the real file, got ${releases.length}`)
+check(
+  new Set(releases.map((r) => r.version)).size === releases.length,
+  'parsed releases must all have distinct versions',
+)
 check(
   releases[releases.length - 1].version === '2.0.0',
   `oldest parsed release must be 2.0.0, got ${releases[releases.length - 1].version}`,
