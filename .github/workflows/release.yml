@@ -658,3 +658,61 @@ jobs:
           echo "📋 latest.json generated for auto-updater (Windows + macOS)"
           echo "🍺 local-lens.rb generated for Homebrew tap"
           echo "🔒 Release created as draft - review and publish manually"
+
+  # ============================================================================
+  # Carry the release onto the community site
+  # ============================================================================
+  # The site is built by Cloudflare Pages from the `community-site` branch, but
+  # releases are cut on `main`. The site's version, release date and the
+  # CHANGELOG its announcement page reads all come from the release, and before
+  # this job nothing carried them across -- v3.1.0 shipped while the site still
+  # showed 3.0.2. set-version.js cannot do it: the site tree is not on main.
+  sync-community-site:
+    runs-on: ubuntu-latest
+    needs: create-release
+    steps:
+      - name: Checkout the site branch
+        uses: actions/checkout@v4
+        with:
+          ref: community-site
+          # The CHANGELOG is taken from the tag below, and a branch checkout does
+          # not bring tags along by default.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Take the released CHANGELOG from the tag
+        run: git checkout ${{ github.ref_name }} -- CHANGELOG.md
+
+      - name: Pin the site to the released version
+        working-directory: website/locallens-Community
+        run: node scripts/sync-release.mjs
+
+      - name: Verify the site agrees with the tag
+        run: |
+          set -euo pipefail
+          tag="${{ github.ref_name }}"
+          expected="${tag#v}"
+          actual=$(sed -n "s/^export const APP_VERSION = '\(.*\)'$/\1/p" \
+            website/locallens-Community/src/data/version.js)
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::site APP_VERSION is '$actual' but the tag is '$expected'"
+            exit 1
+          fi
+          echo "site pinned to v$actual"
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md \
+            website/locallens-Community/src/data/version.js \
+            website/locallens-Community/src/routes/Home.jsx
+          # Re-running a release must not fail on an empty commit.
+          if git diff --cached --quiet; then
+            echo "site already matches ${{ github.ref_name }} — nothing to push"
+            exit 0
+          fi
+          git commit -m "chore(community-site): sync site to ${{ github.ref_name }}"
+          git push origin community-site
+          echo "pushed — Cloudflare Pages will rebuild the site"
