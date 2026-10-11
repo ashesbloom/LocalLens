@@ -78,7 +78,6 @@ export function parseChangelog(markdown) {
   return releases
 }
 
-const CACHE_KEY = 'll-changelog-v1'
 const CACHE_TTL_MS = 5 * 60 * 1000 // short: long enough to skip re-parsing on quick re-navigation, short enough that a stale cache never survives a real testing session
 
 // djb2 — a few lines, good enough to catch same-length edits (e.g. bumping "3.0.2" to
@@ -89,9 +88,13 @@ function hashStr(s) {
   return h >>> 0
 }
 
-function readCache(hash) {
+// The cache key arrives from the product record rather than living here, because this
+// module now serves two changelogs. One shared key would have them evict each other, and
+// the symptom -- one product's releases rendered under the other's heading -- looks like
+// real data rather than like a bug. products.test.mjs pins that the keys differ.
+function readCache(cacheKey, hash) {
   try {
-    const raw = localStorage.getItem(CACHE_KEY)
+    const raw = localStorage.getItem(cacheKey)
     if (!raw) return null
     const cached = JSON.parse(raw)
     if (cached.hash !== hash) return null
@@ -102,31 +105,39 @@ function readCache(hash) {
   }
 }
 
-function writeCache(hash, releases) {
+function writeCache(cacheKey, hash, releases) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ hash, ts: Date.now(), releases }))
+    localStorage.setItem(cacheKey, JSON.stringify({ hash, ts: Date.now(), releases }))
   } catch {
     // storage unavailable (private browsing, quota) — the page still works, just re-parses
   }
 }
 
-// Fetches /CHANGELOG.md (copied there at dev/build time — see vite.config.js) and returns
-// the parsed release array. Always network-fetches (the cache is keyed on the fetched
-// text's hash, so validating it requires the fetch anyway); the cache only skips
-// re-parsing, not re-fetching. Wrapped with net.js so the status bar shows activity while
-// the request is in flight. Throws on a failed fetch — the caller renders that as shell
-// output rather than a blank page.
-export async function fetchChangelog() {
-  setNetActivity('CHANGELOG.md')
+// Fetches a product's CHANGELOG.md and returns the parsed release array. Takes a product
+// record from products.js (changelogUrl, cacheKey, netLabel) — there is no default, so a
+// caller cannot silently get LocalLens' changelog while meaning the agent's.
+//
+// LocalLens' file is same-origin, copied into public/ at build time (see vite.config.js).
+// LL Agent's is cross-origin on raw.githubusercontent.com, which sends
+// `access-control-allow-origin: *`; it is read at runtime so it cannot go stale between
+// the agent's releases and this site's builds.
+//
+// Always network-fetches (the cache is keyed on the fetched text's hash, so validating it
+// requires the fetch anyway); the cache only skips re-parsing, not re-fetching. Wrapped
+// with net.js so the status bar shows activity while the request is in flight. Throws on a
+// failed fetch — the caller renders that as shell output rather than a blank page.
+export async function fetchChangelog(product) {
+  const { changelogUrl, cacheKey, netLabel } = product
+  setNetActivity(netLabel)
   try {
-    const res = await fetch('/CHANGELOG.md')
+    const res = await fetch(changelogUrl)
     if (!res.ok) throw new Error(`CHANGELOG.md responded ${res.status}`)
     const text = await res.text()
     const hash = hashStr(text)
-    const cached = readCache(hash)
+    const cached = readCache(cacheKey, hash)
     if (cached) return cached
     const releases = parseChangelog(text)
-    writeCache(hash, releases)
+    writeCache(cacheKey, hash, releases)
     return releases
   } finally {
     setNetActivity(null)

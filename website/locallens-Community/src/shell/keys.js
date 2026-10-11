@@ -22,10 +22,11 @@ export const CHORD_TARGETS = Object.fromEntries(
   ROUTES.filter((r) => r.key).map((r) => [r.key, r]),
 )
 
-// What ←/→ cycles through. Nav order, but internal routes only: the MCP agent is an external
-// URL, and an arrow key that opens a new browser tab is a genuinely surprising thing to have
-// built. Home is not in the cycle either — it is `g h`, and a wrap-around that kept landing
-// on the front page would make the arrows feel like they had lost their place.
+// What ←/→ cycles through. Nav order, but internal routes only: an arrow key that opens a
+// new browser tab is a genuinely surprising thing to have built, so any route carrying a
+// `url` is filtered out (today that is the agent's product site, which is not in the nav
+// anyway). Home is not in the cycle either — it is `g h`, and a wrap-around that kept
+// landing on the front page would make the arrows feel like they had lost their place.
 export const SECTION_CYCLE = NAV_ITEMS.filter((r) => r.path)
 
 // Where ←/→ go from `pathname`. Wraps at both ends. A pathname outside the cycle (home, a
@@ -66,7 +67,14 @@ export const SHORTCUT_GROUPS = [
       ...ROUTES.filter((r) => r.key).map((r) => ({
         keys: ['g', r.key],
         label: r.cmd === 'home' ? 'Home' : r.label,
-        note: r.cmd === 'how' ? 'walkthrough' : r.cmd === 'pipeline' ? 'inside the engine' : '',
+        note:
+          r.cmd === 'how'
+            ? 'walkthrough'
+            : r.cmd === 'pipeline'
+              ? 'inside the engine'
+              : r.cmd === 'agent'
+                ? 'the MCP bridge'
+                : '',
       })),
     ],
   },

@@ -3,14 +3,13 @@ import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import roadmap from '../content/roadmap.json'
 import { fetchChangelog } from '../data/changelog.js'
-import { APP_VERSION } from '../data/version.js'
+import { LOCALLENS } from '../data/products.js'
 import { track } from '../data/analytics.js'
 
 // Register once, at module level — never inside the component (see Echo.jsx/DitherLens.jsx
 // for the same rule applied to their own plugins).
 gsap.registerPlugin(ScrollTrigger)
 
-const RELEASES_URL = 'https://github.com/ashesbloom/LocalLens/releases'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 // 'YYYY-MM-DD' -> '22 Aug 2026'. Hand-rolled rather than `new Date(iso)` + Intl — the
@@ -33,8 +32,30 @@ function releaseType(current, previous) {
   return 'patch'
 }
 
-function sectionCount(release, heading) {
-  return release.sections.find((s) => s.heading === heading)?.items.length ?? 0
+// Singular/plural per Keep-a-Changelog heading. An unknown heading falls back to itself
+// lowercased, so a changelog that invents a section still reads as English.
+const SECTION_LABELS = {
+  Added: ['new feature', 'new features'],
+  Fixed: ['fix', 'fixes'],
+  Changed: ['change', 'changes'],
+  Removed: ['removal', 'removals'],
+  Deprecated: ['deprecation', 'deprecations'],
+  Security: ['security fix', 'security fixes'],
+}
+
+// What a release contains, counted and labelled from the sections it actually has.
+// This used to read sectionCount(release, 'Fixed') and 'Added' literally, which was fine
+// while LocalLens' changelog was the only one -- it always uses those two headings. LL
+// Agent's generated changelog groups its historical releases under 'Changed' alone, and
+// the literal version announced "0 fixes, 0 new features" about a release with nine notes.
+function contentsSummary(release) {
+  const parts = release.sections
+    .filter((section) => section.items.length > 0)
+    .map((section) => {
+      const [one, many] = SECTION_LABELS[section.heading] ?? [section.heading.toLowerCase(), section.heading.toLowerCase()]
+      return `${section.items.length} ${section.items.length === 1 ? one : many}`
+    })
+  return parts.length > 0 ? parts.join(', ') : 'no notes'
 }
 
 // One-line archive summary: the first bold lead found anywhere in the release, falling
@@ -92,7 +113,7 @@ function ReleaseSections({ sections }) {
   ))
 }
 
-function CurrentBand({ loading, error, current, previous }) {
+function CurrentBand({ loading, error, current, previous, product }) {
   return (
     <section className="band">
       <span className="pill cur">
@@ -120,21 +141,22 @@ function CurrentBand({ loading, error, current, previous }) {
                 <span className="chip">{releaseType(current.version, previous?.version)}</span>
               </dd>
               <dt>contains</dt>
-              <dd>
-                {sectionCount(current, 'Fixed')} fixes, {sectionCount(current, 'Added')} new features
-              </dd>
+              <dd>{contentsSummary(current)}</dd>
               <dt>update via</dt>
-              <dd>the app, or Homebrew</dd>
+              <dd>{product.updateVia}</dd>
             </dl>
-            {current.version !== APP_VERSION && (
+            {product.buildVersion && current.version !== product.buildVersion && (
               // The changelog is the source of truth for what shipped (brief, section 3) —
               // shown quietly rather than silently rendering the build's own claim instead.
-              <p className="ver-note">The app build reports v{APP_VERSION}; CHANGELOG.md says v{current.version}.</p>
+              // Skipped entirely when buildVersion is null: LL Agent ships from another
+              // repository, so this site has no second opinion about its version and
+              // comparing against APP_VERSION would report drift on every load.
+              <p className="ver-note">The app build reports v{product.buildVersion}; CHANGELOG.md says v{current.version}.</p>
             )}
             <div className="acts">
               <a
                 className="btn pri"
-                href={`${RELEASES_URL}/tag/v${current.version}`}
+                href={`${product.releasesUrl}/tag/v${current.version}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => track('release_notes_click', { version: current.version })}
@@ -143,7 +165,7 @@ function CurrentBand({ loading, error, current, previous }) {
               </a>
               <a
                 className="btn"
-                href={RELEASES_URL}
+                href={product.releasesUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => track('all_releases_click', {})}
@@ -253,12 +275,19 @@ function ArchiveBand({ releases }) {
   )
 }
 
-export default function Announce() {
+// Mounted twice: at /announce for LocalLens, and inside /agent for LL Agent. Everything
+// that differs between the two lives in the product record, so both views share one
+// fetch path, one error state and one archive animation rather than drifting apart.
+//
+// `showRoadmap` is off for the agent because roadmap.json is LocalLens' roadmap --
+// rendering it under LL Agent would attribute the wrong plans to the wrong product.
+export default function Announce({ product = LOCALLENS, showRoadmap = true }) {
   const [state, setState] = useState({ loading: true, releases: [], error: null })
 
   useEffect(() => {
     let cancelled = false
-    fetchChangelog().then(
+    setState({ loading: true, releases: [], error: null })
+    fetchChangelog(product).then(
       (releases) => {
         if (!cancelled) setState({ loading: false, releases, error: null })
       },
@@ -269,7 +298,7 @@ export default function Announce() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [product])
 
   const { loading, releases, error } = state
   const current = releases[0]
@@ -278,17 +307,21 @@ export default function Announce() {
 
   return (
     <>
-      <CurrentBand loading={loading} error={error} current={current} previous={previous} />
+      <CurrentBand loading={loading} error={error} current={current} previous={previous} product={product} />
 
-      <section className="band">
-        <span className="pill up">upcoming</span>
-        <StateRows items={roadmap.upcoming} />
-      </section>
+      {showRoadmap && (
+        <>
+          <section className="band">
+            <span className="pill up">upcoming</span>
+            <StateRows items={roadmap.upcoming} />
+          </section>
 
-      <section className="band">
-        <span className="pill lab">labs</span>
-        <StateRows items={roadmap.labs} variant="lab" />
-      </section>
+          <section className="band">
+            <span className="pill lab">labs</span>
+            <StateRows items={roadmap.labs} variant="lab" />
+          </section>
+        </>
+      )}
 
       {!loading && !error && archive.length > 0 && <ArchiveBand releases={archive} />}
     </>

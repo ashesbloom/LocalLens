@@ -1,8 +1,10 @@
 // The board's categories. Pure data, no JSX, so it runs under plain `node` in the test.
 //
-// Six built-in tags, chosen for what this project actually gets asked about rather than for
-// a generic forum. `performance` and `faces` earn their place because they are the two
-// subsystems people have opinions about; everything else lands in `general` or a custom tag.
+// Built-in tags, chosen for what this project actually gets asked about rather than for a
+// generic forum. `performance` and `faces` earn their place because they are the two
+// subsystems people have opinions about; `agent` earns its place because LL Agent is a
+// separate binary in a separate repository, so "it broke" means something different there
+// and the reports need telling apart. Everything else lands in `general` or a custom tag.
 //
 // -- colour ------------------------------------------------------------------------
 // Six coloured chips would wreck a green-on-black page, and two hues are already spoken for
@@ -16,6 +18,9 @@ export const TAGS = [
   { slug: 'performance', label: 'performance', glyph: '\u25c7', blurb: 'slow sorts, memory, stalls' },
   { slug: 'faces', label: 'faces', glyph: '\u25c9', blurb: 'enrolment and recognition' },
   { slug: 'help', label: 'help', glyph: '?', blurb: 'how do I' },
+  // Appended before `general` rather than at the front: postRules.test.mjs pins `bug` as
+  // TAGS[0], and `general` reads last because it is the catch-all.
+  { slug: 'agent', label: 'agent', glyph: '\u25b3', blurb: 'LL Agent, MCP, Claude Desktop' },
   { slug: 'general', label: 'general', glyph: '\u00b7', blurb: 'everything else' },
 ]
 
