@@ -1276,6 +1276,19 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
     # out to every enrolled person in it), total_files counts SOURCE photos.
     return moved_count, total_files
 
+def _use_safe_copy_path(operation_mode, source_dir, dest_dir, specific_files):
+    """
+    Whether a Move should take the cross-drive copy-the-whole-source-then-delete-it
+    path. Never with an explicit file list: that path sorts a temp copy of the
+    whole folder and then removes the original source tree, which would destroy
+    every file that was not on the list (the photos an import skipped, or a
+    watched folder's older files). With a list, each file is moved on its own;
+    shutil.move copies then unlinks across drives, so it is still safe.
+    """
+    if operation_mode != 'move' or specific_files is not None:
+        return False
+    return os.stat(source_dir).st_dev != os.stat(dest_dir).st_dev
+
 def process_photos(config, update_callback):
     """Main entry point called by the API, orchestrating the entire process."""
     source_dir = config["source_folder"]
@@ -1321,10 +1334,7 @@ def process_photos(config, update_callback):
 
     try:
         if operation_mode == 'move':
-            source_dev = os.stat(source_dir).st_dev
-            dest_dev = os.stat(dest_dir).st_dev
-
-            if source_dev != dest_dev:
+            if _use_safe_copy_path(operation_mode, source_dir, dest_dir, sort_options.get("specific_files")):
                 # --- SAFE PATH: Different drives ---
                 # This path is transactional and fully reversible on abort.
                 logging.warning("Source and destination are on different drives. Using safe copy-then-delete method.")

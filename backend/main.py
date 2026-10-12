@@ -1092,7 +1092,7 @@ async def start_sorting_endpoint(request: SortRequest, background_tasks: Backgro
         "operation_mode": request.operation_mode
     }
     # Forward specific_files and mtime_cutoff if provided (used by scheduler daemon)
-    if sort_opts.get("specific_files"):
+    if sort_opts.get("specific_files") is not None:  # [] means "nothing", not "everything"
         config["specific_files"] = sort_opts["specific_files"]
     if sort_opts.get("mtime_cutoff") is not None:
         config["sorting_options"]["mtime_cutoff"] = sort_opts["mtime_cutoff"]
