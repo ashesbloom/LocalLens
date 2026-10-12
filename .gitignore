@@ -36,6 +36,8 @@ share/python-wheels/
 MANIFEST
 presets/
 .agents/
+.superpowers/
+.claude/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

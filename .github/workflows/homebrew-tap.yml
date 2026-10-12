@@ -1,0 +1,87 @@
+name: Update Homebrew tap
+
+# Copies the cask that release.yml generated into ashesbloom/homebrew-locallens.
+#
+# This is the step that was missing. release.yml has attached local-lens.rb to every release
+# since 2.4.1, but nothing ever copied it into the tap, so `brew install` kept serving 2.4.1
+# while 3.1.0 shipped.
+#
+# It runs on *publish*, not in release.yml, because release.yml creates drafts, and a
+# draft's download URLs 404 for everyone but the owner. A cask pushed at build time would
+# break `brew install` for as long as the draft sat unpublished.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published release to push to the tap (e.g. v3.1.0)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  bump-cask:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # GITHUB_TOKEN can only write to this repository. The tap is another one, so this needs
+      # a fine-grained token with Contents: read and write on homebrew-locallens only.
+      - name: Require the tap token
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN is not set. Add a fine-grained token with Contents read/write on ashesbloom/homebrew-locallens as a repository secret, then re-run this workflow with the tag."
+            exit 1
+          fi
+
+      - name: Download the cask and checksums this release generated
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --repo "${{ github.repository }}" \
+            --pattern local-lens.rb --pattern checksums-macos.txt
+
+      # The cask is only worth pushing if it describes this release's DMG exactly. A stale or
+      # mismatched sha256 makes `brew install` fail for everyone, which is worse than lagging.
+      - name: Check the cask matches the release
+        run: |
+          set -euo pipefail
+          want=$(awk '/aarch64\.dmg$/ {print $1}' checksums-macos.txt)
+          have=$(sed -n 's/^ *sha256 "\(.*\)"$/\1/p' local-lens.rb)
+          version=$(sed -n 's/^ *version "\(.*\)"$/\1/p' local-lens.rb)
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::cask says version $version but the release is $TAG"; exit 1
+          fi
+          if [ -z "$want" ] || [ "$want" != "$have" ]; then
+            echo "::error::cask sha256 '$have' does not match the DMG checksum '$want'"; exit 1
+          fi
+          echo "cask $version matches the DMG ($want)"
+
+      - name: Check out the tap
+        uses: actions/checkout@v4
+        with:
+          repository: ashesbloom/homebrew-locallens
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          cp local-lens.rb tap/Casks/local-lens.rb
+          cd tap
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/local-lens.rb
+          # Re-running for a release the tap already has must not fail on an empty commit.
+          if git diff --cached --quiet; then
+            echo "tap already serves $TAG — nothing to push"
+            exit 0
+          fi
+          git commit -m "local-lens ${TAG#v}"
+          git push
+          echo "pushed — brew install now serves $TAG"
