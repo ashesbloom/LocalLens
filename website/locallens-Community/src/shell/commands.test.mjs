@@ -60,7 +60,7 @@ for (const route of ROUTES) {
     check(typeof route.path === 'string', `route '${route.cmd}' must declare a path`)
   }
 }
-check(resolveRoute('mcp')?.url === 'https://locallensmcp.vercel.app', "'mcp' should resolve to the MCP agent site")
+check(resolveRoute('mcp')?.url === 'https://www.locallens.in', "'mcp' should resolve to the MCP agent site")
 check(routeForPath('/agent') === null, 'there is no /agent route any more')
 
 // --- the two explainer routes exist and are reachable every way they claim to be ---

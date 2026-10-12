@@ -33,8 +33,28 @@ function releaseType(current, previous) {
   return 'patch'
 }
 
-function sectionCount(release, heading) {
-  return release.sections.find((s) => s.heading === heading)?.items.length ?? 0
+// Singular/plural per Keep-a-Changelog heading. An unknown heading falls back to itself
+// lowercased, so a changelog that invents a section still reads as English.
+const SECTION_LABELS = {
+  Added: ['new feature', 'new features'],
+  Fixed: ['fix', 'fixes'],
+  Changed: ['change', 'changes'],
+  Removed: ['removal', 'removals'],
+  Deprecated: ['deprecation', 'deprecations'],
+  Security: ['security fix', 'security fixes'],
+}
+
+// What a release contains, counted and labelled from the sections it actually has. Reading
+// only 'Fixed' and 'Added' printed "1 fixes, 2 new features" and silently dropped any
+// Changed section.
+function contentsSummary(release) {
+  const parts = release.sections
+    .filter((section) => section.items.length > 0)
+    .map((section) => {
+      const [one, many] = SECTION_LABELS[section.heading] ?? [section.heading.toLowerCase(), section.heading.toLowerCase()]
+      return `${section.items.length} ${section.items.length === 1 ? one : many}`
+    })
+  return parts.length > 0 ? parts.join(', ') : 'no notes'
 }
 
 // One-line archive summary: the first bold lead found anywhere in the release, falling
@@ -120,9 +140,7 @@ function CurrentBand({ loading, error, current, previous }) {
                 <span className="chip">{releaseType(current.version, previous?.version)}</span>
               </dd>
               <dt>contains</dt>
-              <dd>
-                {sectionCount(current, 'Fixed')} fixes, {sectionCount(current, 'Added')} new features
-              </dd>
+              <dd>{contentsSummary(current)}</dd>
               <dt>update via</dt>
               <dd>the app, or Homebrew</dd>
             </dl>
