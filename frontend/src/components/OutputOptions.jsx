@@ -1,8 +1,9 @@
 import React, { useId } from 'react';
 import './OutputOptions.css';
 
-// Each option draws what the destination ends up looking like, so the choice reads
-// at a glance. Native radios: arrow keys, focus and screen readers come for free.
+// Each pair is a sliding switch; each side draws what the destination ends up
+// looking like, so the choice reads at a glance. Native radios underneath: arrow
+// keys, focus and screen readers for free.
 
 const Photo = ({ x, y, className = '' }) => (
     <g className={className} transform={`translate(${x} ${y})`}>
@@ -53,7 +54,8 @@ const ChoiceGroup = ({ title, name, value, onChange, options, disabled, ...rest 
     return (
         <fieldset className="choice-group" disabled={disabled} aria-describedby={`${id}-hint`} {...rest}>
             <legend>{title}</legend>
-            <div className="choice-options">
+            <div className={`choice-options ${value === options[1].value ? 'is-second' : ''}`}>
+                <span className="choice-thumb" aria-hidden="true" />
                 {options.map((o) => (
                     <label key={String(o.value)} className={`choice ${o.value === value ? 'is-selected' : ''}`}>
                         <input

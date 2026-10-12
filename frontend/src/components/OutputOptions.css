@@ -24,24 +24,52 @@
     color: var(--color-text);
 }
 
+/* The track: same glass pill as the Copy / Move switch. */
 .choice-options {
+    position: relative;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
+    padding: 4px;
+    border-radius: 99px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: border-color 0.3s var(--transition-smooth), box-shadow 0.3s var(--transition-smooth);
+}
+
+.choice-group:not(:disabled) .choice-options:hover {
+    border-color: rgba(var(--color-primary-rgb), 0.5);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+}
+
+.choice-thumb {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc(50% - 4px);
+    border-radius: 99px;
+    background: var(--color-gradient);
+    box-shadow: var(--shadow-lg);
+    transition: transform 0.3s var(--transition-smooth);
+}
+
+.choice-options.is-second .choice-thumb {
+    transform: translateX(100%);
 }
 
 .choice {
     position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 0.75rem;
-    border-radius: 12px;
-    border: 1px solid var(--color-border);
-    background: rgba(255, 255, 255, 0.03);
+    justify-content: center;
+    gap: 0.6rem;
+    min-height: 52px;
+    padding: 0.3rem 1rem;
+    border-radius: 99px;
     color: var(--color-text-muted);
     cursor: pointer;
-    transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+    transition: color 0.3s var(--transition-smooth);
 }
 
 .choice input {
@@ -50,14 +78,8 @@
     pointer-events: none;
 }
 
-.choice:hover {
-    border-color: var(--color-text-muted);
-}
-
 .choice.is-selected {
-    border-color: var(--color-primary);
-    background: rgba(var(--color-primary-rgb), 0.1);
-    color: var(--color-text);
+    color: white;
 }
 
 .choice:has(input:focus-visible) {
@@ -65,19 +87,18 @@
     outline-offset: 2px;
 }
 
-.choice-group:disabled .choice {
-    cursor: not-allowed;
+.choice-group:disabled .choice-options {
     opacity: 0.6;
 }
 
-.choice-group:disabled .choice:hover {
-    border-color: var(--color-border);
+.choice-group:disabled .choice {
+    cursor: not-allowed;
 }
 
 .choice-glyph {
     flex: none;
-    width: 64px;
-    height: 42px;
+    width: 56px;
+    height: 37px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.3;
@@ -89,20 +110,16 @@
     vector-effect: non-scaling-stroke;
 }
 
-.choice.is-selected .choice-glyph {
-    stroke: var(--color-primary);
-}
-
 /* The copy "Skip" leaves out: ghosted, dashed. */
 .glyph-skipped {
-    opacity: 0.4;
+    opacity: 0.45;
     stroke-dasharray: 2 2;
 }
 
 .choice-label {
     font-size: 0.875rem;
     font-weight: 600;
-    line-height: 1.25;
+    line-height: 1.2;
 }
 
 .choice-hint {
@@ -113,5 +130,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .choice-thumb,
     .choice { transition: none; }
 }
