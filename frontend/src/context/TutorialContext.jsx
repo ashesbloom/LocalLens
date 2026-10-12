@@ -15,11 +15,17 @@ export const TutorialProvider = ({ children }) => {
     const [isActive, setIsActive] = useState(false);
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
     const [isDemoMode, setIsDemoMode] = useState(false);
-    
-    // Helper to get current step data
-    const currentStep = isActive ? tutorialSteps[currentStepIndex] : null;
+    // The steps being played: the whole tutorial, or just what is new in this
+    // release (whatsNew.js). `tourLabel` names the short tour on the card.
+    const [steps, setSteps] = useState(tutorialSteps);
+    const [tourLabel, setTourLabel] = useState(null);
 
-    const startTutorial = useCallback((fromStep = 0) => {
+    // Helper to get current step data
+    const currentStep = isActive ? steps[currentStepIndex] : null;
+
+    const startTutorial = useCallback((fromStep = 0, only = tutorialSteps, label = null) => {
+        setSteps(only);
+        setTourLabel(label);
         setIsActive(true);
         setCurrentStepIndex(fromStep);
         setIsDemoMode(true); // Enable demo mode when tutorial starts
@@ -32,12 +38,12 @@ export const TutorialProvider = ({ children }) => {
     }, []);
 
     const nextStep = useCallback(() => {
-        if (currentStepIndex < tutorialSteps.length - 1) {
+        if (currentStepIndex < steps.length - 1) {
             setCurrentStepIndex(prev => prev + 1);
         } else {
             stopTutorial();
         }
-    }, [currentStepIndex, stopTutorial]);
+    }, [currentStepIndex, steps, stopTutorial]);
 
     const prevStep = useCallback(() => {
         if (currentStepIndex > 0) {
@@ -60,7 +66,8 @@ export const TutorialProvider = ({ children }) => {
         isActive,
         currentStep,
         currentStepIndex,
-        totalSteps: tutorialSteps.length,
+        totalSteps: steps.length,
+        tourLabel,
         isDemoMode,
         startTutorial,
         stopTutorial,

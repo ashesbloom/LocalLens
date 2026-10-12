@@ -1,5 +1,3 @@
-import { use } from "react";
-
 export const tutorialSteps = [
     // --- Getting Started ---
     {
@@ -107,7 +105,6 @@ export const tutorialSteps = [
         content: 'Click "Add Person" to add them to the enrollment queue. The AI will remember this person once you start the enrollment process.',
         position: 'right',
         isFlagship: true,
-        demoAnimation: 'add-person-demo',
         demoAnimation: 'select-photos-demo',
         group: 'Face Recognition',
         title: 'Add to Queue'
@@ -300,6 +297,81 @@ export const tutorialSteps = [
                 { label: 'One-Click Copy', detail: 'Found photos are copied to a named folder, originals stay safe' }
             ]
         }
+    },
+    // --- Duplicates (new in 3.2.0) ---
+    // `since` marks the release a step arrived in. Updaters get those steps
+    // once as a short "New in X.Y" tour (components/whatsNew.js); after that
+    // they are ordinary menu entries. Never remove it.
+    {
+        target: '[data-tutorial-target="mode-duplicates"]',
+        content: '',
+        position: 'below-center',
+        spotlightShape: 'capsule',
+        cardStyle: 'expanded',
+        modeTheme: 'duplicates',
+        demoAnimation: 'select-duplicates-mode',
+        scrollToTop: true,
+        group: 'Duplicates',
+        title: 'Duplicates Mode',
+        since: '3.2.0',
+        expandedContent: {
+            headline: 'Duplicates',
+            tagline: 'Find copies, keep the best one',
+            description: 'Scan a folder for copies of the same photo, including resized, re-exported and rotated ones. Review each group side by side: Local Lens pre-selects the best copy, and you can pick another or keep them all.',
+            useCaseTitle: 'When to Use',
+            useCase: 'Years of phone backups, exports and shared albums have left three copies of every holiday. Scan once, skim the groups, and clear out the extras.',
+            useCaseDec: '(Nothing is deleted outright. Everything you remove goes to the Trash. Free for everyone.)',
+            features: [
+                { label: 'Best Copy First', detail: 'Highest resolution, then least compressed, then the original over a "copy"' },
+                { label: 'Side by Side', detail: 'A short list opens one group at a time; a long one opens as a list to skim' },
+                { label: 'Trash Only', detail: 'Removed photos go to the Trash, so you can still get them back' }
+            ]
+        }
+    },
+    {
+        target: '[data-tutorial-target="compare-selector"]',
+        content: '**Compare with folder** checks a memory card or another folder against your library. Photos you already have are shown next to their existing copy so you can clear them off the card, and one click imports only the new ones. The folder you compare with is never touched.',
+        position: 'right',
+        demoAnimation: 'select-duplicates-mode',
+        group: 'Duplicates',
+        title: 'Compare with Your Library',
+        since: '3.2.0'
+    },
+    {
+        target: '[data-tutorial-target="dup-strictness"]',
+        content: 'Choose how alike two photos must be to count as duplicates: **Exact copies**, **Near-identical** (resized and re-exported too, recommended) or **Similar shots** (bursts and near-misses). Nothing is removed until you have reviewed the results.',
+        position: 'right',
+        demoAnimation: 'select-duplicates-mode',
+        group: 'Duplicates',
+        title: 'Match Strictness',
+        since: '3.2.0'
+    },
+    // --- Community (new in 3.2.0) ---
+    {
+        target: '[data-tutorial-target="community-bubble"]',
+        content: 'Post a bug, an idea or a question on the **community forum** from here. Posts you start from inside Local Lens are linked to this app, so replies find their way back to you. No account needed.',
+        position: 'bottom',
+        demoAnimation: 'open-help-pod',
+        group: 'Community',
+        title: 'Post on the Forum',
+        since: '3.2.0',
+        // Shown in the card as a labelled example, never as real activity.
+        demoFeed: [
+            { kind: 'mine', author: 'You', when: 'just now', text: 'HEIC photos from my iPhone end up in "Unknown Date"' }
+        ]
+    },
+    {
+        target: '[data-tutorial-target="notification-panel"]',
+        content: 'When someone **replies to your post**, the bell shows a count and a short note pops up. New posts on the forum show as a dot. Open the bell to read them.',
+        position: 'bottom',
+        group: 'Community',
+        title: 'Replies to Your Posts',
+        since: '3.2.0',
+        demoFeed: [
+            { kind: 'reply', author: 'maya_k', when: '2m', text: 'Same here with photos from an iPhone 15, on 3.1 too.' },
+            { kind: 'reply', author: 'LocalLens team', when: '1h', text: 'Thanks, we can reproduce it. A fix is going into the next update.' },
+            { kind: 'post', author: 'devon', when: '3h', text: 'Idea: a way to sort by camera model' }
+        ]
     }
 ];
 

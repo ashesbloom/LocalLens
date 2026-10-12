@@ -10,6 +10,12 @@
     height: 100vh;
     z-index: 9999;
     pointer-events: none;
+    animation: tutorial-overlay-in 0.25s ease-out;
+}
+
+@keyframes tutorial-overlay-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 /* SVG Overlay */
@@ -23,44 +29,40 @@
     fill: rgba(15, 23, 42, 0.55);
 }
 
-/* Spotlight border glow effect */
-.tutorial-spotlight-border {
+/* Spotlight ring. It moves every frame, so it carries no filter (a CSS
+   drop-shadow repaints the whole layer each frame) and the pulse touches
+   opacity only. The glow is a wide faint stroke drawn underneath. */
+.tutorial-spotlight-border,
+.tutorial-spotlight-glow {
     fill: none;
     stroke: var(--color-primary, #3b82f6);
+    transition: opacity 0.2s;
+}
+.tutorial-spotlight-border {
     stroke-width: 2;
-    filter: drop-shadow(0 0 6px var(--color-primary, #3b82f6)) 
-            drop-shadow(0 0 12px rgba(59, 130, 246, 0.3));
     animation: spotlight-pulse 2s ease-in-out infinite;
+}
+.tutorial-spotlight-glow {
+    stroke-width: 10;
+    stroke-opacity: 0.18;
 }
 @keyframes spotlight-pulse {
-    0%, 100% { 
-        opacity: 1;
-        stroke-width: 2;
-    }
-    50% { 
-        opacity: 0.6;
-        stroke-width: 2.5;
-    }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
 }
-/* Flagship spotlight - subtle warm glow */
-.tutorial-spotlight-border.flagship {
-    stroke: #fbbf24;
-    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.5));
-    animation: spotlight-pulse 2s ease-in-out infinite;
-}
+.tutorial-spotlight-border.flagship,
+.tutorial-spotlight-glow.flagship { stroke: #fbbf24; }
+.tutorial-spotlight-border.mode-hybrid,
+.tutorial-spotlight-glow.mode-hybrid { stroke: #4ade80; }
+.tutorial-spotlight-border.mode-find,
+.tutorial-spotlight-glow.mode-find { stroke: #f87171; }
+.tutorial-spotlight-border.mode-duplicates,
+.tutorial-spotlight-glow.mode-duplicates { stroke: #a78bfa; }
 
-/* Mode-themed spotlight - Hybrid GREEN */
-.tutorial-spotlight-border.mode-hybrid {
-    stroke: #4ade80;
-    filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.6)) 
-            drop-shadow(0 0 16px rgba(22, 163, 74, 0.4));
-}
-
-/* Mode-themed spotlight - Find RED */
-.tutorial-spotlight-border.mode-find {
-    stroke: #f87171;
-    filter: drop-shadow(0 0 8px rgba(248, 113, 113, 0.6)) 
-            drop-shadow(0 0 16px rgba(220, 38, 38, 0.4));
+@media (prefers-reduced-motion: reduce) {
+    .tutorial-overlay-container,
+    .tutorial-spotlight-border,
+    .tutorial-step-fade { animation: none; }
 }
 
 /* ============================================
@@ -69,17 +71,24 @@
 
 .tutorial-tooltip {
     position: fixed;
+    top: 0;
+    left: 0;
     width: 340px;
+    /* Positioned by the overlay's frame loop through transform only. Hidden
+       until the loop has placed it, so it never flashes at the corner. */
+    will-change: transform;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
     
     /* True glassmorphism - translucent with blur */
     background: linear-gradient(
         145deg, 
-        rgba(59, 100, 150, 0.45) 0%, 
-        rgba(40, 60, 90, 0.5) 50%,
-        rgba(30, 50, 80, 0.55) 100%
+        rgba(59, 100, 150, 0.6) 0%,
+        rgba(40, 60, 90, 0.66) 50%,
+        rgba(30, 50, 80, 0.72) 100%
     );
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    backdrop-filter: blur(12px) saturate(160%);
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.25);
     box-shadow: 
@@ -90,43 +99,21 @@
     pointer-events: auto;
     z-index: 10000;
     overflow: hidden;
-    animation: tooltip-enter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.tutorial-tooltip.transitioning {
-    animation: none;
+.tutorial-tooltip[data-ready],
+.tutorial-expanded-card[data-ready] {
+    opacity: 1;
 }
 
-.tutorial-tooltip.no-enter-animation {
-    animation: none;
+/* Each step's text fades in; the card itself stays put and glides. */
+.tutorial-step-fade {
+    animation: tutorial-step-in 0.18s ease-out;
 }
 
-@keyframes tooltip-enter {
-    from {
-        opacity: 0;
-        transform: translateY(8px) scale(0.96);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-/* Placement variations for smooth positioning */
-.tutorial-tooltip--top {
-    transform-origin: bottom center;
-}
-
-.tutorial-tooltip--bottom {
-    transform-origin: top center;
-}
-
-.tutorial-tooltip--left {
-    transform-origin: right center;
-}
-
-.tutorial-tooltip--right {
-    transform-origin: left center;
+@keyframes tutorial-step-in {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: none; }
 }
 
 /* ============================================
@@ -363,29 +350,14 @@
 
 .tutorial-expanded-card {
     position: fixed;
-    left: 42%;
-    transform: translateX(-50%);
-    width: calc(100vw - 160px);
-    max-width: 580px;
+    top: 0;
+    left: 0;
+    width: min(580px, calc(100vw - 32px));
     z-index: 10000;
     pointer-events: auto;
-    animation: expanded-card-enter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-    margin: 0 40px;
-}
-
-.tutorial-expanded-card.no-enter-animation {
-    animation: none;
-}
-
-@keyframes expanded-card-enter {
-    from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(20px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0) scale(1);
-    }
+    will-change: transform;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
 }
 
 .expanded-card-inner {
@@ -394,8 +366,8 @@
         rgba(30, 41, 59, 0.75) 0%, 
         rgba(15, 23, 42, 0.8) 100%
     );
-    -webkit-backdrop-filter: blur(40px) saturate(200%);
-    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 
@@ -501,6 +473,47 @@
 .tutorial-expanded-card.theme-find .expanded-card-step {
     background: rgba(220, 38, 38, 0.2);
     color: #fca5a5;
+}
+
+/* Duplicates Mode Theme - VIOLET */
+.tutorial-expanded-card.theme-duplicates .expanded-card-inner {
+    background: linear-gradient(
+        160deg, 
+        rgba(124, 58, 237, 0.1) 0%,
+        rgba(30, 41, 59, 0.75) 25%, 
+        rgba(15, 23, 42, 0.8) 100%
+    );
+    border-color: rgba(167, 139, 250, 0.25);
+    box-shadow: 
+        0 20px 50px rgba(0, 0, 0, 0.4),
+        0 8px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(167, 139, 250, 0.2),
+        inset 0 0 60px rgba(124, 58, 237, 0.05);
+}
+
+.tutorial-expanded-card.theme-duplicates .expanded-card-headline {
+    background: linear-gradient(135deg, #a78bfa, #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.tutorial-expanded-card.theme-duplicates .tutorial-btn--primary {
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    box-shadow: 0 4px 16px rgba(124, 58, 237, 0.4);
+}
+
+.tutorial-expanded-card.theme-duplicates .tutorial-btn--primary:hover {
+    box-shadow: 0 6px 24px rgba(124, 58, 237, 0.5);
+}
+
+.tutorial-expanded-card.theme-duplicates .feature-label {
+    color: #a78bfa;
+}
+
+.tutorial-expanded-card.theme-duplicates .expanded-card-step {
+    background: rgba(124, 58, 237, 0.2);
+    color: #c4b5fd;
 }
 
 /* Header */
@@ -624,10 +637,6 @@
 
 /* Responsive */
 @media (max-width: 640px) {
-    .tutorial-expanded-card {
-        width: calc(100vw - 32px);
-    }
-    
     .expanded-card-features {
         grid-template-columns: 1fr;
     }
@@ -644,3 +653,83 @@
     }
 }
 
+
+/* ============================================
+   DEMO FEED - example posts/replies in Community steps
+   ============================================ */
+
+.tutorial-demo-feed {
+    position: relative;
+    margin-top: 14px;
+    padding: 10px 10px 4px;
+    border-radius: 10px;
+    background: rgba(10, 20, 40, 0.35);
+    border: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+.tdf-tag {
+    position: absolute;
+    top: -8px;
+    right: 10px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.7);
+    background: rgb(36, 58, 92);
+    padding: 1px 6px;
+    border-radius: 6px;
+}
+
+.tutorial-demo-feed ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tdf-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 8px;
+    padding: 6px 8px 6px 10px;
+    margin-bottom: 6px;
+    border-left: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.75);
+    animation: tutorial-step-in 0.25s ease-out both;
+}
+
+/* A reply to you is the row that matters, so it carries the accent rule. */
+.tdf-reply {
+    border-left-color: #60a5fa;
+    background: rgba(59, 130, 246, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.tdf-mine {
+    border-left-color: #a78bfa;
+}
+
+.tdf-line strong {
+    color: #fff;
+    font-weight: 600;
+}
+
+.tdf-when {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.tdf-text {
+    grid-column: 1 / -1;
+    color: rgba(255, 255, 255, 0.6);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tdf-row { animation: none; }
+}

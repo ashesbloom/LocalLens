@@ -1,218 +1,172 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useTutorial } from '../context/TutorialContext';
-import { spotlightPath, capsuleRadius, clampRadius } from './spotlightPath';
+import { spotlightPath, capsuleRadius, clampRadius, placeTooltip, tooltipOrigin } from './spotlightPath';
 import './TutorialOverlay.css';
 
-// Smooth interpolation for animated transitions
-const lerp = (start, end, factor) => start + (end - start) * factor;
+const PAD = 10;          // breathing room around the target
+const TAU = 70;          // ms; how quickly the hole catches up with its target
+const FIND_FOR = 1500;   // ms to wait for a target that demo mode is still rendering
+const MARGIN = 16;
 
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const fullyVisible = (r) =>
+    r.top >= 0 && r.left >= 0 && r.bottom <= window.innerHeight && r.right <= window.innerWidth;
+
+const formatContent = (text) => text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/<danger>(.*?)<\/danger>/g, '<span class="tutorial-danger-text">$1</span>');
+
+const FEED_VERB = { mine: ' posted', post: ' posted', reply: ' replied to your post' };
+
+// Made-up community activity for the Community steps, worded like the bell's
+// own rows. Labelled as an example so nobody mistakes it for real replies.
+const DemoFeed = ({ items }) => (
+    <div className="tutorial-demo-feed">
+        <span className="tdf-tag">Example</span>
+        <ul>
+            {items.map((item, i) => (
+                <li key={i} className={`tdf-row tdf-${item.kind}`} style={{ animationDelay: `${120 + i * 90}ms` }}>
+                    <span className="tdf-line"><strong>{item.author}</strong>{FEED_VERB[item.kind]}</span>
+                    <span className="tdf-when">{item.when}</span>
+                    <span className="tdf-text">{item.text}</span>
+                </li>
+            ))}
+        </ul>
+    </div>
+);
+
+// The spotlight is driven by one requestAnimationFrame loop that writes the
+// hole, the ring and the card position straight to the DOM. React only
+// renders when the step changes. Each frame the loop reads the target's live
+// rect and eases toward it, so smooth scrolling, demo-mode layout shifts and
+// window resizes are all followed without timers or listeners.
 const TutorialOverlay = () => {
-    const { isActive, currentStep, nextStep, prevStep, skipTutorial, currentStepIndex, totalSteps } = useTutorial();
-    const [targetRect, setTargetRect] = useState(null);
-    const [animatedRect, setAnimatedRect] = useState(null);
-    const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0, placement: 'bottom' });
-    const [isTransitioning, setIsTransitioning] = useState(false);
-    const [isReady, setIsReady] = useState(false);
-    const [hasAnimated, setHasAnimated] = useState(false); // Track if enter animation has played
-    const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-    const observerRef = useRef(null);
-    const animationRef = useRef(null);
-    const tooltipRef = useRef(null);
-    const rafUpdateRef = useRef(null); // Throttle spotlight position updates
+    const { isActive, currentStep, nextStep, prevStep, skipTutorial, currentStepIndex, totalSteps, tourLabel } = useTutorial();
+    const pathRef = useRef(null);
+    const ringRef = useRef(null);
+    const glowRef = useRef(null);
+    const cardRef = useRef(null);
+    const cardSize = useRef({ width: 340, height: 180 });
+    const holeRef = useRef(null); // where the hole is right now; survives step changes
+    const resizeObs = useRef(null);
 
-    // Update window size on resize
-    useEffect(() => {
-        const handleResize = () => {
-            setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-        };
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
+    // The card element changes between the tooltip and the expanded card, so
+    // its size is watched through a callback ref instead of read every frame.
+    const setCard = useCallback((node) => {
+        cardRef.current = node;
+        resizeObs.current?.disconnect();
+        if (!node) return;
+        resizeObs.current = new ResizeObserver(() => {
+            cardSize.current = { width: node.offsetWidth, height: node.offsetHeight };
+        });
+        resizeObs.current.observe(node);
     }, []);
 
-    // Calculate optimal tooltip position
-    const calculateTooltipPosition = useCallback((rect) => {
-        if (!rect || !tooltipRef.current) return { top: 0, left: 0, placement: 'bottom' };
-        
-        const tooltipEl = tooltipRef.current;
-        const tooltipWidth = 340;
-        const tooltipHeight = tooltipEl.offsetHeight || 180;
-        const padding = 16;
-        const spotlightGap = 12;
-
-        // Available space in each direction
-        const spaceTop = rect.y;
-        const spaceBottom = windowSize.height - (rect.y + rect.height);
-        const spaceLeft = rect.x;
-        const spaceRight = windowSize.width - (rect.x + rect.width);
-
-        let placement = 'bottom';
-        let top = 0;
-        let left = 0;
-
-        // Determine best vertical placement
-        if (spaceBottom >= tooltipHeight + spotlightGap + padding) {
-            placement = 'bottom';
-            top = rect.y + rect.height + spotlightGap;
-        } else if (spaceTop >= tooltipHeight + spotlightGap + padding) {
-            placement = 'top';
-            top = rect.y - tooltipHeight - spotlightGap;
-        } else if (spaceRight >= tooltipWidth + spotlightGap + padding) {
-            placement = 'right';
-            top = rect.y + (rect.height / 2) - (tooltipHeight / 2);
-        } else if (spaceLeft >= tooltipWidth + spotlightGap + padding) {
-            placement = 'left';
-            top = rect.y + (rect.height / 2) - (tooltipHeight / 2);
-        } else {
-            // Fallback: position at bottom with scroll
-            placement = 'bottom';
-            top = rect.y + rect.height + spotlightGap;
+    useLayoutEffect(() => {
+        if (!isActive || !currentStep) {
+            holeRef.current = null;
+            return undefined;
         }
+        const step = currentStep;
+        const reduce = reducedMotion();
+        const expanded = step.cardStyle === 'expanded';
+        const started = performance.now();
+        let last = started;
+        let el = null;
+        let scrolled = false;
+        let placement = null;
+        let lastWritten = '';
+        let raf = 0;
 
-        // Calculate horizontal position
-        if (placement === 'top' || placement === 'bottom') {
-            left = rect.x + (rect.width / 2) - (tooltipWidth / 2);
-            // Keep within viewport bounds
-            left = Math.max(padding, Math.min(left, windowSize.width - tooltipWidth - padding));
-        } else if (placement === 'right') {
-            left = rect.x + rect.width + spotlightGap;
-        } else if (placement === 'left') {
-            left = rect.x - tooltipWidth - spotlightGap;
-        }
+        if (step.scrollToTop) window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
 
-        // Ensure top stays within bounds
-        top = Math.max(padding, Math.min(top, windowSize.height - tooltipHeight - padding));
+        const frame = (now) => {
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            // First open: the hole starts as the whole window and irises in.
+            if (!holeRef.current) holeRef.current = { x: 0, y: 0, width: vw, height: vh };
+            const hole = holeRef.current;
 
-        return { top, left, placement };
-    }, [windowSize]);
-
-    // Animate spotlight transition
-    useEffect(() => {
-        if (!targetRect) return;
-
-        if (!animatedRect) {
-            setAnimatedRect(targetRect);
-            return;
-        }
-
-        setIsTransitioning(true);
-        const startRect = { ...animatedRect };
-        const endRect = { ...targetRect };
-        const duration = 320;
-        const startTime = performance.now();
-
-        const animate = (currentTime) => {
-            const elapsed = currentTime - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            
-            // Easing function (smooth ease-in-out)
-            const eased = progress < 0.5
-                ? 2 * progress * progress
-                : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-
-            setAnimatedRect({
-                x: lerp(startRect.x, endRect.x, eased),
-                y: lerp(startRect.y, endRect.y, eased),
-                width: lerp(startRect.width, endRect.width, eased),
-                height: lerp(startRect.height, endRect.height, eased),
-            });
-
-            if (progress < 1) {
-                animationRef.current = requestAnimationFrame(animate);
-            } else {
-                setIsTransitioning(false);
-            }
-        };
-
-        animationRef.current = requestAnimationFrame(animate);
-
-        return () => {
-            if (animationRef.current) {
-                cancelAnimationFrame(animationRef.current);
-            }
-        };
-    }, [targetRect]);
-
-    // Update tooltip position when animated rect changes
-    useEffect(() => {
-        if (animatedRect) {
-            const newPosition = calculateTooltipPosition(animatedRect);
-            setTooltipPosition(newPosition);
-            // Mark as ready once we have calculated a position
-            if (!isReady) {
-                // Small delay to ensure smooth initial render
-                const timer = setTimeout(() => {
-                    setIsReady(true);
-                    // Mark animation as played after it completes
-                    setTimeout(() => setHasAnimated(true), 400);
-                }, 100);
-                return () => clearTimeout(timer);
-            }
-        }
-    }, [animatedRect, calculateTooltipPosition, isReady]);
-
-    // Find and track target element
-    useEffect(() => {
-        if (!isActive || !currentStep) return;
-
-        const updateRect = () => {
-            if (rafUpdateRef.current) return;
-
-            rafUpdateRef.current = requestAnimationFrame(() => {
-                // Handle scroll to top first if needed
-                if (currentStep.scrollToTop) {
-                    // Use instant scroll to prevent fighting with spotlight animation
-                    // This fixes the choppy/delayed effect when moving from bottom to top
-                    window.scrollTo({ top: 0, behavior: 'auto' });
-                }
-
-                const element = document.querySelector(currentStep.target);
-                if (element) {
-                    // First scroll element into view, then get rect after scroll completes
-                    if (!currentStep.scrollToTop) {
-                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (!el || !el.isConnected) el = document.querySelector(step.target);
+            const r = el?.getBoundingClientRect();
+            const found = r && (r.width > 0 || r.height > 0);
+            let target;
+            if (found) {
+                if (!scrolled) {
+                    scrolled = true;
+                    if (!step.scrollToTop && !fullyVisible(r)) {
+                        el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
                     }
-                    
-                    // Use a longer delay for mode switch animations (UI shifts when enrollment button appears/disappears)
-                    const delay = currentStep.demoAnimation?.startsWith('select-') ? 500 : 100;
-                    
-                    // Use a small delay to get rect after scroll animation starts
-                    // This ensures the element is visible in viewport
-                    setTimeout(() => {
-                        const rect = element.getBoundingClientRect();
-                        const padding = 10;
-                        setTargetRect({
-                            x: rect.left - padding,
-                            y: rect.top - padding,
-                            width: rect.width + (padding * 2),
-                            height: rect.height + (padding * 2),
-                        });
-                    }, delay);
                 }
+                target = { x: r.left - PAD, y: r.top - PAD, width: r.width + PAD * 2, height: r.height + PAD * 2 };
+            } else if (now - started > FIND_FOR) {
+                // Never appeared: close the hole to a point and centre the card.
+                target = { x: vw / 2, y: vh / 2, width: 0, height: 0 };
+            } else {
+                raf = requestAnimationFrame(frame); // still rendering; hold position
+                last = now;
+                return;
+            }
 
-                rafUpdateRef.current = null;
-            });
+            const dt = Math.min(now - last, 64);
+            last = now;
+            const k = reduce ? 1 : 1 - Math.exp(-dt / TAU);
+            for (const key of ['x', 'y', 'width', 'height']) {
+                const d = target[key] - hole[key];
+                hole[key] = Math.abs(d) < 0.25 ? target[key] : hole[key] + d * k;
+            }
+
+            const tip = cardSize.current;
+            const card = cardRef.current;
+            let left;
+            let top;
+            if (!found) {
+                left = (vw - tip.width) / 2;
+                top = (vh - tip.height) / 2;
+            } else if (expanded) {
+                left = Math.max(MARGIN, Math.min(hole.x + hole.width / 2 - tip.width / 2, vw - tip.width - MARGIN));
+                top = Math.max(MARGIN, Math.min(hole.y + hole.height + 24, vh - tip.height - MARGIN));
+            } else {
+                // Side picked from the settled target, position from the moving hole.
+                placement = placeTooltip(target, tip, { width: vw, height: vh }, placement);
+                ({ left, top } = tooltipOrigin(placement, hole, tip, { width: vw, height: vh }));
+            }
+
+            // Nothing moved: skip the writes so a settled step costs one rect read.
+            const key = `${hole.x|0},${hole.y|0},${hole.width|0},${hole.height|0},${vw},${vh},${left|0},${top|0},${found}`;
+            if (key !== lastWritten) {
+                lastWritten = key;
+                const radius = clampRadius(
+                    step.spotlightShape === 'capsule' ? capsuleRadius(hole.height) : 8,
+                    hole.width,
+                    hole.height
+                );
+                pathRef.current?.setAttribute('d', spotlightPath(hole, { width: vw, height: vh }, radius));
+                for (const ring of [ringRef.current, glowRef.current]) {
+                    if (!ring) continue;
+                    ring.setAttribute('x', hole.x);
+                    ring.setAttribute('y', hole.y);
+                    ring.setAttribute('width', Math.max(0, hole.width));
+                    ring.setAttribute('height', Math.max(0, hole.height));
+                    ring.setAttribute('rx', radius);
+                    ring.setAttribute('ry', radius);
+                    ring.style.opacity = found ? '' : '0';
+                }
+                if (card) {
+                    card.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`;
+                    card.dataset.ready = '';
+                    if (placement) card.dataset.placement = placement;
+                }
+            }
+            raf = requestAnimationFrame(frame);
         };
 
-        // Slightly longer delay to allow DOM and scroll to settle
-        const timeoutId = setTimeout(updateRect, 80);
+        frame(performance.now()); // place everything before the first paint
+        return () => cancelAnimationFrame(raf);
+    }, [isActive, currentStep]);
 
-        // Set up ResizeObserver for the target
-        const element = document.querySelector(currentStep.target);
-        if (element) {
-            observerRef.current = new ResizeObserver(updateRect);
-            observerRef.current.observe(element);
-        }
-
-        // Also update on scroll
-        window.addEventListener('scroll', updateRect, true);
-
-        return () => {
-            clearTimeout(timeoutId);
-            if (observerRef.current) observerRef.current.disconnect();
-            if (rafUpdateRef.current) cancelAnimationFrame(rafUpdateRef.current);
-            window.removeEventListener('scroll', updateRect, true);
-        };
-    }, [isActive, currentStep, windowSize]);
+    useEffect(() => () => resizeObs.current?.disconnect(), []);
 
     // Keyboard navigation
     useEffect(() => {
@@ -228,194 +182,110 @@ const TutorialOverlay = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isActive, nextStep, prevStep, skipTutorial, currentStepIndex]);
 
-    // Reset ready state when tutorial stops
-    useEffect(() => {
-        if (!isActive) {
-            setIsReady(false);
-            setHasAnimated(false);
-            setAnimatedRect(null);
-            setTargetRect(null);
-        }
-    }, [isActive]);
-
-    if (!isActive || !currentStep || !animatedRect) return null;
+    if (!isActive || !currentStep) return null;
 
     const isFlagship = currentStep.isFlagship || false;
     const isExpandedCard = currentStep.cardStyle === 'expanded';
-    const spotlightShape = currentStep.spotlightShape || 'rectangle';
     const modeTheme = currentStep.modeTheme || null;
+    const isLast = currentStepIndex === totalSteps - 1;
+    const counter = tourLabel
+        ? `${tourLabel} · ${currentStepIndex + 1} of ${totalSteps}`
+        : `Step ${currentStepIndex + 1} of ${totalSteps}`;
 
-    // Create SVG path with rounded hole (or capsule)
-    const { x, y, width, height } = animatedRect;
-    const r = clampRadius(
-        spotlightShape === 'capsule' ? capsuleRadius(height) : 8,
-        width,
-        height
+    const controls = (
+        <>
+            <button onClick={skipTutorial} className="tutorial-btn tutorial-btn--skip" aria-label="Skip tutorial (Escape)">
+                <kbd className="tutorial-key">Esc</kbd>
+            </button>
+            <div className="tutorial-nav">
+                <button
+                    onClick={prevStep}
+                    disabled={currentStepIndex === 0}
+                    className="tutorial-btn tutorial-btn--secondary"
+                    aria-label="Previous step (Left Arrow)"
+                >
+                    <kbd className="tutorial-key">←</kbd>
+                </button>
+                <button onClick={nextStep} className="tutorial-btn tutorial-btn--primary" aria-label="Next step (Right Arrow)">
+                    {isLast ? 'Finish' : <kbd className="tutorial-key">→</kbd>}
+                </button>
+            </div>
+        </>
     );
 
-    const path = spotlightPath(animatedRect, windowSize, r);
+    const ex = currentStep.expandedContent;
 
     return (
         <div className="tutorial-overlay-container">
-            {/* SVG Overlay with spotlight hole */}
             <svg className="tutorial-svg-overlay">
-                <defs>
-                    <filter id="spotlight-glow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur stdDeviation="3" result="blur" />
-                        <feFlood floodColor="var(--color-primary, #3b82f6)" floodOpacity="0.6" />
-                        <feComposite in2="blur" operator="in" />
-                        <feMerge>
-                            <feMergeNode />
-                            <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                    </filter>
-                </defs>
-                <path
-                    d={path}
-                    className="tutorial-overlay-path"
-                    fillRule="evenodd"
-                />
-                {/* Spotlight border glow */}
-                <rect
-                    x={x}
-                    y={y}
-                    width={width}
-                    height={height}
-                    rx={r}
-                    ry={r}
-                    className={`tutorial-spotlight-border ${isFlagship ? 'flagship' : ''} ${modeTheme ? `mode-${modeTheme}` : ''}`}
-                />
+                <path ref={pathRef} className="tutorial-overlay-path" fillRule="evenodd" />
+                {/* A wide faint stroke under the crisp one stands in for a
+                    glow; a CSS drop-shadow here repainted the screen every frame. */}
+                <rect ref={glowRef} className={`tutorial-spotlight-glow ${isFlagship ? 'flagship' : ''} ${modeTheme ? `mode-${modeTheme}` : ''}`} />
+                <rect ref={ringRef} className={`tutorial-spotlight-border ${isFlagship ? 'flagship' : ''} ${modeTheme ? `mode-${modeTheme}` : ''}`} />
             </svg>
 
-            {/* Tooltip Card - only render when position is ready */}
-            {isReady && !isExpandedCard && (
-                <div 
-                    ref={tooltipRef}
-                    className={`tutorial-tooltip tutorial-tooltip--${tooltipPosition.placement} ${isTransitioning ? 'transitioning' : ''} ${hasAnimated ? 'no-enter-animation' : ''} ${isFlagship ? 'flagship' : ''}`}
-                    style={{
-                        top: tooltipPosition.top,
-                        left: tooltipPosition.left,
-                    }}
+            {!isExpandedCard ? (
+                <div
+                    ref={setCard}
+                    className={`tutorial-tooltip ${isFlagship ? 'flagship' : ''}`}
+                    role="dialog"
+                    aria-live="polite"
                 >
-                    {/* Progress indicator */}
-                    <div className="tutorial-progress">
-                        <span className="tutorial-step-counter">
-                            Step {currentStepIndex + 1} of {totalSteps}
-                        </span>
+                    <div className="tutorial-step-fade" key={currentStepIndex}>
+                        <div className="tutorial-progress">
+                            <span className="tutorial-step-counter">{counter}</span>
+                        </div>
+                        <div className="tutorial-content">
+                            <span className={`tutorial-step-badge ${isFlagship ? 'flagship' : ''}`}>
+                                {currentStep.title || `Step ${currentStepIndex + 1}`}
+                            </span>
+                            <p dangerouslySetInnerHTML={{ __html: formatContent(currentStep.content) }} />
+                            {currentStep.demoFeed && <DemoFeed items={currentStep.demoFeed} />}
+                        </div>
                     </div>
-
-                <div className="tutorial-content">
-                    <span className={`tutorial-step-badge ${isFlagship ? 'flagship' : ''}`}>
-                        Step {currentStepIndex + 1}
-                    </span>
-                    <p dangerouslySetInnerHTML={{ __html: currentStep.content
-                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                        .replace(/<danger>(.*?)<\/danger>/g, '<span class="tutorial-danger-text">$1</span>')
-                    }} />
+                    <div className="tutorial-controls">{controls}</div>
                 </div>
-
-                <div className="tutorial-controls">
-                    <button onClick={skipTutorial} className="tutorial-btn tutorial-btn--skip" aria-label="Skip tutorial (Escape)">
-                        <kbd className="tutorial-key">Esc</kbd>
-                    </button>
-                    <div className="tutorial-nav">
-                        <button 
-                            onClick={prevStep} 
-                            disabled={currentStepIndex === 0} 
-                            className="tutorial-btn tutorial-btn--secondary"
-                            aria-label="Previous step (Left Arrow)"
-                        >
-                            <kbd className="tutorial-key">←</kbd>
-                        </button>
-                        <button onClick={nextStep} className="tutorial-btn tutorial-btn--primary" aria-label="Next step (Right Arrow)">
-                            {currentStepIndex === totalSteps - 1 ? (
-                                'Finish'
-                            ) : (
-                                <kbd className="tutorial-key">→</kbd>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </div>
-            )}
-
-            {/* Expanded Card - for mode explanations */}
-            {isReady && isExpandedCard && (
-                <div 
-                    className={`tutorial-expanded-card ${modeTheme ? `theme-${modeTheme}` : ''} ${hasAnimated ? 'no-enter-animation' : ''}`}
-                    style={{
-                        top: animatedRect.y + animatedRect.height + 24,
-                    }}
+            ) : (
+                <div
+                    ref={setCard}
+                    className={`tutorial-expanded-card ${modeTheme ? `theme-${modeTheme}` : ''}`}
+                    role="dialog"
+                    aria-live="polite"
                 >
                     <div className="expanded-card-inner">
-                        {/* Header */}
-                        <div className="expanded-card-header">
-                            <div className="expanded-card-step">
-                                Step {currentStepIndex + 1} of {totalSteps}
+                        <div className="tutorial-step-fade" key={currentStepIndex}>
+                            <div className="expanded-card-header">
+                                <div className="expanded-card-step">{counter}</div>
+                                <h2 className="expanded-card-headline">{ex?.headline}</h2>
+                                <p className="expanded-card-tagline">{ex?.tagline}</p>
                             </div>
-                            <h2 className="expanded-card-headline">
-                                {currentStep.expandedContent?.headline}
-                            </h2>
-                            <p className="expanded-card-tagline">
-                                {currentStep.expandedContent?.tagline}
-                            </p>
-                        </div>
 
-                        {/* Main content */}
-                        <div className="expanded-card-body">
-                            <p className="expanded-card-description">
-                                {currentStep.expandedContent?.description}
-                            </p>
+                            <div className="expanded-card-body">
+                                <p className="expanded-card-description">{ex?.description}</p>
 
-                            {/* Features grid */}
-                            {currentStep.expandedContent?.features && (
-                                <div className="expanded-card-features">
-                                    {currentStep.expandedContent.features.map((feature, idx) => (
-                                        <div key={idx} className="feature-item">
-                                            <span className="feature-label">{feature.label}</span>
-                                            <span className="feature-detail">{feature.detail}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                                {ex?.features && (
+                                    <div className="expanded-card-features">
+                                        {ex.features.map((feature, idx) => (
+                                            <div key={idx} className="feature-item">
+                                                <span className="feature-label">{feature.label}</span>
+                                                <span className="feature-detail">{feature.detail}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
 
-                            {/* Use case section */}
-                            {currentStep.expandedContent?.useCase && (
-                                <div className="expanded-card-usecase">
-                                    <h4 className="usecase-title">
-                                        {currentStep.expandedContent.useCaseTitle}
-                                    </h4>
-                                    <p className="usecase-text">
-                                        {currentStep.expandedContent.useCase}
-                                        <p>{currentStep.expandedContent.useCaseDec}</p>
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Controls */}
-                        <div className="expanded-card-controls">
-                            <button onClick={skipTutorial} className="tutorial-btn tutorial-btn--skip" aria-label="Skip tutorial (Escape)">
-                                <kbd className="tutorial-key">Esc</kbd>
-                            </button>
-                            <div className="tutorial-nav">
-                                <button 
-                                    onClick={prevStep} 
-                                    disabled={currentStepIndex === 0} 
-                                    className="tutorial-btn tutorial-btn--secondary"
-                                    aria-label="Previous step (Left Arrow)"
-                                >
-                                    <kbd className="tutorial-key">←</kbd>
-                                </button>
-                                <button onClick={nextStep} className="tutorial-btn tutorial-btn--primary" aria-label="Next step (Right Arrow)">
-                                    {currentStepIndex === totalSteps - 1 ? (
-                                        'Finish'
-                                    ) : (
-                                        <kbd className="tutorial-key">→</kbd>
-                                    )}
-                                </button>
+                                {ex?.useCase && (
+                                    <div className="expanded-card-usecase">
+                                        <h4 className="usecase-title">{ex.useCaseTitle}</h4>
+                                        <p className="usecase-text">{ex.useCase}</p>
+                                        {ex.useCaseDec && <p className="usecase-text">{ex.useCaseDec}</p>}
+                                    </div>
+                                )}
                             </div>
                         </div>
+
+                        <div className="expanded-card-controls">{controls}</div>
                     </div>
                 </div>
             )}

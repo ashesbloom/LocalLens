@@ -284,6 +284,18 @@
     border-radius: 10px;
 }
 
+/* Groups whose steps arrived in this version. */
+.group-new {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #c4b5fd;
+    background: rgba(167, 139, 250, 0.18);
+    padding: 2px 6px;
+    border-radius: 10px;
+}
+
 .group-chevron {
     color: rgba(255, 255, 255, 0.4);
     transition: transform 0.2s ease;

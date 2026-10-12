@@ -8,7 +8,7 @@ const OPTIONS = [
 ];
 
 const DuplicateConfig = ({ strictness, setStrictness, isProcessing }) => (
-    <div className="sorting-options-section">
+    <div className="sorting-options-section" data-tutorial-target="dup-strictness">
         <div className="form-group">
             <label>Match strictness</label>
             <p className="description">How alike two photos must be to count as duplicates. Nothing is removed until you review the results.</p>

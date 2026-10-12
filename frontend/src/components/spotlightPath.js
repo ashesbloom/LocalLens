@@ -35,3 +35,33 @@ export const spotlightPath = (rect, viewport, radius = 8) => {
 
 // The capsule radius the tutorial uses for pill-shaped targets.
 export const capsuleRadius = (height) => Math.min(height / 2, 20);
+
+// Where the tutorial card goes: below the target if it fits, then above,
+// right, left. `prefer` is the side already in use; it is kept while it still
+// fits, so the card does not flip sides while the target scrolls into view.
+// Falls back to below (clamped on screen by tooltipOrigin) when nothing fits.
+export const placeTooltip = (rect, tip, viewport, prefer = null, gap = 12, margin = 16) => {
+    const fits = {
+        bottom: viewport.height - (rect.y + rect.height) >= tip.height + gap + margin,
+        top: rect.y >= tip.height + gap + margin,
+        right: viewport.width - (rect.x + rect.width) >= tip.width + gap + margin,
+        left: rect.x >= tip.width + gap + margin,
+    };
+    if (prefer && fits[prefer]) return prefer;
+    return ['bottom', 'top', 'right', 'left'].find((side) => fits[side]) ?? 'bottom';
+};
+
+// The card's top-left for a placement, given the hole as it is this frame.
+export const tooltipOrigin = (placement, rect, tip, viewport, gap = 12, margin = 16) => {
+    let left;
+    let top;
+    if (placement === 'top' || placement === 'bottom') {
+        left = rect.x + rect.width / 2 - tip.width / 2;
+        top = placement === 'bottom' ? rect.y + rect.height + gap : rect.y - tip.height - gap;
+    } else {
+        left = placement === 'right' ? rect.x + rect.width + gap : rect.x - tip.width - gap;
+        top = rect.y + rect.height / 2 - tip.height / 2;
+    }
+    const clamp = (v, max) => Math.max(margin, Math.min(v, max - margin));
+    return { left: clamp(left, viewport.width - tip.width), top: clamp(top, viewport.height - tip.height) };
+};
