@@ -405,7 +405,7 @@ export function EffortDiagram() {
 }
 
 // 6 — the load-bearing one. The claim is the absence of an edge, so the missing edge is what
-// is drawn: a struck-through line, and beside it the one connection that does exist.
+// is drawn: a struck-through line, and beside it the two checks that do go out.
 export function PrivacyDiagram() {
   const inside = [
     { x: 48, y: 112, title: 'Your photos', note: 'never copied off the disk' },
@@ -417,7 +417,7 @@ export function PrivacyDiagram() {
     <svg
       viewBox="0 0 1010 292"
       role="img"
-      aria-label="Your photos, the app, the enrolled faces and the map data all sit inside a boundary marked your computer. Photos, names and places never cross it; the only thing that goes out is a check for a new version."
+      aria-label="Your photos, the app, the enrolled faces and the map data all sit inside a boundary marked your computer. Photos, names and places never cross it; the only things that go out are a check for a new version and a check for replies on the community board."
     >
       <defs>
         <marker id="how-pv-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -452,6 +452,7 @@ export function PrivacyDiagram() {
 
       <path d="M590 236 Q 700 236 791 197" fill="none" stroke="var(--phos)" strokeWidth="1.4" markerEnd="url(#how-pv-arrow)" />
       <text x="686" y="258" textAnchor="middle" fontSize="10.5" fill="var(--phos)">checks for a new version</text>
+      <text x="686" y="274" textAnchor="middle" fontSize="10.5" fill="var(--phos)">and for board replies</text>
     </svg>
   )
 }

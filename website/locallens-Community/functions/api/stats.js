@@ -5,7 +5,8 @@
 // unauthenticated GitHub API allows sixty calls an hour PER ADDRESS, so a client-side fetch
 // would show real numbers to the first visitors from an office or a phone network and dashes
 // to everyone behind the same address after that. Fetched once here, behind a ten-minute
-// cache, the whole site costs about six calls an hour no matter how many people are reading.
+// cache, the whole site costs about twelve calls an hour (repo + releases) no matter how many
+// people are reading.
 // That is far enough inside the limit that no token is needed, which is why this endpoint
 // adds no new secret.
 import { json, fail, sameOrigin, clientIp } from '../_lib/http.js'
@@ -52,6 +53,29 @@ async function repoStats() {
     }
   } catch {
     return { stars: null, forks: null, openIssues: null }
+  }
+}
+
+// Release files a person downloads to install or update the app. GitHub's per-asset counter
+// also counts latest.json, which every installed copy fetches on each update check, plus the
+// checksum and helper files — summing everything would report update checks as downloads.
+const INSTALLER = /\.(dmg|exe|msi)$|\.app\.tar\.gz$/
+
+// ponytail: one page of 100 releases. Past release 100, paginate on the Link header.
+async function releaseDownloads() {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
+      headers: { 'user-agent': UA, accept: 'application/vnd.github+json' },
+      cf: { cacheTtl: GITHUB_TTL_S, cacheEverything: true },
+    })
+    if (!res.ok) return null
+    const releases = await res.json()
+    return releases
+      .flatMap((r) => r.assets ?? [])
+      .filter((a) => INSTALLER.test(a.name))
+      .reduce((n, a) => n + (Number(a.download_count) || 0), 0)
+  } catch {
+    return null
   }
 }
 
@@ -135,16 +159,21 @@ async function visitCount(db) {
 }
 
 export async function onRequestGet({ env, waitUntil }) {
-  // All three run at once: they are independent, and one waiting on another would make the
+  // All four run at once: they are independent, and one waiting on another would make the
   // endpoint as slow as the sum rather than the slowest of the three.
-  const [repo, visits, series] = await Promise.all([repoStats(), visitCount(env.DB), history(env.DB)])
+  const [repo, downloads, visits, series] = await Promise.all([
+    repoStats(),
+    releaseDownloads(),
+    visitCount(env.DB),
+    history(env.DB),
+  ])
 
   // Only on a real reading. Ridden on waitUntil like the board's orphan sweep, so recording
   // history never delays the answer anyone is waiting for.
   if (repo.stars !== null && waitUntil) waitUntil(recordSnapshot(env.DB, repo).catch(() => {}))
 
   return json(
-    { ...repo, visits, series },
+    { ...repo, downloads, visits, series },
     200,
     // Shorter than the GitHub cache above, so a reader never sits on a number that is more
     // than five minutes staler than what the edge already holds.

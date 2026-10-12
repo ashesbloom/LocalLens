@@ -15,7 +15,7 @@ const TIMEOUT_MS = 8000
 // `series` holds the day-aligned history the tiles plot. An absent or empty array for a
 // metric is what tells its tile to draw the dither band instead of a line — three of the
 // four start that way and upgrade themselves once snapshots accumulate.
-let current = { stars: null, forks: null, openIssues: null, visits: null, series: {} }
+let current = { stars: null, forks: null, openIssues: null, downloads: null, visits: null, series: {} }
 const listeners = new Set()
 let inFlight = null
 

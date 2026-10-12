@@ -1,17 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
-import Frame from './shell/Frame.jsx'
+import { BrowserRouter } from 'react-router-dom'
+import App from './App.jsx'
 import { takeAppKeyFromHash } from './data/mine.js'
-import Home from './routes/Home.jsx'
-import Post from './routes/Post.jsx'
-import PostPage from './routes/PostPage.jsx'
-import Announce from './routes/Announce.jsx'
-import Blog from './routes/Blog.jsx'
-import HowItWorks from './routes/HowItWorks.jsx'
-import Pipeline from './routes/Pipeline.jsx'
-import Article from './routes/Article.jsx'
-import Contact from './routes/Contact.jsx'
+import { BOOT_FLAG } from './shell/useBoot.js'
 import './styles/tokens.css'
 import './styles/shell.css'
 import './styles/home.css'
@@ -23,19 +15,6 @@ import './styles/post.css'
 import './styles/contact.css'
 import './styles/keys.css'
 
-// Catch-all 404 — same command-not-found styling CommandLine uses, plus a real link home.
-function NotFound() {
-  const { pathname } = useLocation()
-  return (
-    <>
-      <p>zsh: command not found: {pathname} — try 'help'</p>
-      <p>
-        <Link to="/">cd ~</Link>
-      </p>
-    </>
-  )
-}
-
 // Before the router reads the URL: keep the LocalLens app key if the app sent one, and put the
 // address back without it (see takeAppKeyFromHash).
 const cleanHash = takeAppKeyFromHash(window.location.hash)
@@ -43,23 +22,24 @@ if (cleanHash !== window.location.hash) {
   window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search + cleanHash)
 }
 
-createRoot(document.getElementById('root')).render(
+const root = document.getElementById('root')
+
+// A prerendered page (scripts/prerender.mjs) is already on screen. Playing the boot sequence
+// over it would show the page, then the boot lines, then the page again — so count it as booted.
+if (root.hasChildNodes()) {
+  try {
+    sessionStorage.setItem(BOOT_FLAG, '1')
+  } catch {
+    // storage blocked — the boot plays once more, which is harmless
+  }
+}
+
+// ponytail: createRoot repaints over the prerendered DOM instead of hydrating it, so a markup
+// difference between build and browser can never throw. Switch to hydrateRoot if the repaint shows.
+createRoot(root).render(
   <StrictMode>
     <BrowserRouter>
-      <Routes>
-        <Route element={<Frame />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/post" element={<Post />} />
-          <Route path="/post/:id" element={<PostPage />} />
-          <Route path="/announce" element={<Announce />} />
-          <Route path="/blog" element={<Blog />} />
-          <Route path="/blog/:id" element={<Article />} />
-          <Route path="/how" element={<HowItWorks />} />
-          <Route path="/pipeline" element={<Pipeline />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
+      <App />
     </BrowserRouter>
   </StrictMode>,
 )

@@ -78,6 +78,16 @@ export function parseChangelog(markdown) {
   return releases
 }
 
+// Set only by the build-time prerender (src/prerender.jsx), which has the changelog on disk and
+// no server to fetch it from. In the browser this stays null and Announce fetches as before.
+let primed = null
+export function primeChangelog(markdown) {
+  primed = parseChangelog(markdown)
+}
+export function primedReleases() {
+  return primed
+}
+
 const CACHE_KEY = 'll-changelog-v1'
 const CACHE_TTL_MS = 5 * 60 * 1000 // short: long enough to skip re-parsing on quick re-navigation, short enough that a stale cache never survives a real testing session
 

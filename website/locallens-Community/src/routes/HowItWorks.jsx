@@ -254,8 +254,9 @@ export default function HowItWorks() {
         <Figure w={1010}
           caption={
             <>
-              The one thing that does go out is a version check, so the app can tell you an
-              update exists. It carries nothing about your photos.{' '}
+              Two things do go out: a version check, so the app can tell you an update
+              exists, and from the release after 3.1.0 a check for replies to your posts on
+              this site's board. Neither carries anything about your photos.{' '}
               <b>That is the complete list.</b>
             </>
           }

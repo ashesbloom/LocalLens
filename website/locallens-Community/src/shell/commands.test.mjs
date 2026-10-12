@@ -1,6 +1,6 @@
 // Plain node:assert check, no framework. Run via `node src/shell/commands.test.mjs`.
 import assert from 'node:assert/strict'
-import { ROUTES, NAV_ITEMS, LISTED_ITEMS, SYSTEM_COMMANDS, resolveRoute, routeForPath, helpLines, completions } from './commands.js'
+import { ROUTES, NAV_ITEMS, LISTED_ITEMS, SYSTEM_COMMANDS, PAGES, resolveRoute, routeForPath, helpLines, completions, lsEntries } from './commands.js'
 import { CHORD_TARGETS, GLOBAL_KEYS, CHORD_PREFIX, SECTION_CYCLE, stepSection, isTypingTarget, SHORTCUT_GROUPS } from './keys.js'
 
 let checks = 0
@@ -188,5 +188,25 @@ check(
   cmdLineGroup.rows.some((r) => r.keys.join(' ') === 'Tab'),
   'Tab-to-accept must appear in the help overlay',
 )
+
+// --- every page carries what prerender.mjs writes into its <head> ---------------------
+// Search results cut titles near 60 characters and descriptions near 160; past that the
+// line is truncated mid-word, which is the sentence an answer engine would have quoted.
+for (const page of PAGES) {
+  check(typeof page.title === 'string' && page.title.length > 0 && page.title.length <= 70, `'${page.cmd}' needs a title of at most 70 characters`)
+  check(typeof page.description === 'string' && page.description.length >= 70 && page.description.length <= 160, `'${page.cmd}' needs a 70–160 character description`)
+}
+check(new Set(PAGES.map((p) => p.title)).size === PAGES.length, 'no two pages share a title')
+
+// --- the reference pages: listed and linked, but not in the header, and not shadowing a command ---
+for (const [cmd, path] of [['install', '/download'], ['privacy', '/privacy'], ['faq', '/faq'], ['compare', '/compare'], ['metrics', '/stats']]) {
+  check(resolveRoute(cmd)?.path === path, `'${cmd}' should resolve to ${path}`)
+  check(!NAV_ITEMS.some((r) => r.cmd === cmd), `'${cmd}' stays out of the header nav`)
+  check(lsEntries().some((e) => e.to === path), `${path} is a link in ls output, so a crawler on Home can reach it`)
+}
+// resolveRoute runs before the system commands, so a route named after one would take it over.
+for (const cmd of SYSTEM_COMMANDS) {
+  check(resolveRoute(cmd) === null, `system command '${cmd}' must not be shadowed by a route`)
+}
 
 console.log(`ok — commands.test.mjs (${checks} checks)`)

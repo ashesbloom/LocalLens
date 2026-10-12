@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Nav from './Nav.jsx'
 import CommandLine from './CommandLine.jsx'
@@ -6,17 +6,20 @@ import StatusBar from './StatusBar.jsx'
 import Echo from './Echo.jsx'
 import SectionRows from './SectionRows.jsx'
 import { KeyHelp, useShortcuts } from './Shortcuts.jsx'
-import StatBand from './StatBand.jsx'
+import StatsTiles from './StatsTiles.jsx'
 import { isTypingTarget } from './keys.js'
 import { useBoot } from './useBoot.js'
 import { pageview } from '../data/analytics.js'
-import { getStats, loadStats, recordVisit, subscribeStats } from '../data/stats.js'
+import { loadStats, recordVisit } from '../data/stats.js'
 import { APP_VERSION } from '../data/version.js'
+import { routeForPath, ROUTES } from './commands.js'
 
 // Layout route: header + output area + status bar + scanline overlay. Every page renders
 // inside the single <main class="out"> below, via <Outlet/>; pages never render their own
 // header/status bar (nesting a second <main> would be invalid HTML and would double the
 // padding/gap rhythm the design gives that one scrolling region).
+const HOME_TITLE = ROUTES.find((r) => r.path === '/').title
+
 export default function Frame() {
   const { pathname } = useLocation()
   const [message, setMessage] = useState(null)
@@ -59,6 +62,12 @@ export default function Frame() {
     // the focus never lands. Without it, arrow-key scrolling is dead until the first
     // navigation — which is exactly the visit where someone tries the keys out.
   }, [pathname, booting])
+
+  // The tab title follows the route. Each page's HTML already arrives with its own <title>
+  // (scripts/prerender.mjs); this keeps it right after client-side navigation too.
+  useEffect(() => {
+    document.title = routeForPath(pathname)?.title ?? HOME_TITLE
+  }, [pathname])
 
   // Once per page load, not per route change: the footer numbers do not change while someone
   // reads, and a visit is a visit however many sections they walk through. Both calls
@@ -131,33 +140,6 @@ function ShellMessage({ message }) {
         </>
       )}
       {message.kind === 'text' && message.lines.map((line, i) => <div key={i}>{line}</div>)}
-    </div>
-  )
-}
-
-// Subscribes rather than rendering a snapshot handed over by whoever ran the command. Typing
-// `stats` on a cold load used to capture whatever was known at that instant — all dashes —
-// and never update when the fetch landed a moment later. Reading the store directly means the
-// numbers fill themselves in while the output is on screen.
-function StatsTiles() {
-  const stats = useSyncExternalStore(subscribeStats, getStats, getStats)
-  const series = stats.series ?? {}
-  const tiles = [
-    { key: 'stars', label: 'stars', value: stats.stars, note: '' },
-    { key: 'forks', label: 'forks', value: stats.forks, note: '' },
-    { key: 'openIssues', label: 'open issues', value: stats.openIssues, note: 'pull requests included' },
-    { key: 'visits', label: 'visits', value: stats.visits, note: 'unique visitors per day' },
-  ]
-  return (
-    <div className="stat-tiles">
-      {tiles.map((t) => (
-        <div className="stat-tile" key={t.key}>
-          <span className="stat-fig">{t.value ?? '—'}</span>
-          <span className="stat-cap">{t.label}</span>
-          {t.note ? <span className="stat-note">{t.note}</span> : null}
-          <StatBand values={series[t.key]} label={t.label} />
-        </div>
-      ))}
     </div>
   )
 }

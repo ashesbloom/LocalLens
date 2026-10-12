@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:vite": "vite",
-    "build": "vite build && npm run check:sitekey",
+    "build": "vite build && vite build --ssr src/prerender.jsx --outDir dist-ssr && node scripts/prerender.mjs && npm run check:sitekey",
     "check:sitekey": "! grep -rq 1x00000000000000000000AA dist/assets",
     "preview": "vite preview",
     "db:init": "wrangler d1 execute locallens-community --local --persist-to=.wrangler/state --file=schema.sql",

@@ -75,7 +75,7 @@ function Listing({ posts }) {
   )
 }
 
-export default function Blog() {
+function BlogBody() {
   const [state, setState] = useState({ loading: true, posts: [], error: null })
 
   useEffect(() => {
@@ -142,6 +142,15 @@ export default function Blog() {
     <>
       <LatestBand post={newest} />
       {rest.length > 0 && <Listing posts={rest} />}
+    </>
+  )
+}
+
+export default function Blog() {
+  return (
+    <>
+      <h1 className="sr-only">LocalLens blog</h1>
+      <BlogBody />
     </>
   )
 }

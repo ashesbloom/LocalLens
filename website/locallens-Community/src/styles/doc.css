@@ -194,3 +194,13 @@
   .doc-figbox { padding: 14px; }
   .doc-lite .doc-prose p { font-size: 14px; }
 }
+
+/* Reference pages (/privacy, /compare): cells hold sentences, not labels, so they wrap. */
+.doc-table.wrap td:first-child { white-space: normal; min-width: 200px; }
+.doc-table .cell-note { display: block; margin-top: 3px; color: var(--paper-dim); font-size: 11.5px; }
+.doc-faq-more { font-size: 13px; }
+/* A table inside a section's prose gets the full column; the paragraphs around it keep the
+   reading measure. */
+.doc-lite .doc-prose:has(> .doc-table) { max-width: none; }
+.doc-lite .doc-prose:has(> .doc-table) > :not(.doc-table) { max-width: 68ch; }
+.doc-table.wrap code { overflow-wrap: anywhere; }

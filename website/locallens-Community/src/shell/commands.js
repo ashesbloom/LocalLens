@@ -13,6 +13,8 @@ import { APP_VERSION } from '../data/version.js'
 export const ROUTES = [
   {
     cmd: 'post',
+    title: 'Community board — LocalLens',
+    description: 'Report a bug, ask for a feature, or show what you built with LocalLens, the offline photo organizer. No account needed.',
     aliases: [],
     path: '/post',
     label: 'Post',
@@ -24,6 +26,8 @@ export const ROUTES = [
   },
   {
     cmd: 'announce',
+    title: "What's new in LocalLens — releases and roadmap",
+    description: "Every LocalLens release, what is being built next, and what is being tested in Labs, taken straight from the project's changelog.",
     aliases: ['announcements', 'whatsnew'],
     path: '/announce',
     label: 'Announcement',
@@ -35,6 +39,8 @@ export const ROUTES = [
   },
   {
     cmd: 'blog',
+    title: 'LocalLens blog — building a photo organizer in the open',
+    description: 'Posts on how LocalLens, the offline photo organizer, is built: face recognition, sorting, packaging and the decisions behind them.',
     aliases: [],
     path: '/blog',
     label: 'Blog',
@@ -46,6 +52,8 @@ export const ROUTES = [
   },
   {
     cmd: 'how',
+    title: 'How LocalLens sorts your photos, step by step',
+    description: 'What happens to a folder of photos in LocalLens: what it reads, how folders are named, and why nothing is uploaded. Plain English, six diagrams.',
     aliases: ['how-it-works', 'walkthrough', 'sorted'],
     path: '/how',
     label: 'How it works',
@@ -59,6 +67,8 @@ export const ROUTES = [
   },
   {
     cmd: 'pipeline',
+    title: 'Inside the LocalLens photo pipeline',
+    description: 'The engineering behind LocalLens: the face-detection ladder, the encoding cache and the copy-safe write path, with the measured numbers behind each.',
     aliases: ['internals', 'engine', 'arch'],
     path: '/pipeline',
     label: 'Pipeline',
@@ -89,6 +99,8 @@ export const ROUTES = [
   },
   {
     cmd: 'contact',
+    title: 'Contact LocalLens',
+    description: 'Get in touch with the people who build LocalLens, the free, offline, privacy-first photo organizer for macOS and Windows.',
     aliases: [],
     path: '/contact',
     label: 'Contact',
@@ -98,10 +110,93 @@ export const ROUTES = [
     listed: true,
     key: 'c',
   },
+  // The five reference pages below exist for people arriving from a search engine or an AI
+  // answer, so they are listed (Home, `ls`, the sitemap) but kept out of the header — seven
+  // nav items is already the most the bar holds. `install` and `metrics` are not named after
+  // their paths because `download` and `stats` were shell commands first, and resolveRoute
+  // runs before the system commands, so reusing either name would silently change what it does.
+  {
+    cmd: 'install',
+    aliases: ['get', 'setup'],
+    path: '/download',
+    title: 'Download LocalLens for macOS and Windows',
+    description:
+      'Install LocalLens, the offline photo organizer: Homebrew or a DMG on macOS, an installer on Windows. Free and open source under AGPL-3.0.',
+    label: 'Download',
+    icon: null,
+    blurb: 'install it on macOS or Windows',
+    nav: false,
+    listed: true,
+    key: null,
+    echo: 'cat install.md',
+  },
+  {
+    cmd: 'privacy',
+    aliases: [],
+    path: '/privacy',
+    title: 'LocalLens privacy — your photos never leave your computer',
+    description:
+      'Every LocalLens privacy claim, with the command that lets you check it yourself, and the few network calls that do exist, stated up front.',
+    label: 'Privacy',
+    icon: null,
+    blurb: 'what stays on your machine, and how to check',
+    nav: false,
+    listed: true,
+    key: null,
+    echo: 'cat privacy.md',
+  },
+  {
+    cmd: 'faq',
+    aliases: ['questions'],
+    path: '/faq',
+    title: 'LocalLens FAQ — the offline photo organizer, answered',
+    description:
+      'Answers about LocalLens: is it free, does it upload anything, how face recognition works offline, which formats it reads, and how to install it.',
+    label: 'FAQ',
+    icon: null,
+    blurb: 'short answers to the common questions',
+    nav: false,
+    listed: true,
+    key: null,
+    echo: 'cat faq.md',
+  },
+  {
+    cmd: 'compare',
+    aliases: ['vs', 'alternatives'],
+    path: '/compare',
+    title: 'LocalLens vs Google Photos, Apple Photos and digiKam',
+    description:
+      'How LocalLens compares with Google Photos, Apple Photos and digiKam: where faces are processed, what gets uploaded, platforms, licence and price.',
+    label: 'Compare',
+    icon: null,
+    blurb: 'LocalLens next to Google Photos, Apple Photos, digiKam',
+    nav: false,
+    listed: true,
+    key: null,
+    echo: 'cat compare.md',
+  },
+  {
+    cmd: 'metrics',
+    aliases: ['numbers'],
+    path: '/stats',
+    title: 'LocalLens by the numbers — stars, downloads, visits',
+    description:
+      'Live GitHub stars, release downloads and site visits for LocalLens, and why there is no user count: the app sends no telemetry at all.',
+    label: 'Stats',
+    icon: null,
+    blurb: 'stars, downloads and visits, live',
+    nav: false,
+    listed: true,
+    key: null,
+    echo: 'cat stats.md',
+  },
   {
     cmd: 'home',
     aliases: ['cd ~', 'cd', '~'],
     path: '/',
+    title: 'LocalLens — offline, privacy-first photo organizer',
+    description:
+      'LocalLens sorts photos by date, location and face on your own computer. Nothing is uploaded. Free and open source (AGPL-3.0) for macOS and Windows.',
     label: 'Home',
     icon: null,
     blurb: '',
@@ -115,6 +210,13 @@ export const ROUTES = [
 export const SYSTEM_COMMANDS = ['help', 'keys', 'ls', 'clear', 'version', 'whoami', 'github', 'download', 'stats', 'admin']
 
 export const NAV_ITEMS = ROUTES.filter((r) => r.nav)
+
+// Where the site lives. Canonical links, the sitemap and the JSON-LD all build on this.
+export const SITE_URL = 'https://locallens-community.pages.dev'
+
+// Every internal page. scripts/prerender.mjs writes each one to static HTML at build time,
+// and the sitemap lists exactly these.
+export const PAGES = ROUTES.filter((r) => r.path)
 
 // `ls` is no longer the same list as the nav bar: home is in neither, but the split exists so
 // a page can be listed without also being a seventh thing in the header, should that change.
@@ -175,10 +277,22 @@ const LS_META = {
   pipeline: '12 min read',
   agent: '16+10 tools',
   contact: 'email',
+  install: 'macOS · Windows',
+  privacy: '0 photos uploaded',
+  faq: 'Q&A',
+  compare: '4 apps',
+  metrics: 'live',
 }
 
 export function lsEntries() {
-  return LISTED_ITEMS.map((r) => ({ name: `${r.cmd}/`, blurb: r.blurb, meta: LS_META[r.cmd] ?? '—' }))
+  // `to`/`href` make each row a real link, so the list is a way in for a crawler as well as a reader.
+  return LISTED_ITEMS.map((r) => ({
+    name: `${r.cmd}/`,
+    to: r.path,
+    href: r.url,
+    blurb: r.blurb,
+    meta: LS_META[r.cmd] ?? '—',
+  }))
 }
 
 // Derived from ROUTES, not hand-maintained — one line per navigable command, plus one line

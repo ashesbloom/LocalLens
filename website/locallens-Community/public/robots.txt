@@ -1,0 +1,9 @@
+# Every page here is meant to be read, by people, search engines and AI assistants alike.
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# The one exception: /api/stats is public JSON, made to be quoted.
+Allow: /api/stats
+
+Sitemap: https://locallens-community.pages.dev/sitemap.xml

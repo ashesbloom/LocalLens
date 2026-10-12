@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import roadmap from '../content/roadmap.json'
-import { fetchChangelog } from '../data/changelog.js'
+import { fetchChangelog, primedReleases } from '../data/changelog.js'
 import { APP_VERSION } from '../data/version.js'
 import { track } from '../data/analytics.js'
 
@@ -272,7 +272,10 @@ function ArchiveBand({ releases }) {
 }
 
 export default function Announce() {
-  const [state, setState] = useState({ loading: true, releases: [], error: null })
+  const [state, setState] = useState(() => {
+    const releases = primedReleases()
+    return releases ? { loading: false, releases, error: null } : { loading: true, releases: [], error: null }
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -296,6 +299,7 @@ export default function Announce() {
 
   return (
     <>
+      <h1 className="sr-only">LocalLens releases and roadmap</h1>
       <CurrentBand loading={loading} error={error} current={current} previous={previous} />
 
       <section className="band">
