@@ -56,6 +56,15 @@ export const tutorialSteps = [
         group: 'Folder Management',
         title: 'Output Structure'
     },
+    {
+        target: '[data-tutorial-target="skip-duplicates"]',
+        content: 'Turn on **Skip duplicates** to leave out photos already in the destination, and extra copies inside the source (the best copy is sorted). Skipped photos are never touched, and after a Move you choose whether they stay, go to the Trash, or get reviewed. It is off for every new sort.',
+        position: 'top',
+        demoAnimation: 'skip-duplicates-toggle',
+        group: 'Folder Management',
+        title: 'Skip Duplicates',
+        since: '3.2.0'
+    },
     // --- Face Recognition ---
     {
         target: '[data-tutorial-target="sort-by-faces"]',

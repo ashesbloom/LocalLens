@@ -267,6 +267,21 @@ function App() {
         };
     }, [isDemoMode, currentStep?.demoAnimation]);
 
+    // --- Demo for the Skip duplicates switch: slides it without touching the real setting ---
+    const [demoSkipDuplicates, setDemoSkipDuplicates] = useState(false);
+    const showDemoSkip = isDemoMode && currentStep?.demoAnimation === 'skip-duplicates-toggle';
+    useEffect(() => {
+        if (!showDemoSkip) return undefined;
+        const flip = () => setDemoSkipDuplicates((on) => !on);
+        const initialTimeout = setTimeout(flip, 800);
+        const interval = setInterval(flip, 1500);
+        return () => {
+            clearTimeout(initialTimeout);
+            clearInterval(interval);
+            setDemoSkipDuplicates(false);
+        };
+    }, [showDemoSkip]);
+
     // --- Highlight description for face-enrollment tutorial step ---
     useEffect(() => {
         if (!isDemoMode || !currentStep?.highlightDescription) {
@@ -2157,8 +2172,8 @@ function App() {
                     <OutputOptions
                         maintainHierarchy={effectiveMaintainHierarchy}
                         setMaintainHierarchy={setEffectiveMaintainHierarchy}
-                        skipDuplicates={skipDuplicates}
-                        setSkipDuplicates={setSkipDuplicates}
+                        skipDuplicates={showDemoSkip ? demoSkipDuplicates : skipDuplicates}
+                        setSkipDuplicates={showDemoSkip ? setDemoSkipDuplicates : setSkipDuplicates}
                         isProcessing={isProcessing || isEnrolling}
                     />
                 )}

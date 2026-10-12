@@ -94,6 +94,7 @@ const OutputOptions = ({ maintainHierarchy, setMaintainHierarchy, skipDuplicates
             value={skipDuplicates}
             onChange={setSkipDuplicates}
             disabled={isProcessing}
+            data-tutorial-target="skip-duplicates"
             options={[
                 { value: false, glyph: 'all', label: 'Sort every photo', hint: 'Every photo is sorted, copies included.' },
                 { value: true, glyph: 'skip', label: 'Skip duplicates', hint: 'Photos already in the destination, and extra copies in the source, stay where they are. The best copy is sorted.' },

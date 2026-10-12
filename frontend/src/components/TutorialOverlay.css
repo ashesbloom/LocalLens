@@ -367,8 +367,6 @@
     transform: translateX(-50%);
     width: calc(100vw - 160px);
     max-width: 580px;
-    max-height: calc(100vh - 230px);
-    overflow-y: auto;
     z-index: 10000;
     pointer-events: auto;
     animation: expanded-card-enter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -406,6 +404,21 @@
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 0 40px rgba(255, 255, 255, 0.03);
     overflow: hidden;
+    /* Height is capped so the card leaves room for the spotlighted control above it,
+       but never past the window. Only the text scrolls: the controls and the card's
+       bottom edge always stay in view. */
+    display: flex;
+    flex-direction: column;
+    max-height: min(calc(100vh - 32px), max(320px, calc(100vh - 230px)));
+}
+
+.expanded-card-inner > .tutorial-step-fade {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.expanded-card-inner > .expanded-card-controls {
+    flex: none;
 }
 
 /* Hybrid Mode Theme - GREEN */
