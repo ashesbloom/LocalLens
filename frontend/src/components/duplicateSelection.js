@@ -30,6 +30,15 @@ export const pathsToTrash = (groups, keeper, protectedPaths = new Set()) =>
 export const unprotectedCount = (groups, protectedPaths) =>
     groups.flat().filter((p) => !protectedPaths.has(p)).length;
 
+// What "Import" hands to Standard Sort. Always an explicit list, never "the whole
+// folder": a cross-drive Move of a whole card deletes the videos and sidecars it
+// never sorts. `skipped` counts from the scan, so matches already trashed here
+// still count as skipped.
+export const importHandoff = (result, protectedPaths) => ({
+    files: result.newFiles || [],
+    skipped: unprotectedCount(result.groups || [], protectedPaths),
+});
+
 export const reclaimBytes = (paths, files) =>
     paths.reduce((sum, p) => sum + (files[p]?.bytes ?? 0), 0);
 

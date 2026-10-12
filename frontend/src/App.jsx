@@ -1514,7 +1514,7 @@ function App() {
         setShowDupReview(false);
         setSourceFolder(dupResult.sourceFolder);
         setDestinationFolder(dupResult.libraryFolder);
-        setImportOnly(files ? { files, skipped, source: dupResult.sourceFolder, library: dupResult.libraryFolder } : null);
+        setImportOnly({ files, skipped, source: dupResult.sourceFolder, library: dupResult.libraryFolder });
         setOperationMode('standard');
     };
 
@@ -2069,8 +2069,10 @@ function App() {
                                 <div className="import-only-banner" role="status">
                                     <span>
                                         Importing only the <strong>{importOnly.files.length} new photos</strong> from{' '}
-                                        <strong>{getFolderName(importOnly.source)}</strong> — the {importOnly.skipped} already
-                                        in your library are skipped.
+                                        <strong>{getFolderName(importOnly.source)}</strong> —{' '}
+                                        {importOnly.skipped
+                                            ? `the ${importOnly.skipped} already in your library are skipped.`
+                                            : 'none of them are in your library yet.'}
                                     </span>
                                     <button type="button" onClick={() => setImportOnly(null)}>Cancel</button>
                                 </div>

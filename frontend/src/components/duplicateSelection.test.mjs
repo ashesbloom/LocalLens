@@ -4,7 +4,7 @@
 import { strict as assert } from 'node:assert';
 import {
     KEEP_ALL, STRICTNESS, defaultView, initialKeepers, pathsToTrash,
-    reclaimBytes, afterDelete, formatBytes, scanStillCurrent, unprotectedCount,
+    reclaimBytes, afterDelete, formatBytes, scanStillCurrent, unprotectedCount, importHandoff,
 } from './duplicateSelection.js';
 
 const groups = [['/a/1.jpg', '/a/1 copy.jpg', '/b/1.jpg'], ['/a/2.jpg', '/c/2.jpg']];
@@ -73,6 +73,12 @@ assert.deepEqual(afterDelete(lg, ['/lib/a.jpg'], [], libSet).groups, lg);
 // from the card first doesn't turn "2 already in your library" into 0.
 assert.equal(unprotectedCount(lg, libSet), 1);
 assert.equal(unprotectedCount([], libSet), 0);
+// The import always hands off an explicit list, even when nothing matched: a null
+// list means "the whole folder", and a cross-drive Move of a whole card deletes
+// the videos and sidecars it never sorts.
+assert.deepEqual(importHandoff({ groups: [], newFiles: ['/card/a.jpg'] }, libSet), { files: ['/card/a.jpg'], skipped: 0 });
+assert.deepEqual(importHandoff({ groups: lg, newFiles: ['/card/b.jpg'] }, libSet), { files: ['/card/b.jpg'], skipped: 1 });
+assert.deepEqual(importHandoff({ groups: [] }, libSet), { files: [], skipped: 0 });
 
 assert.equal(formatBytes(0), '0 B');
 assert.equal(formatBytes(310 * 1024), '310 KB');
