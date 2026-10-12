@@ -95,7 +95,10 @@ body, .theme-standard {
   padding: 0.25rem 0.8rem;
   color: inherit;
   cursor: pointer;
+  white-space: nowrap;
 }
+.import-only-banner button:hover:not(:disabled) { border-color: rgba(var(--color-primary-rgb), 0.7); }
+.import-only-banner button:disabled { opacity: 0.5; cursor: default; }
 
 /* --- NEW: Color Conflict Resolution for Themes --- */
 /* Red Theme */

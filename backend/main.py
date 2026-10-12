@@ -1304,6 +1304,68 @@ async def open_folder_endpoint(request: OpenFolderRequest):
         raise HTTPException(status_code=500, detail=f"Failed to open folder: {str(e)}")
 
 
+class ImportFilesRequest(BaseModel):
+    source_folder: str
+    destination_folder: str
+    files: List[str]
+    operation_mode: str = "copy"
+
+
+def _unique_path(path: str) -> str:
+    """path, or 'name (1).ext', 'name (2).ext'... so an import never overwrites."""
+    base, ext = os.path.splitext(path)
+    n = 0
+    while os.path.exists(path):
+        n += 1
+        path = f"{base} ({n}){ext}"
+    return path
+
+
+@app.post("/api/import-files")
+async def import_files_endpoint(request: ImportFilesRequest):
+    """
+    "Import unsorted" after a folder comparison: copy (or move) exactly the listed
+    photos into <destination>/<source folder name>/, with no sorting. Only files
+    inside the source are taken, nothing is overwritten, and a move touches only
+    the listed files.
+    """
+    source = os.path.normpath(os.path.expanduser(request.source_folder))
+    dest = os.path.normpath(os.path.expanduser(request.destination_folder))
+    if not os.path.isdir(source) or not os.path.isdir(dest):
+        raise HTTPException(status_code=400, detail="Source or destination is not a valid directory.")
+    if current_job_state.get("is_active"):
+        raise HTTPException(status_code=409, detail="Another job is running. Try again when it finishes.")
+    move = request.operation_mode == "move"
+    target = os.path.join(dest, os.path.basename(source) or "Imported")
+    if _overlaps(source, dest):
+        raise HTTPException(status_code=400, detail="The destination and the source overlap.")
+    real_source = os.path.realpath(source)
+
+    def work():
+        os.makedirs(target, exist_ok=True)
+        imported, failed = 0, []
+        for fp in request.files:
+            try:
+                real = os.path.realpath(fp)
+                if os.path.commonpath([real, real_source]) != real_source or not os.path.isfile(real):
+                    raise ValueError("not a file in the source folder")
+                out = _unique_path(os.path.join(target, os.path.basename(fp)))
+                shutil.move(fp, out) if move else shutil.copy2(fp, out)
+                imported += 1
+            except Exception as e:
+                failed.append({"path": fp, "error": str(e)})
+        return imported, failed
+
+    imported, failed = await asyncio.to_thread(work)
+    verb = "Moved" if move else "Copied"
+    return {
+        "imported": imported,
+        "failed": failed,
+        "folder": target,
+        "message": f"{verb} {imported} photo(s) into {target}." + (f" {len(failed)} could not be imported." if failed else ""),
+    }
+
+
 @app.post("/api/delete-files")
 async def delete_files_endpoint(request: DeleteFilesRequest):
     """

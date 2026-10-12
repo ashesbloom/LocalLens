@@ -29,8 +29,8 @@ import UpdateChecker from './components/UpdateChecker'; // <-- ADD: Auto-update 
 import TutorialOverlay from './components/TutorialOverlay'; // <-- ADD THIS
 import TutorialMenu from './components/TutorialMenu'; // <-- ADD THIS
 import McpAnnounce from './components/McpAnnounce';
-import CommunityIntro from './components/CommunityIntro';
-import { shouldShowIntroFrom } from './components/communityIntroGate';
+import { WHATS_NEW_KEY, shouldShowWhatsNew, whatsNewSteps, tourLabel } from './components/whatsNew';
+import { tutorialSteps } from './config/tutorialSteps';
 import { advance, canAnnounce, initialGate } from './components/announceGate';
 import PrivacyPanel from './components/PrivacyPanel';
 import { useTutorial } from './context/TutorialContext'; // <-- ADD THIS
@@ -52,13 +52,17 @@ function App() {
         () => initialGate(localStorage.getItem('has_seen_tutorial'))
     );
 
-    // The community intro is owed to existing users who have never seen the
-    // site. Read once at first render for the same reason as the gate above.
-    const [showCommunityIntro, setShowCommunityIntro] = useState(
-        () => shouldShowIntroFrom(localStorage)
+    // What this release added, owed once to someone who updated (whatsNew.js).
+    // Read at first render for the same reason as the gate above.
+    const [whatsNew] = useState(() =>
+        shouldShowWhatsNew({
+            hasSeenTutorial: localStorage.getItem('has_seen_tutorial'),
+            mcpSeen: localStorage.getItem('mcp_announce_seen'),
+        })
+            ? whatsNewSteps(tutorialSteps, version, localStorage.getItem(WHATS_NEW_KEY))
+            : []
     );
-    // Lets the intro drive the real menu animation instead of imitating it.
-    const [introExpandsMenu, setIntroExpandsMenu] = useState(false);
+    const whatsNewPlayed = useRef(false);
     // --- State Management ---
     // Use localStorage to avoid UI flash on reload
     const getInitialOperationMode = () => {
@@ -89,6 +93,8 @@ function App() {
         if (!hasSeenTutorial) {
             // Mark as seen so it doesn't auto-start again
             localStorage.setItem('has_seen_tutorial', 'true');
+            // The full tutorial already includes this release's new steps.
+            localStorage.setItem(WHATS_NEW_KEY, version);
             // Auto-start tutorial after a brief delay for UI to settle
             // Use handleStartTutorial to ensure standard mode is set
             setTimeout(() => {
@@ -474,7 +480,7 @@ function App() {
             setDemoFaceMode('fast');
             // Restore the user's saved operation mode from localStorage
             const savedMode = localStorage.getItem('operation_mode');
-            if (savedMode && ['standard', 'hybrid', 'find'].includes(savedMode)) {
+            if (savedMode && ['standard', 'hybrid', 'find', 'duplicates'].includes(savedMode)) {
                 setOperationMode(savedMode);
             }
         }
@@ -496,7 +502,12 @@ function App() {
                 setOperationModeRaw('find');
             }, 400);
             return () => clearTimeout(timeout);
-        } else if (operationMode === 'hybrid' || operationMode === 'find') {
+        } else if (currentStep?.demoAnimation === 'select-duplicates-mode') {
+            const timeout = setTimeout(() => {
+                setOperationModeRaw('duplicates');
+            }, 400);
+            return () => clearTimeout(timeout);
+        } else if (['hybrid', 'find', 'duplicates'].includes(operationMode)) {
             // If we moved away from an advanced mode step, reset to standard
             setOperationModeRaw('standard');
         }
@@ -693,6 +704,19 @@ function App() {
     useEffect(() => {
         setTutorialGate(gate => advance(gate, isTutorialActive));
     }, [isTutorialActive]);
+
+    // Play the "New in X.Y" tour once. The version is stored as soon as it
+    // starts, so quitting halfway does not bring it back on the next launch.
+    useEffect(() => {
+        if (!whatsNew.length || whatsNewPlayed.current || !canAnnounce(tutorialGate)) return undefined;
+        const timer = setTimeout(() => {
+            whatsNewPlayed.current = true;
+            localStorage.setItem(WHATS_NEW_KEY, version);
+            setOperationModeRaw('standard');
+            startTutorialBase(0, whatsNew, tourLabel(version));
+        }, 800); // let the UI settle, as the first-run tutorial does
+        return () => clearTimeout(timer);
+    }, [whatsNew, tutorialGate]);
 
     // Effect 3: Log scrolling effect
     useEffect(() => {
@@ -1526,6 +1550,31 @@ function App() {
         setOperationMode('standard');
     };
 
+    // The banner's other way out: put the new photos into the destination as they
+    // are (<destination>/<source name>/), following the Copy/Move toggle.
+    const handleImportUnsorted = async () => {
+        if (!importOnly?.files.length) return;
+        setIsProcessing(true);
+        try {
+            const r = await apiCall('/api/import-files', {
+                method: 'POST',
+                body: JSON.stringify({
+                    source_folder: importOnly.source,
+                    destination_folder: importOnly.library,
+                    files: importOnly.files,
+                    operation_mode: fileOperationMode,
+                }),
+            });
+            logToConsole(r.message, r.failed.length ? 'warning' : 'success');
+            r.failed.forEach((f) => logToConsole(`Could not import ${f.path}: ${f.error}`, 'error'));
+            setImportOnly(null);
+        } catch (error) {
+            logToConsole(`Import failed: ${error.message}`, 'error');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     const handleReopenDupReview = async () => {
         try {
             const status = await apiCall('/api/job-status');
@@ -1788,7 +1837,7 @@ function App() {
                         }
                     }}
                     onStartFromScratch={handleStartTutorial}
-                    forceOpen={introExpandsMenu}
+                    forceOpen={isDemoMode && currentStep?.demoAnimation === 'open-help-pod'}
                 />
 
                 {/* Exit Button */}
@@ -1948,6 +1997,7 @@ function App() {
                                     placeholder="None, just find duplicates"
                                     onClear={() => setLibraryFolder('')}
                                     clearLabel="Don't compare, just find duplicates"
+                                    data-tutorial-target="compare-selector"
                                 />
                             ) : (
                                 <PathSelector
@@ -2072,9 +2122,16 @@ function App() {
                             {importOnly && (
                                 <div className="import-only-banner" role="status" ref={importBannerRef}>
                                     <span>
-                                        Only the <strong>{importOnly.files.length} {importOnly.files.length === 1 ? 'photo' : 'photos'}</strong> in{' '}
-                                        {getFolderName(importOnly.source)} that aren't in {getFolderName(importOnly.library)} will be sorted.
+                                        Sorting only the <strong>{importOnly.files.length} new {importOnly.files.length === 1 ? 'photo' : 'photos'}</strong> from {getFolderName(importOnly.source)}.
                                     </span>
+                                    <button
+                                        type="button"
+                                        disabled={isProcessing}
+                                        onClick={handleImportUnsorted}
+                                        title={`${fileOperationMode === 'move' ? 'Move' : 'Copy'} them into ${getFolderName(importOnly.library)}/${getFolderName(importOnly.source)} as they are`}
+                                    >
+                                        Import unsorted
+                                    </button>
                                     <button type="button" onClick={() => setImportOnly(null)}>Cancel</button>
                                 </div>
                             )}
@@ -2229,16 +2286,6 @@ function App() {
                 }}
             />
             <TutorialOverlay />
-
-            {showCommunityIntro && canAnnounce(tutorialGate) && (
-                <CommunityIntro
-                    onExpandMenu={() => setIntroExpandsMenu(true)}
-                    onClose={() => {
-                        setShowCommunityIntro(false);
-                        setIntroExpandsMenu(false);
-                    }}
-                />
-            )}
 
             {canAnnounce(tutorialGate) && (
                 <McpAnnounce
