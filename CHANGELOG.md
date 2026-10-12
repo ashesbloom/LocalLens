@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Moving a scheduled folder to another drive no longer risks deleting files it didn't sort.** When a scheduled Move only had a few new photos to sort and the destination was on a different drive, Local Lens could remove the whole watched folder afterwards, including photos it hadn't touched. It now moves just the photos it sorts.
+- **Moving newly arrived photos to another drive no longer risks deleting files it didn't sort.** When a watched folder set to Move picked up a few new photos and the destination was on a different drive, Local Lens could remove the whole watched folder afterwards, including files it hadn't touched. It now moves just the photos it sorts.
 
 ## [3.1.0] - 2026-09-13
 ### Added
