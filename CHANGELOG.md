@@ -6,31 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [3.2.0] - 2026-10-12
 ### Added
 
-- **Duplicates tab.** Finds copies of the same photo, including resized, re-exported and rotated ones, and burst shots if you want. Local Lens picks the best copy; you check it and send the rest to the Trash. Free for everyone.
-- **Compare with another folder.** Check a memory card against your library. Clear off the card what you already have, and import only the new photos, sorted or as they are.
-- **Skip duplicates when sorting.** Turn it on for a sort to leave out photos already in the destination, and extra copies in the source. After a Move, you choose whether the skipped photos stay, go to the Trash, or get reviewed.
-- **Replies to your community posts.** A reply shows up as a notification, a count on the bell and the app icon, and a system alert when Local Lens is in the background. New posts appear quietly in the bell. No account needed.
+- **Duplicates tab.** Finds copies of the same photo, even resized, re-exported or rotated ones. Local Lens picks the best copy; you check it and send the rest to the Trash. Free for everyone.
+- **Compare with another folder.** Check a memory card against your library, clear off the copies you already have, and import only the new photos.
+- **Skip duplicates when sorting.** An optional switch leaves out photos already in the destination and extra copies in the source. Skipped photos are never touched; after a Move you decide what happens to them.
+- **Replies to your community posts.** A reply shows up in the bell, on the app icon, and as a system alert. No account needed.
 - **A tour of what's new.** After an update, Local Lens shows the new features once. They stay in the tutorial menu, marked New.
 
 ### Changed
 
-- The Community button opens what's new for you: a reply, a new post, or the forum.
-- The bell only shows what still needs you.
-- Repeat duplicate scans are much faster. Photo fingerprints are kept on this device; "Delete my data" clears them.
-- Each Browse button remembers its own folder, and hovering a folder shows its full path.
+- Repeat duplicate scans are much faster. Photo fingerprints stay on this device; "Erase photo index" in the privacy panel clears them.
+- The Community button opens what's new for you, and the bell only shows what still needs you.
+- Each Browse button remembers its own folder, hovering a folder shows its full path, and nested folders start collapsed.
 - The Claude agent keeps the best copy when it cleans up duplicates.
-- Nested folders in the folder list start collapsed.
-- The tutorial spotlight glides between steps and follows the page as you scroll.
+- The tutorial spotlight glides between steps, and its cards always fit the window.
 
 ### Fixed
 
+- Moving photos off a drive that can't be changed (such as a Windows drive on a Mac) now stops with a clear message, instead of reporting a move that didn't happen.
 - Moving new photos to another drive no longer risks deleting files that weren't sorted.
-- Moving photos off a drive that can't be changed (such as a Windows drive on a Mac) now stops with a clear message, instead of copying them and reporting a move.
-- Sorting problems now open a message that says how to fix them, instead of only appearing in the log.
+- Sorting problems open a message that says how to fix them. When face recognition, HEIC or RAW support can't start, the log says why and what to do.
 - Abort now works while importing photos unsorted.
-- When face recognition, HEIC or RAW support can't start, the log now says why and how to fix it.
 - The setup screen no longer leaves an empty gap beside the folder list.
 
 ## [3.1.0] - 2026-09-13
