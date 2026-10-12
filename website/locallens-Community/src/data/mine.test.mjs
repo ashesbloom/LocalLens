@@ -108,6 +108,20 @@ check(isAdmin(null) === false, 'and nobody is admin')
   check(takeAppKeyFromHash('', s) === '', 'as is no hash at all')
   check(appKey(fakeStore({ 'locallens.board.appKey': 'junk' })) === null, 'junk in storage is no key')
   check(takeAppKeyFromHash(`#app=${key}`, hostile) === '' && appKey(hostile) === null, 'blocked storage still cleans the URL')
+
+  // By default the key is kept for this tab only (sessionStorage), never browser-wide: a
+  // crafted #app= link must not stick to every later post. The newest key wins, so a
+  // reinstalled app's key takes over.
+  const tab = fakeStore()
+  const site = fakeStore()
+  globalThis.sessionStorage = tab
+  globalThis.localStorage = site
+  takeAppKeyFromHash(`#app=${key}`)
+  check(appKey() === key && appKey(site) === null, 'the key is kept in the tab, not the browser')
+  takeAppKeyFromHash(`#app=${'a'.repeat(32)}`)
+  check(appKey() === 'a'.repeat(32), 'a newer app key takes over')
+  delete globalThis.sessionStorage
+  delete globalThis.localStorage
 }
 
 console.log(`ok - mine.test.mjs (${checks} checks)`)

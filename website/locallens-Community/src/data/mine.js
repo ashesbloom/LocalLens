@@ -117,9 +117,26 @@ export function isAdmin(store = browserStore()) {
 //
 // Returns the hash with the key taken out, so the caller can put a clean URL back -- a link
 // copied from the address bar must not carry someone's key to whoever it is pasted to.
+//
+// The key lives in sessionStorage -- this tab only -- and the newest one wins. The site cannot
+// tell the app's own link from an identical one someone else crafted, so a key that stuck to
+// the whole browser would let a stranger's link quietly capture every later post you wrote,
+// and the replies to them. Scoped to the tab the link opened, it covers what the app opens
+// (the Community button, a notification) and nothing after. Newest-wins means a reinstalled
+// app's new key simply takes over; there is no stale key to fight.
+// ponytail: still forwardable within one tab visit; the full fix is a deep link into the app
+// (locallens://) so only the app on this machine can claim a browser.
 const APP_KEY_SHAPE = /^[0-9a-f]{32}$/
 
-export function takeAppKeyFromHash(hash, store = browserStore()) {
+function tabStore() {
+  try {
+    return globalThis.sessionStorage ?? null
+  } catch {
+    return null
+  }
+}
+
+export function takeAppKeyFromHash(hash, store = tabStore()) {
   const params = new URLSearchParams(String(hash ?? '').replace(/^#/, ''))
   const key = params.get('app')
   if (key === null) return hash
@@ -129,7 +146,7 @@ export function takeAppKeyFromHash(hash, store = browserStore()) {
   return rest ? `#${rest}` : ''
 }
 
-export function appKey(store = browserStore()) {
+export function appKey(store = tabStore()) {
   const value = read(store, APP_KEY)
   return value && APP_KEY_SHAPE.test(value) ? value : null
 }
