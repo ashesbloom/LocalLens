@@ -7,3 +7,201 @@
 @media (max-width: 760px) {
   .dup-strictness { grid-template-columns: 1fr; }
 }
+
+/* --- Review overlay --- */
+.dup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2500; /* above glass modals (2000), below ConfirmationModal (3000) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 24, 39, 0.55);
+  animation: modal-fade-in 0.3s ease-out;
+}
+
+.dup-panel {
+  /* Dark glass like the app's other modals, so re-point the (light-theme) text
+     tokens at light values for everything inside. */
+  --color-text: #f3f4f6;
+  --color-text-muted: rgba(255, 255, 255, 0.65);
+  --color-border: rgba(255, 255, 255, 0.14);
+  color: var(--color-text);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(1100px, 94vw);
+  height: 90vh;
+  border-radius: 1rem;
+  overflow: hidden;
+  background: rgba(17, 24, 39, 0.85);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.35);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px var(--color-shadow-primary);
+}
+
+.dup-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem 0.5rem;
+}
+.dup-header > div:first-child { flex: 1; }
+.dup-header h2 { margin: 0; font-size: 1.3rem; color: var(--color-primary); }
+.dup-header p { margin: 0.25rem 0 0; color: var(--color-text-muted); font-size: 0.9rem; }
+
+.dup-close {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+}
+.dup-close:hover { color: var(--color-text); }
+
+.dup-view-toggle {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.dup-view-toggle button {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.9rem;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.dup-view-toggle button.active { background: var(--color-gradient); color: #fff; }
+
+.dup-hint { margin: 0 1.5rem 0.5rem; font-size: 0.85rem; color: var(--color-text-muted); }
+
+.dup-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 1.5rem 1rem;
+}
+
+.dup-group {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dup-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.dup-keep-all {
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.dup-keep-all.active { border-color: var(--color-primary); color: var(--color-primary); }
+
+.dup-tiles { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+
+.dup-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 160px;
+  padding: 0.4rem;
+  border-radius: var(--border-radius);
+  border: 2px solid transparent;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-speed);
+}
+.dup-tile.large { width: 300px; }
+.dup-tile.keep { border-color: var(--color-primary); box-shadow: 0 0 16px var(--color-shadow-primary); }
+.dup-tile.trash { opacity: 0.55; }
+.dup-tile.trash:hover { opacity: 0.85; }
+.dup-tile.failed { border-color: var(--color-error); opacity: 1; }
+
+.dup-thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  border-radius: calc(var(--border-radius) - 2px);
+  background: rgba(255, 255, 255, 0.04);
+}
+.dup-thumb-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.dup-badge {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: rgba(17, 24, 39, 0.85);
+}
+.dup-tile.keep .dup-badge { background: var(--color-primary); color: #fff; }
+
+.dup-meta { font-size: 0.75rem; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dup-folder { opacity: 0.8; }
+
+.dup-nav { display: flex; justify-content: center; gap: 1rem; margin-top: 0.5rem; }
+.dup-keys { text-align: center; font-size: 0.8rem; color: var(--color-text-muted); }
+
+.dup-empty {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+
+.dup-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+.dup-footer-note { flex: 1; font-size: 0.85rem; color: var(--color-text-muted); }
+.dup-footer .btn, .dup-nav .btn { width: auto; margin: 0; }
+.dup-nav .btn { display: inline-flex; align-items: center; gap: 0.3rem; }
+.dup-panel .btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+.dup-panel .btn-secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
+
+@media (max-width: 760px) {
+  .dup-header { flex-wrap: wrap; }
+  .dup-tile, .dup-tile.large { width: calc(50% - 0.4rem); }
+  .dup-footer { flex-wrap: wrap; }
+}

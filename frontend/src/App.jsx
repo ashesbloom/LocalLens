@@ -17,7 +17,8 @@ import SortingModeSelector from './components/SortingModeSelector';
 import HybridSortConfig from './components/HybridSortConfig'; 
 import FindGroupConfig from './components/FindGroupConfig'; 
 import DuplicateConfig from './components/DuplicateConfig';
-import { STRICTNESS } from './components/duplicateReview';
+import DuplicateReview from './components/DuplicateReview';
+import { STRICTNESS } from './components/duplicateSelection';
 import EnrolledFacesModal from './components/EnrolledFacesModal';
 import FaceEnrollmentModal from './components/FaceEnrollmentModal';
 import FindGroupResultModal from './components/FindGroupResultModal';
@@ -524,6 +525,8 @@ function App() {
     const [dupStrictness, setDupStrictness] = useState('near');
     // Last scan's result, held here so the review can be reopened after closing it.
     const [dupResult, setDupResult] = useState(null);
+    const [showDupReview, setShowDupReview] = useState(false);
+    const [dupRemaining, setDupRemaining] = useState(0);
 
     // --- NEW State for Enrollment ---
     const [isEnrolled, setIsEnrolled] = useState(false);
@@ -1136,11 +1139,12 @@ function App() {
 
                     if (operationMode === 'duplicates' && data.status === 'complete' && !isEnrolling) {
                         apiCall('/api/job-status')
-                            .then((s) => setDupResult({
-                                groups: s.duplicate_groups || [],
-                                files: s.duplicate_files || {},
-                                strictness: dupStrictness,
-                            }))
+                            .then((s) => {
+                                const groups = s.duplicate_groups || [];
+                                setDupResult({ groups, files: s.duplicate_files || {}, strictness: dupStrictness });
+                                setDupRemaining(groups.length);
+                                setShowDupReview(true);
+                            })
                             .catch(() => {});
                     }
                 }, 800); // 800ms delay for visual confirmation
@@ -1377,6 +1381,7 @@ function App() {
         setLogs([]);
         setIsProcessing(true);
         setDupResult(null); // any job clears the backend's scan result, so drop ours too
+        setShowDupReview(false);
         logToConsole("Establishing connection to backend for real-time logging...");
 
         setupLogStream();
@@ -2057,6 +2062,11 @@ function App() {
                     ] : logs} />
                     <div className="footer-actions">
                         {!isProcessing && <button onClick={resetUi} className="btn btn-danger">Start Over</button>}
+                        {operationMode === 'duplicates' && dupResult && !isProcessing && dupRemaining > 0 && (
+                            <button onClick={() => setShowDupReview(true)} className="btn btn-primary">
+                                Review duplicates ({dupRemaining} groups)
+                            </button>
+                        )}
                         {operationMode !== 'duplicates' && (
                             <button onClick={handleOpenDestination} className="btn btn-secondary" data-tutorial-target="open-destination-btn">
                                 Open "{getFolderName(destinationFolder) || 'Destination'}"
@@ -2096,6 +2106,19 @@ function App() {
                 onViewEnrolledClick={() => {
                     setShowFaceEnrollmentModal(false);
                     setShowEnrolledFacesModal(true);
+                }}
+            />
+
+            <DuplicateReview
+                isOpen={showDupReview}
+                result={dupResult}
+                apiBase={`http://127.0.0.1:${backendPort}`}
+                apiCall={apiCall}
+                onClose={() => setShowDupReview(false)}
+                onCleaned={(r, remaining) => {
+                    logToConsole(r.message, r.failed.length ? 'warning' : 'success');
+                    r.failed.forEach((f) => logToConsole(`Could not remove ${f.path}: ${f.error}`, 'error'));
+                    setDupRemaining(remaining);
                 }}
             />
 

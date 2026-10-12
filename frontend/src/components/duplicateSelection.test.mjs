@@ -1,11 +1,11 @@
-// Run with: node src/components/duplicateReview.test.mjs
+// Run with: node src/components/duplicateSelection.test.mjs
 // Guards the one failure that loses photos (a group with no valid keeper being
 // emptied) plus the view switch and the space-saved arithmetic.
 import { strict as assert } from 'node:assert';
 import {
     KEEP_ALL, STRICTNESS, defaultView, initialKeepers, pathsToTrash,
     reclaimBytes, afterDelete, formatBytes,
-} from './duplicateReview.js';
+} from './duplicateSelection.js';
 
 const groups = [['/a/1.jpg', '/a/1 copy.jpg', '/b/1.jpg'], ['/a/2.jpg', '/c/2.jpg']];
 const files = {
@@ -56,4 +56,4 @@ assert.equal(formatBytes(310 * 1024), '310 KB');
 assert.equal(formatBytes(4.1 * 1024 * 1024), '4.1 MB');
 assert.equal(formatBytes(1.2 * 1024 ** 3), '1.2 GB');
 
-console.log('duplicateReview: all assertions passed');
+console.log('duplicateSelection: all assertions passed');
