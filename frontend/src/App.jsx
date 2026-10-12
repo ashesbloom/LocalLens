@@ -530,6 +530,16 @@ function App() {
     const [dupResult, setDupResult] = useState(null);
     const [showDupReview, setShowDupReview] = useState(false);
     const [dupRemaining, setDupRemaining] = useState(0);
+    // Set by "Import new photos" on a library comparison: the next Standard Sort
+    // processes only these files. Anything that changes what that sort would mean
+    // (another folder, another mode) drops it.
+    const [importOnly, setImportOnly] = useState(null);
+    useEffect(() => {
+        if (importOnly && (operationMode !== 'standard' || sourceFolder !== importOnly.source
+            || destinationFolder !== importOnly.library)) {
+            setImportOnly(null);
+        }
+    }, [operationMode, sourceFolder, destinationFolder]);
 
     // --- NEW State for Enrollment ---
     const [isEnrolled, setIsEnrolled] = useState(false);
@@ -1115,6 +1125,7 @@ function App() {
                     // Reset processing states
                     setIsEnrolling(false);
                     setIsProcessing(false);
+                    setImportOnly(null); // an import runs once; the banner goes with it
                     // Reset analytics to default
                     setAnalytics({ scan_rate: '0.0', data_flow: '0.0', quality: 'N/A' });
 
@@ -1385,6 +1396,11 @@ function App() {
             return;
         }
 
+        if (operationMode === 'standard' && importOnly && importOnly.files.length === 0) {
+            await message('There are no new photos to import.', { title: 'Nothing to import', kind: 'info' });
+            return;
+        }
+
         await saveLastConfig();
 
         setLogs([]);
@@ -1403,6 +1419,7 @@ function App() {
                 primary_sort: sortMethod,
                 face_mode: faceMode,
                 maintain_hierarchy: maintainHierarchy,
+                ...(importOnly ? { specific_files: importOnly.files } : {}),
             };
             payload = {
                 source_folder: sourceFolder,
@@ -1490,6 +1507,17 @@ function App() {
 
     // Reopening a held result: the scheduler or the Claude agent may have run a job
     // since, which resets the backend's scan and would leave every thumbnail blank.
+    // Source and destination are set from the scan's own (backend-normalised) paths:
+    // the effect beside importOnly compares against exactly these, and the file list
+    // belongs to that scanned source even if the picker was changed after the scan.
+    const handleImportNew = ({ files, skipped }) => {
+        setShowDupReview(false);
+        setSourceFolder(dupResult.sourceFolder);
+        setDestinationFolder(dupResult.libraryFolder);
+        setImportOnly(files ? { files, skipped, source: dupResult.sourceFolder, library: dupResult.libraryFolder } : null);
+        setOperationMode('standard');
+    };
+
     const handleReopenDupReview = async () => {
         try {
             const status = await apiCall('/api/job-status');
@@ -2037,6 +2065,16 @@ function App() {
                 <div className="mode-content-wrapper">
                     {operationMode === 'standard' && (
                         <div className="mode-content">
+                            {importOnly && (
+                                <div className="import-only-banner" role="status">
+                                    <span>
+                                        Importing only the <strong>{importOnly.files.length} new photos</strong> from{' '}
+                                        <strong>{getFolderName(importOnly.source)}</strong> — the {importOnly.skipped} already
+                                        in your library are skipped.
+                                    </span>
+                                    <button type="button" onClick={() => setImportOnly(null)}>Cancel</button>
+                                </div>
+                            )}
                             <SortingOptions
                                 sortMethod={isSortDemoStep ? effectiveSortMethod : sortMethod}
                                 setSortMethod={isSortDemoStep ? setDemoSortMethod : setSortMethod}
@@ -2157,6 +2195,7 @@ function App() {
                 apiBase={`http://127.0.0.1:${backendPort}`}
                 apiCall={apiCall}
                 onClose={() => setShowDupReview(false)}
+                onImport={handleImportNew}
                 onCleaned={(r, remaining) => {
                     logToConsole(r.message, r.failed.length ? 'warning' : 'success');
                     r.failed.forEach((f) => logToConsole(`Could not remove ${f.path}: ${f.error}`, 'error'));
