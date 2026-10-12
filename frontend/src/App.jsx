@@ -129,8 +129,8 @@ function App() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState(0);
     const [progressLabel, setProgressLabel] = useState('Ready for a new task !');
-    // NEW: State for real-time analytics
-    const [analytics, setAnalytics] = useState({ scan_rate: '0.0', data_flow: '0.0', quality: 'N/A' });
+    // Live job numbers from the backend's JobMeter; null hides the panel's metrics row.
+    const [analytics, setAnalytics] = useState(null);
     const [logs, setLogs] = useState([]);
     const [showSaveButton, setShowSaveButton] = useState(false);
     const logConsoleRef = useRef(null);
@@ -759,6 +759,7 @@ function App() {
     // Update progress label based on processing state
     useEffect(() => {
         if (isProcessing) {
+            setAnalytics(null); // a new job must not open on the last one's numbers
             setProgressLabel(isEnrolling ? 'Enrolling...' : 'Processing...');
         } else {
             setProgressLabel('Ready for a new task !');
@@ -1198,8 +1199,8 @@ function App() {
                 setProgress(data.progress);
             }
 
-            // NEW: Update analytics if they are in the payload
-            if (data.analytics) {
+            // Only live meter snapshots; the completing update's {files_written} is for job state.
+            if (data.analytics?.phase) {
                 setAnalytics(data.analytics);
             }
 
@@ -1228,8 +1229,7 @@ function App() {
                     setIsEnrolling(false);
                     setIsProcessing(false);
                     setImportOnly(null); // an import runs once; the banner goes with it
-                    // Reset analytics to default
-                    setAnalytics({ scan_rate: '0.0', data_flow: '0.0', quality: 'N/A' });
+                    setAnalytics(null);
 
                     // NEW: Handle UI reset after a successful move operation
                     if (data.status === 'complete' && fileOperationMode === 'move' && (operationMode === 'standard' || operationMode === 'hybrid')) {
@@ -2292,7 +2292,7 @@ function App() {
                         progressLabel={showDemoFooter ? 'Processing photos...' : progressLabel} 
                         isProcessing={isProcessing || showDemoAbortBtn}
                         onAbort={handleAbortProcess}
-                        analytics={showDemoFooter ? { processed: 127, total: 283, speed: '2.3 photos/sec' } : analytics}
+                        analytics={showDemoFooter ? { phase: 'files', done: 127, total: 283, rate: 2.3, mb_per_s: 14.1, eta_s: 70 } : analytics}
                     />
                     <LogConsole ref={logConsoleRef} logs={showDemoFooter ? [
                         { time: '10:23:45', message: 'Starting photo organization...', type: 'info' },

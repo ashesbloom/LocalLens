@@ -2,6 +2,15 @@ import React, { useEffect, useState } from 'react';
 import AbortButton from './AbortButton';
 import './ProgressTracker.css';
 
+const PHASE_LABELS = { faces: 'Face scan', files: 'Sorting', search: 'Searching', hashing: 'Hashing' };
+
+const fmtEta = (s) => {
+    const min = Math.round(s / 60);
+    if (min < 1) return '<1 min left';
+    if (min < 60) return `~${min} min left`;
+    return `~${Math.floor(min / 60)} h ${min % 60} min left`;
+};
+
 const ProgressTracker = ({ progress, progressLabel, isProcessing, onAbort, analytics }) => {
     const [scannerPosition, setScannerPosition] = useState(0);
     const [isScanning, setIsScanning] = useState(false);
@@ -93,25 +102,38 @@ const ProgressTracker = ({ progress, progressLabel, isProcessing, onAbort, analy
                 <div className="housing-reflection bottom"></div>
             </div>
 
-            {/* Progress Analytics Display */}
-            {isProcessing && progress > 5 && (
-                <div className="progress-analytics">
-                    <div className="analytics-grid">
-                        <div className="metric">
-                            <span className="metric-label">Scan Rate - </span>
-                            <span className="metric-value">{analytics?.scan_rate || '0.0'} files/s</span>
-                        </div>
-                        <div className="metric">
-                            <span className="metric-label">Data Flow - </span>
-                            <span className="metric-value">{analytics?.data_flow || '0.0'} MB/s</span>
-                        </div>
-                        <div className="metric">
-                            <span className="metric-label">Mode - </span>
-                            <span className="metric-value">{analytics?.quality || 'N/A'}</span>
+            {/* Live job numbers: what each one means depends on the phase the backend is in */}
+            {isProcessing && analytics?.phase && (() => {
+                const { phase, done, total, rate, mb_per_s, eta_s, matches } = analytics;
+                const mb = mb_per_s == null ? '—' : `${mb_per_s.toFixed(1)} MB/s`;
+                const [secondLabel, secondValue] = {
+                    faces: ['Read', mb],
+                    files: ['Written', mb],
+                    search: ['Matches', (matches ?? 0).toLocaleString()],
+                    hashing: ['Hashed', mb],
+                }[phase] || ['Data', mb];
+                return (
+                    <div className="progress-analytics">
+                        <div className="analytics-grid">
+                            <div className="metric">
+                                <span className="metric-label">{PHASE_LABELS[phase] || 'Speed'} - </span>
+                                <span className="metric-value">{rate == null ? '—' : `${rate.toFixed(1)} photos/s`}</span>
+                            </div>
+                            <div className="metric">
+                                <span className="metric-label">{secondLabel} - </span>
+                                <span className="metric-value">{secondValue}</span>
+                            </div>
+                            <div className="metric">
+                                <span className="metric-label">Photos - </span>
+                                <span className="metric-value">
+                                    {done.toLocaleString()} / {total.toLocaleString()}
+                                    {eta_s != null && ` · ${fmtEta(eta_s)}`}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
         </div>
     );
 };

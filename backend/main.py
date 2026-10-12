@@ -743,12 +743,10 @@ async def run_organization_task(config: Dict):
         def callback_adapter(progress: int, message: str, status: str = "running", analytics: Optional[Dict] = None, hint: Optional[str] = None):
             if status == "complete":
                 message += skipped_note
-            update_data = {
-                "progress": progress, 
-                "message": message, 
-                "status": status,
-                "analytics": analytics or {}
-            }
+            update_data = {"progress": progress, "message": message, "status": status}
+            # Only when given: an empty dict would wipe the panel's live numbers.
+            if analytics:
+                update_data["analytics"] = analytics
             if hint:
                 update_data["hint"] = hint
             update_status_callback(update_data)
@@ -823,12 +821,10 @@ async def run_find_group_task(config: Dict):
 
         # FIX: The callback adapter now accepts the 'analytics' dictionary.
         def callback_adapter(progress: int, message: str, status: str = "running", analytics: Optional[Dict] = None, hint: Optional[str] = None):
-            update_data = {
-                "progress": progress, 
-                "message": message, 
-                "status": status,
-                "analytics": analytics or {}
-            }
+            update_data = {"progress": progress, "message": message, "status": status}
+            # Only when given: an empty dict would wipe the panel's live numbers.
+            if analytics:
+                update_data["analytics"] = analytics
             if hint:
                 update_data["hint"] = hint
             update_status_callback(update_data)
@@ -900,7 +896,8 @@ def _hash_files(files: List[str], cancel_event, progress, abort_message: str):
     """
     pHash every file, through the fingerprint cache. Returns (file_hashes, file_info,
     unreadable_count); file_info is {path: {width, height, bytes, mtime}} for hashed files.
-    Blocking: call it from a worker thread. progress(idx, path) runs about every 1%.
+    Blocking: call it from a worker thread. progress(idx, path, read_bytes) runs about
+    every 1%; read_bytes counts only files actually decoded (cache hits read nothing).
     """
     store = _phash_store()
     cached = store.phash_cache_get_many(files) if store else {}
@@ -908,6 +905,7 @@ def _hash_files(files: List[str], cancel_event, progress, abort_message: str):
     file_hashes = []
     file_info = {}
     skipped = 0
+    read_bytes = 0
     # Progress is reported per batch, not per file: at 15k files a callback each
     # time would put 15k JSON messages through the log queue for no added detail.
     step = max(1, len(files) // 100)
@@ -922,6 +920,7 @@ def _hash_files(files: List[str], cancel_event, progress, abort_message: str):
                 h, w, ht = np.uint64(hit["phash"]), hit["width"], hit["height"]
             else:
                 im = load_upright(fp)
+                read_bytes += st.st_size
                 h = None if im is None else _phash_of(im)
                 if h is not None:
                     w, ht = im.width, im.height
@@ -935,7 +934,7 @@ def _hash_files(files: List[str], cancel_event, progress, abort_message: str):
         else:
             file_hashes.append((fp, h))
         if idx % step == 0:
-            progress(idx, fp)
+            progress(idx, fp, read_bytes)
 
     if store:
         store.phash_cache_put_many(fresh)
@@ -976,11 +975,15 @@ def _find_skippable(config: Dict):
     dest_files = _collect_images(dest, {source}, set())
     all_files = dest_files + source_files  # destination first: it seeds the groups
 
-    def progress(idx, fp):
+    meter = organizer_logic.JobMeter("hashing", len(all_files))
+
+    def progress(idx, fp, read_bytes):
+        meter.tick(idx - meter.done, read_bytes - meter.bytes)
         update_status_callback({
             "progress": int(5 * idx / len(all_files)),
             "message": f"Checking for duplicates... {idx}/{len(all_files)}",
             "status": "running",
+            "analytics": meter.snapshot(),
         })
 
     file_hashes, file_info, _ = _hash_files(
@@ -1037,13 +1040,17 @@ async def run_find_duplicates_task(config: Dict):
 
     def scan():
         """Blocking hash + group pass. Runs off the event loop (see to_thread below)."""
-        def progress(idx, fp):
+        meter = organizer_logic.JobMeter("hashing", len(all_files))
+
+        def progress(idx, fp, read_bytes):
             # Hashing owns 0-90%; grouping is comparatively instant.
+            meter.tick(idx - meter.done, read_bytes - meter.bytes)
             which = "library" if fp in in_library else "source"
             update_status_callback({
                 "progress": int(90 * idx / len(all_files)),
                 "message": f"Hashing {which} photos... {idx}/{len(all_files)}",
                 "status": "running",
+                "analytics": meter.snapshot(),
             })
 
         file_hashes, file_info, skipped = _hash_files(
@@ -1238,9 +1245,40 @@ async def list_subfolders(request: SubfolderRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read directory contents: {str(e)}")
 
+def _busy_response():
+    """
+    The reply every job-start endpoint gives while a job runs, or None when idle.
+
+    Every job type needs this, not just one: a second start runs beside the first,
+    clears its abort flag (each task begins with cancellation_events[...].clear()) and
+    shares the clone counter and the log handler with it.
+    ponytail: is_active is set by the background task, so two POSTs in the same instant
+    can both pass; take a lock here if anything ever fires starts that fast.
+    """
+    if not current_job_state.get("is_active"):
+        return None
+    return {
+        "status": "busy",
+        "error": "job_already_running",
+        "message": (
+            f"A {current_job_state.get('job_type') or 'sorting'} job is already running: "
+            f"{current_job_state.get('progress', '?')}% of "
+            f"{current_job_state.get('total_files', '?')} files."
+        ),
+        "guidance": (
+            "Do NOT start another job. LocalLens tracks one job at a time. Tell the user "
+            "what is already running and offer to wait for it or abort it, then retry."
+        ),
+        "current_job": current_job_state,
+    }
+
+
 @app.post("/api/start-sorting")
 async def start_sorting_endpoint(request: SortRequest, background_tasks: BackgroundTasks):
     """Starts the photo organization process in the background."""
+    busy = _busy_response()
+    if busy:
+        return busy
     problem = read_only_problem(os.path.expanduser(request.source_folder),
                                 os.path.expanduser(request.destination_folder), request.operation_mode)
     if problem:
@@ -1266,6 +1304,9 @@ async def start_sorting_endpoint(request: SortRequest, background_tasks: Backgro
 @app.post("/api/start-find-group")
 async def start_find_group_endpoint(request: FindGroupRequest, background_tasks: BackgroundTasks):
     """Starts the 'Find & Group' process in the background."""
+    busy = _busy_response()
+    if busy:
+        return busy
     problem = read_only_problem(None, os.path.expanduser(request.destination_folder), "copy")
     if problem:
         raise HTTPException(status_code=400, detail=problem)
@@ -1619,21 +1660,9 @@ async def find_duplicates_endpoint(request: FindDuplicatesRequest, background_ta
                 "The library and the folder to check overlap. Pick a library that is "
                 "neither the same folder nor inside it, or the other way round."))
 
-    if current_job_state.get("is_active"):
-        return {
-            "status": "busy",
-            "error": "job_already_running",
-            "message": (
-                f"A {current_job_state.get('job_type') or 'sorting'} job is already running: "
-                f"{current_job_state.get('progress', '?')}% of "
-                f"{current_job_state.get('total_files', '?')} files."
-            ),
-            "guidance": (
-                "Do NOT start another job. LocalLens tracks one job at a time. Tell the user "
-                "what is already running and offer to wait for it or abort it, then retry."
-            ),
-            "current_job": current_job_state,
-        }
+    busy = _busy_response()
+    if busy:
+        return busy
 
     threshold = max(0.0, min(1.0, request.similarity_threshold or 0.95))
     # Convert similarity 0-1 to hamming distance threshold.

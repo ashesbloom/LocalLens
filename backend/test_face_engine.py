@@ -792,7 +792,7 @@ def test_recoveries_are_counted_into_the_right_buckets(tmp):
     counted = organizer_logic._recognize_all(
         [sideways], "balanced", gallery, names,
         update_callback=lambda *a, **k: None, cancellation_event=None,
-        analytics={}, cache=None,
+        cache=None,
     )[1]
 
     assert counted["with_faces"] == 1, counted
@@ -829,7 +829,6 @@ def test_recognize_all_matches_single_file_results(tmp):
         paths, "fast", gallery, names,
         update_callback=lambda *a, **k: None,
         cancellation_event=None,
-        analytics={},
         cache=None,
     )
 

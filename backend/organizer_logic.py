@@ -30,6 +30,7 @@ from PIL.ExifTags import TAGS, GPSTAGS
 import tempfile
 from multiprocessing import Pool
 import time
+from collections import deque
 
 
 # --- Custom Exception Import ---
@@ -41,6 +42,46 @@ from exceptions import OperationAbortedError
 import face_engine
 # Turns a failed import into "what happened, and what to run" for this platform.
 import troubleshoot
+
+
+class JobMeter:
+    """
+    The live numbers behind the progress panel, for one phase of a job.
+
+    Speed is measured over the last WINDOW seconds rather than since the job began,
+    so it follows a slowdown instead of averaging it away. Work ticked before the
+    first snapshot (cache hits) counts toward `done` but not toward speed.
+    The panel reads `phase` to label the numbers; `matches` is Find & Group's.
+    """
+    WINDOW = 5.0
+
+    def __init__(self, phase, total, clock=time.monotonic):
+        self.phase, self.total, self.clock = phase, total, clock
+        self.done, self.bytes, self.matches = 0, 0, None
+        self._start = clock()
+        self._samples = deque()  # (time, done, bytes)
+
+    def tick(self, n=1, nbytes=0):
+        """Call once the work is finished, not before it starts."""
+        self.done += n
+        self.bytes += nbytes
+
+    def snapshot(self):
+        now = self.clock()
+        self._samples.append((now, self.done, self.bytes))
+        while len(self._samples) > 1 and self._samples[1][0] <= now - self.WINDOW:
+            self._samples.popleft()
+        t0, done0, bytes0 = self._samples[0]
+        span = now - t0
+        rate = mb_per_s = eta_s = None
+        if span >= 1:
+            rate = (self.done - done0) / span
+            mb_per_s = (self.bytes - bytes0) / (1024 * 1024) / span
+            if rate > 0 and now - self._start >= 3:
+                eta_s = (self.total - self.done) / rate
+        return {"phase": self.phase, "done": self.done, "total": self.total, "rate": rate,
+                "mb_per_s": mb_per_s, "eta_s": eta_s, "matches": self.matches}
+
 
 # --- REVERT: REMOVE ALL MULTIPROCESSING WORKER FUNCTIONS ---
 
@@ -624,7 +665,7 @@ def recognize_faces(image_path, known_encodings, known_names, mode='balanced'):
 # unaffected.
 
 def _recognize_all(paths, mode, known_encodings, known_names,
-                   update_callback, cancellation_event, analytics, cache=None,
+                   update_callback, cancellation_event, cache=None,
                    abort_message="Sorting operation cancelled by user."):
     """
     Recognise faces in every photo up front, in parallel.
@@ -697,10 +738,12 @@ def _recognize_all(paths, mode, known_encodings, known_names,
         diagnostics['cached'] += 1
 
     pending = [p for p in paths if p not in cached]
+    meter = JobMeter("faces", len(paths))
+    meter.tick(len(cached))  # instant, so it is progress but not speed
     if cached:
         logging.info(f"Face cache: {len(cached)} of {len(paths)} photos already encoded.")
     if not pending:
-        update_callback(70, f"Recognised faces from cache for all {len(paths)} photos.", "running", analytics)
+        update_callback(70, f"Recognised faces from cache for all {len(paths)} photos.", "running")
         return names_by_path, diagnostics
 
     # One worker per spare core, except in modes that can reach the CNN pass -
@@ -719,11 +762,16 @@ def _recognize_all(paths, mode, known_encodings, known_names,
         elif cache is not None and result['status'] in (face_engine.OK, face_engine.NO_FACE):
             cache.face_cache_put(result['path'], face_engine.ENGINE_VERSION, result)
         record(result['path'], result['status'], result['names'], result['pass_used'])
+        try:
+            nbytes = os.path.getsize(result['path'])
+        except OSError:
+            nbytes = 0
+        meter.tick(1, nbytes)
 
         # Recognition dominates a People sort, so it owns most of the progress bar.
         progress = 10 + int((index + 1) / len(pending) * 60)
         update_callback(progress, f"Looking for faces in {os.path.basename(result['path'])}",
-                        "running", analytics)
+                        "running", meter.snapshot())
 
     if not use_pool:
         face_engine.worker_init(mode, known_encodings, known_names)
@@ -816,12 +864,8 @@ def find_and_group_photos(config, update_callback):
     logging.info(f"Starting Find & Group Session. Target folder: '{target_folder_name}'")
     logging.info(f"Filters applied: {json.dumps(find_config, indent=2)}")
 
-    # --- NEW: Analytics setup for Find & Group ---
     face_mode = (find_config.get("face_mode") or "fast").lower()
-    quality_map = {"fast": "Fast", "accurate": "Accurate"}
-    quality_metric = quality_map.get(face_mode, "Fast")
-    initial_analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
-    update_callback(0, "Preparing to search for photos...", "running", initial_analytics)
+    update_callback(0, "Preparing to search for photos...", "running")
 
     # Find & Group is always a copy, so it benefits from cloning too.
     reset_space_stats()
@@ -835,7 +879,7 @@ def find_and_group_photos(config, update_callback):
 
     total_files = len(files_to_process)
     if total_files == 0:
-        update_callback(100, "No supported image files found in the source directory.", "complete", initial_analytics)
+        update_callback(100, "No supported image files found in the source directory.", "complete")
         return
 
     found_count = 0
@@ -843,17 +887,17 @@ def find_and_group_photos(config, update_callback):
     
     # Load face models only if a people filter is active
     if find_config.get('people'):
-        update_callback(5, "Initializing face recognition engine...", "running", initial_analytics)
+        update_callback(5, "Initializing face recognition engine...", "running")
         if not encodings_path or not os.path.exists(encodings_path):
-            update_callback(100, "Cannot use People filter: Face encodings file not found.", "error", initial_analytics)
+            update_callback(100, "Cannot use People filter: Face encodings file not found.", "error")
             return
         try:
             known_encodings, known_names = load_face_encodings(encodings_path)
             if not known_encodings:
-                update_callback(100, "Cannot use People filter: No faces are enrolled.", "error", initial_analytics)
+                update_callback(100, "Cannot use People filter: No faces are enrolled.", "error")
                 return
         except Exception as e:
-            update_callback(100, f"Fatal Error loading face data: {e}", "error", initial_analytics)
+            update_callback(100, f"Fatal Error loading face data: {e}", "error")
             return
 
     # --- Face recognition: one parallel pass, same as the sorter -------------
@@ -864,42 +908,24 @@ def find_and_group_photos(config, update_callback):
     if known_encodings:
         face_names, face_diagnostics = _recognize_all(
             files_to_process, face_mode, known_encodings, known_names,
-            update_callback, cancellation_event, initial_analytics,
+            update_callback, cancellation_event,
             cache=_metadata_store,
             abort_message="Find & Group operation cancelled by user.",
         )
         summary = format_face_diagnostics(face_diagnostics)
         logging.info(summary)
-        update_callback(70, summary, "running", initial_analytics)
+        update_callback(70, summary, "running")
 
     search_progress_base = 70 if known_encodings else 10
     search_progress_span = 25 if known_encodings else 85
 
-    # --- NEW: Real-time analytics tracking ---
-    start_time = time.time()
-    processed_files_count = 0
-    processed_size_mb = 0.0
+    # Speed of the search itself: started after the face pass, which has its own meter.
+    meter = JobMeter("search", total_files)
+    meter.matches = 0
 
     for i, source_path in enumerate(files_to_process):
         progress = search_progress_base + int(((i + 1) / total_files) * search_progress_span)
-
-        # --- Analytics Calculation ---
-        analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
-        try:
-            file_size_mb = os.path.getsize(source_path) / (1024 * 1024)
-            processed_files_count += 1
-            processed_size_mb += file_size_mb
-
-            elapsed_time = time.time() - start_time
-            if elapsed_time > 0.5:
-                scan_rate = processed_files_count / elapsed_time
-                data_flow = processed_size_mb / elapsed_time
-                analytics["scan_rate"] = f"{scan_rate:.1f}"
-                analytics["data_flow"] = f"{data_flow:.1f}"
-        except OSError:
-            pass
-
-        update_callback(progress, f"Searching: {os.path.basename(source_path)}", "running", analytics)
+        update_callback(progress, f"Searching: {os.path.basename(source_path)}", "running", meter.snapshot())
         
         if cancellation_event and cancellation_event.is_set():
             raise OperationAbortedError("Find & Group operation cancelled by user.")
@@ -948,9 +974,11 @@ def find_and_group_photos(config, update_callback):
             destination_path = handle_file_op(operation_mode, source_path, target_folder, new_filename, date_obj)
             if destination_path:
                 found_count += 1
+                meter.matches = found_count
                 verb = "copied" if operation_mode == "copy" else "moved"
                 logging.info(f"Found match: {verb.capitalize()} '{os.path.basename(source_path)}' to '{target_folder_name}'")
-                update_callback(progress, f"{verb.capitalize()} '{os.path.basename(source_path)}' to '{destination_path}'", "running", analytics)
+                update_callback(progress, f"{verb.capitalize()} '{os.path.basename(source_path)}' to '{destination_path}'", "running", meter.snapshot())
+        meter.tick()
 
     verb = "copied" if operation_mode == "copy" else "moved"
     completion_message = f"Search complete. Found and {verb} {found_count} matching photos to '{target_folder_name}'."
@@ -959,7 +987,7 @@ def find_and_group_photos(config, update_callback):
         completion_message = "Search complete. No photos matched the specified criteria."
         
     logging.info(completion_message)
-    update_callback(100, completion_message, "complete", {**initial_analytics, "files_written": found_count})
+    update_callback(100, completion_message, "complete", {"files_written": found_count})
     return found_count
 
 
@@ -1127,15 +1155,6 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
             countries = set(loc.split(os.path.sep)[0] for loc in locations if os.path.sep in loc)
             multiple_countries_found = len(countries) > 1
 
-    # --- NEW: Real-time analytics tracking ---
-    start_time = time.time()
-    processed_files_count = 0
-    processed_size_mb = 0.0
-    # Map face_mode to a user-friendly quality string
-    quality_map = {"fast": "Fast", "balanced": "Balanced", "accurate": "Accurate"}
-    quality_metric = quality_map.get(face_rec_mode, "N/A")
-
-
     moved_count = 0
     # ADD THIS: A manifest to track file operations for rollback on abort.
     operation_manifest = []
@@ -1150,7 +1169,6 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
         face_names, face_diagnostics = _recognize_all(
             files_to_process, face_rec_mode, known_encodings, known_names,
             update_callback, cancellation_event,
-            {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"},
             cache=_metadata_store,
         )
         # Logged here, but shown to the user only once, at the end of the job -
@@ -1163,27 +1181,20 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
     op_progress_base = 70 if known_encodings else 10
     op_progress_span = 25 if known_encodings else 85
 
+    # Started after the face pass: timing from before it made this phase read ~1 photo/s.
+    # ponytail: counts bytes placed, so a same-drive move or an APFS clone (no real copy)
+    # reads as very fast; measure actual I/O only if users find that misleading.
+    meter = JobMeter("files", total_files)
+
     for i, source_path in enumerate(files_to_process):
         progress = op_progress_base + int(((i + 1) / total_files) * op_progress_span)
-        
-        # --- Analytics Calculation ---
-        analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
+        analytics = meter.snapshot()
         try:
-            # Get file size for data flow calculation
-            file_size_mb = os.path.getsize(source_path) / (1024 * 1024)
-            processed_files_count += 1
-            processed_size_mb += file_size_mb
-            
-            elapsed_time = time.time() - start_time
-            if elapsed_time > 0.5: # Update analytics every half second to avoid noisy data
-                scan_rate = processed_files_count / elapsed_time
-                data_flow = processed_size_mb / elapsed_time
-                analytics["scan_rate"] = f"{scan_rate:.1f}"
-                analytics["data_flow"] = f"{data_flow:.1f}"
+            file_bytes = os.path.getsize(source_path)  # read now: a move takes the source away
         except OSError:
-            pass # Ignore if file is inaccessible
+            file_bytes = 0
+        writes = 0
 
-        # Pass analytics with the update
         _verb = "Sorting" if known_encodings else "Analyzing"
         update_callback(progress, f"{_verb}: {os.path.basename(source_path)}", "running", analytics)
         
@@ -1230,7 +1241,8 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
             # Any remaining paths are for special folders. These are always 'copy' operations.
             for special_dest_path in dest_paths:
                 final_target = os.path.join(special_dest_path, original_subfolder) if sort_options.get('maintain_hierarchy') else special_dest_path
-                handle_file_op('copy', source_path, final_target, new_filename, date_obj)
+                if handle_file_op('copy', source_path, final_target, new_filename, date_obj):
+                    writes += 1
 
             # Now, perform the primary operation ('move' or 'copy') for the base sort path.
             if base_sort_path:
@@ -1240,6 +1252,7 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
                     if op == 'move':
                         operation_manifest.append({'source': source_path, 'destination': final_destination})
                     moved_count += 1
+                    writes += 1
                     op_msg = "Moved" if op == 'move' else "Copied"
                     update_callback(progress, f"{op_msg} '{os.path.basename(source_path)}' to '{final_destination}'", "running", analytics)
         else:
@@ -1252,6 +1265,7 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
                     if op == 'move':
                         operation_manifest.append({'source': source_path, 'destination': final_destination})
                     moved_count += 1
+                    writes += 1
                     op_msg = "Moved" if op == 'move' else "Copied"
                     update_callback(progress, f"{op_msg} '{os.path.basename(source_path)}' to '{final_destination}'", "running", analytics)
 
@@ -1282,12 +1296,13 @@ def _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, enc
                     if op == 'move':
                         break
 
+        meter.tick(1, file_bytes * writes)
+
     # Repeat the face summary at the end: by now the per-file messages have
     # scrolled it out of the log console, and it is the line that tells the user
     # whether No_Faces_Found is honest.
     if face_diagnostics:
-        update_callback(95, format_face_diagnostics(face_diagnostics), "running",
-                        {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"})
+        update_callback(95, format_face_diagnostics(face_diagnostics), "running")
 
     # Two distinct quantities: moved_count counts WRITES (a People sort fans one photo
     # out to every enrolled person in it), total_files counts SOURCE photos.
@@ -1406,11 +1421,7 @@ def process_photos(config, update_callback):
     root_logger.addHandler(log_handler)
     root_logger.setLevel(logging.INFO)
     
-    face_rec_mode = sort_options.get('face_mode', 'balanced')
-    quality_map = {"fast": "Fast", "balanced": "Balanced", "accurate": "High"}
-    quality_metric = quality_map.get(face_rec_mode, "N/A")
-    initial_analytics = {"quality": quality_metric, "scan_rate": "0.0", "data_flow": "0.0"}
-    update_callback(0, f"System prepared. Initiating '{operation_mode.capitalize()}' operation.", "running", initial_analytics)
+    update_callback(0, f"System prepared. Initiating '{operation_mode.capitalize()}' operation.", "running")
 
     reset_space_stats()
 
@@ -1429,7 +1440,7 @@ def process_photos(config, update_callback):
                 # --- SAFE PATH: Different drives ---
                 # This path is transactional and fully reversible on abort.
                 logging.warning("Source and destination are on different drives. Using safe copy-then-delete method.")
-                update_callback(1, "Verifying required disk space...", "running", initial_analytics)
+                update_callback(1, "Verifying required disk space...", "running")
                 
                 # Ignored subtrees are never copied, so they must not count toward size.
                 ignore_set = effective_ignore_set(source_dir, dest_dir, ignore_list)
@@ -1449,7 +1460,7 @@ def process_photos(config, update_callback):
                     logging.error(error_msg)
                     raise Exception(error_msg)
                 
-                update_callback(2, "Space check passed. Creating secure temporary workspace...", "running", initial_analytics)
+                update_callback(2, "Space check passed. Creating secure temporary workspace...", "running")
                 timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
                 temp_source_name = f"_Source_Copy_{timestamp}"
                 temp_source_path = os.path.join(os.path.dirname(dest_dir), temp_source_name)
@@ -1473,14 +1484,14 @@ def process_photos(config, update_callback):
                 # Work directly on the source folder. `shutil.move` will be a fast rename.
                 # Aborting here is not fully transactional, but it is safe (no data loss).
                 logging.info("Source and destination are on the same drive. Performing a fast and efficient move.")
-                update_callback(2, "Performing fast move on the same drive.", "running", initial_analytics)
+                update_callback(2, "Performing fast move on the same drive.", "running")
                 work_dir = source_dir
                 # Do NOT set the delete flag. The files are moved one by one.
                 delete_original_source_on_success = False
         
         # For 'copy' operation, work_dir remains source_dir.
 
-        update_callback(5, "Workspace secured. Commencing file processing...", "running", initial_analytics)
+        update_callback(5, "Workspace secured. Commencing file processing...", "running")
         
         moved_count, total_files = _core_processing_loop(work_dir, dest_dir, sort_options, update_callback, encodings_path, cancellation_event, operation_mode)
 
@@ -1492,7 +1503,7 @@ def process_photos(config, update_callback):
         # truth. (It used to run afterwards, and a failure there was only logged.)
         left, cleanup_error = 0, None
         if delete_original_source_on_success:
-            update_callback(99, "Finalizing move: removing the originals...", "running", initial_analytics)
+            update_callback(99, "Finalizing move: removing the originals...", "running")
             left, cleanup_error = _remove_copied_source(source_dir, ignore_set)
 
         completion_message = f"Process complete. {moved_count} files successfully {'moved' if operation_mode == 'move' else 'copied'} from {total_files} source photos."
@@ -1504,7 +1515,7 @@ def process_photos(config, update_callback):
         # flips status to "complete" — setting it after this call returns would leave a
         # window where a poller sees complete with files_written still 0.
         update_callback(100, completion_message, "complete",
-                        {**initial_analytics, "files_written": moved_count},
+                        {"files_written": moved_count},
                         hint=troubleshoot.hint(cleanup_error) if left else None)
         operation_successful = True
         return moved_count  # Return count so callers (scheduler daemon, API) can track it
@@ -1518,7 +1529,7 @@ def process_photos(config, update_callback):
     finally:
         # --- ABORT ROLLBACK LOGIC ---
         if rollback_manifest:
-            update_callback(99, "Aborted. Rolling back moved files...", "running", initial_analytics)
+            update_callback(99, "Aborted. Rolling back moved files...", "running")
             logging.info(f"Rollback initiated for {len(rollback_manifest)} files.")
             for op in reversed(rollback_manifest):
                 try:
