@@ -20,6 +20,7 @@ import os
 import json
 import logging
 import sqlite3
+from contextlib import contextmanager
 import hashlib
 import pickle
 import sys
@@ -240,10 +241,21 @@ class MetadataStore:
         conn.row_factory = sqlite3.Row
         return conn
 
+    @contextmanager
+    def _db(self):
+        """A connection that commits (or rolls back) and then CLOSES. `with sqlite3.connect()`
+        alone never closes, and on Windows an open handle keeps the file locked."""
+        conn = self._connect()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def _init_db(self):
         """Create tables, indexes, and set file permissions."""
         try:
-            with self._connect() as conn:
+            with self._db() as conn:
                 conn.executescript(_SCHEMA_SQL)
                 conn.commit()
             # Owner-only permissions
@@ -261,7 +273,7 @@ class MetadataStore:
                 return
 
             # Check if compaction is due (> 30 days since last run)
-            with self._connect() as conn:
+            with self._db() as conn:
                 row = conn.execute(
                     "SELECT ran_at FROM compaction_log ORDER BY id DESC LIMIT 1"
                 ).fetchone()
@@ -308,7 +320,7 @@ class MetadataStore:
             people_json = json.dumps(people or [])
             size_kb     = (file_size // 1024) if file_size else None
 
-            with self._connect() as conn:
+            with self._db() as conn:
                 conn.execute(
                     """
                     INSERT OR IGNORE INTO photo_metadata
@@ -344,7 +356,7 @@ class MetadataStore:
         Each cluster represents a potential album.
         """
         try:
-            with self._connect() as conn:
+            with self._db() as conn:
                 rows = conn.execute(
                     """
                     SELECT
@@ -399,7 +411,7 @@ class MetadataStore:
     def record_suggestion(self, suggestion_key: str, album_name: str) -> None:
         """Log a suggestion to prevent future repeats."""
         try:
-            with self._connect() as conn:
+            with self._db() as conn:
                 conn.execute(
                     "INSERT OR IGNORE INTO suggestion_history (suggestion_key, album_name) VALUES (?,?)",
                     (suggestion_key, album_name),
@@ -411,7 +423,7 @@ class MetadataStore:
     def mark_suggestion_accepted(self, suggestion_key: str) -> None:
         """Mark that the user actually created this album."""
         try:
-            with self._connect() as conn:
+            with self._db() as conn:
                 conn.execute(
                     "UPDATE suggestion_history SET accepted=1 WHERE suggestion_key=?",
                     (suggestion_key,),
@@ -423,7 +435,7 @@ class MetadataStore:
     def get_suggestion_history(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Return recent suggestion history for dedup filtering."""
         try:
-            with self._connect() as conn:
+            with self._db() as conn:
                 rows = conn.execute(
                     "SELECT suggestion_key, album_name, suggested_at, accepted "
                     "FROM suggestion_history ORDER BY suggested_at DESC LIMIT ?",
@@ -442,7 +454,7 @@ class MetadataStore:
             db_path = _get_db_path()
             size_mb = db_path.stat().st_size / (1024 * 1024) if db_path.exists() else 0
 
-            with self._connect() as conn:
+            with self._db() as conn:
                 photo_count = conn.execute(
                     "SELECT COUNT(*) FROM photo_metadata"
                 ).fetchone()[0]
@@ -500,7 +512,7 @@ class MetadataStore:
             if not stats:
                 return {}
 
-            with self._connect() as conn:
+            with self._db() as conn:
                 # Chunked to stay clear of SQLite's variable limit on huge folders.
                 items = list(stats.keys())
                 for start in range(0, len(items), 400):
@@ -548,7 +560,7 @@ class MetadataStore:
             return
         try:
             blob = pickle.dumps(result.get("encodings") or [], protocol=pickle.HIGHEST_PROTOCOL)
-            with self._connect() as conn:
+            with self._db() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO face_cache "
                     "(path, file_size, file_mtime, engine_version, status, pass_used, passes_run, encodings) "
@@ -564,7 +576,7 @@ class MetadataStore:
     def face_cache_clear(self) -> int:
         """Drop every cached encoding. Returns the number of rows removed."""
         try:
-            with self._connect() as conn:
+            with self._db() as conn:
                 count = conn.execute("SELECT COUNT(*) FROM face_cache").fetchone()[0]
                 conn.execute("DELETE FROM face_cache")
                 conn.commit()
@@ -584,7 +596,7 @@ class MetadataStore:
                 pass
         found = {}
         try:
-            with self._connect() as conn:
+            with self._db() as conn:
                 keys = list(stats)
                 for i in range(0, len(keys), 500):    # stay under SQLite's variable limit
                     chunk = keys[i:i + 500]
@@ -608,7 +620,7 @@ class MetadataStore:
         if not rows:
             return
         try:
-            with self._connect() as conn:
+            with self._db() as conn:
                 conn.executemany(
                     "INSERT OR REPLACE INTO phash_cache VALUES (?,?,?,?,?,?)",
                     [(p, s, m, h - (1 << 64) if h >= (1 << 63) else h, w, ht)
@@ -629,7 +641,7 @@ class MetadataStore:
         - Logs the operation
         """
         try:
-            with self._connect() as conn:
+            with self._db() as conn:
                 # Step 1: Anonymize paths in old records (keep clustering data)
                 conn.execute(
                     """
@@ -663,7 +675,7 @@ class MetadataStore:
                 conn.commit()
 
             # Step 4: VACUUM outside transaction to reclaim space
-            with self._connect() as conn:
+            with self._db() as conn:
                 conn.execute("VACUUM")
 
             _log.info(f"Compaction complete: {rows_deleted} rows deleted (threshold: {months_threshold} months)")
@@ -685,7 +697,7 @@ class MetadataStore:
         (to preserve WAL mode settings).
         """
         try:
-            with self._connect() as conn:
+            with self._db() as conn:
                 photo_count = conn.execute(
                     "SELECT COUNT(*) FROM photo_metadata"
                 ).fetchone()[0]
@@ -695,7 +707,7 @@ class MetadataStore:
                 conn.execute("DELETE FROM phash_cache")
                 conn.commit()
 
-            with self._connect() as conn:
+            with self._db() as conn:
                 conn.execute("VACUUM")
 
             _log.info(f"Privacy purge complete: {photo_count} photo records deleted")
@@ -711,7 +723,7 @@ class MetadataStore:
     def purge_persona(self) -> Dict[str, Any]:
         """Wipe ONLY the persona/survey data."""
         try:
-            with self._connect() as conn:
+            with self._db() as conn:
                 count = conn.execute("SELECT COUNT(*) FROM user_persona").fetchone()[0]
                 conn.execute("DELETE FROM user_persona")
                 conn.commit()

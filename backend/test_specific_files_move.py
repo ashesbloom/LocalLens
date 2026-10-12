@@ -6,6 +6,7 @@ copy-everything-then-delete-the-source path.
 Plain asserts. Run:  python test_specific_files_move.py
 """
 import os
+import sys
 import tempfile
 from unittest import mock
 
@@ -36,11 +37,17 @@ def demo():
         os.makedirs(os.path.join(src, "locked"))
         for p in ("a.jpg", "locked/b.jpg"):
             open(os.path.join(src, p), "w").close()
-        os.chmod(os.path.join(src, "locked"), 0o555)
+        # Windows ignores directory permission bits; an open handle is how a file gets locked there.
+        held = open(os.path.join(src, "locked/b.jpg")) if sys.platform == "win32" else None
+        if held is None:
+            os.chmod(os.path.join(src, "locked"), 0o555)
         try:
             left, err = ol._remove_copied_source(src, set())
         finally:
-            os.chmod(os.path.join(src, "locked"), 0o755)
+            if held:
+                held.close()
+            else:
+                os.chmod(os.path.join(src, "locked"), 0o755)
         assert left == 1 and isinstance(err, PermissionError), (left, err)
         assert not os.path.exists(os.path.join(src, "a.jpg")), "the deletable file still goes"
         assert ol.troubleshoot.hint(err)
