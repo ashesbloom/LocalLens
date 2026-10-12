@@ -16,7 +16,7 @@ import tempfile
 import numpy as np
 from PIL import Image
 
-from main import _phash, _group_by_hash
+from main import _phash, _group_by_hash, _keeper_rank
 
 # Matches the default similarity_threshold of 0.95 in FindDuplicatesRequest.
 MAX_DISTANCE = int(64 * (1.0 - 0.95))
@@ -109,6 +109,32 @@ def demo():
             f"EXIF-rotated copy did not match its upright twin (distance {d_exif}) — "
             "is _phash still decoding via load_upright?"
         )
+
+    # --- keeper ranking: the best copy of a group sorts first ---
+    def info(w, h, size, mtime):
+        return {"width": w, "height": h, "bytes": size, "mtime": mtime}
+
+    def best(*candidates):
+        return min(candidates, key=lambda c: _keeper_rank(*c))[0]
+
+    # Resolution beats file size and age: a big re-compressed original still wins
+    # over a small export that happens to be heavier and older.
+    assert best(("/p/export.jpg", info(1200, 900, 9_000_000, 100)),
+                ("/p/original.jpg", info(4000, 3000, 3_000_000, 200))) == "/p/original.jpg"
+    # Same pixels: the larger file is the less compressed one.
+    assert best(("/p/a.jpg", info(100, 100, 500, 100)),
+                ("/p/b.jpg", info(100, 100, 900, 200))) == "/p/b.jpg"
+    # Same pixels and bytes: a Finder/Explorer copy name loses even when older.
+    assert best(("/p/IMG_1 copy.jpg", info(100, 100, 500, 1)),
+                ("/p/IMG_1 (2).jpg", info(100, 100, 500, 1)),
+                ("/p/IMG_1 copy 3.JPG", info(100, 100, 500, 1)),
+                ("/p/IMG_1.jpg", info(100, 100, 500, 300))) == "/p/IMG_1.jpg"
+    # "copy" inside a real name is not a copy marker.
+    assert best(("/p/copycat.jpg", info(100, 100, 500, 1)),
+                ("/p/zebra.jpg", info(100, 100, 500, 2))) == "/p/copycat.jpg"
+    # Everything else equal: the older file is the original.
+    assert best(("/p/x.jpg", info(100, 100, 500, 200)),
+                ("/p/y.jpg", info(100, 100, 500, 100))) == "/p/y.jpg"
 
     print("test_phash: all assertions passed")
 

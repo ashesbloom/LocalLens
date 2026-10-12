@@ -23,6 +23,7 @@ except ImportError:
 import os
 import asyncio
 import json
+import re
 import sys
 import subprocess
 import shutil
@@ -308,6 +309,7 @@ current_job_state = {
     # 15k-photo archive outlives any sane HTTP timeout; per the note above, the
     # fields survive completion so a caller can still read them afterwards.
     "duplicate_groups": [],     # [[keeper, dupe, ...], ...] — first entry is the keeper
+    "duplicate_files": {},      # {path: {width, height, bytes, mtime}} for grouped files only
     "total_scanned": 0,         # Files successfully hashed (excludes skipped)
     "total_duplicates": 0,      # Files across all groups, keepers included
     "skipped": 0,               # Files nothing on this platform could decode
@@ -317,6 +319,7 @@ current_job_state = {
 # into a later job of any type, for the same reason files_written is zeroed.
 _DUP_RESULT_RESET = {
     "duplicate_groups": [],
+    "duplicate_files": {},
     "total_scanned": 0,
     "total_duplicates": 0,
     "skipped": 0,
@@ -544,14 +547,41 @@ def _phash(path: str):
         exported copy) is one of the most common duplicates a library contains.
     """
     im = load_upright(path)
-    if im is None:
-        return None
+    return None if im is None else _phash_of(im)
+
+
+def _phash_of(im):
+    """pHash of an image already decoded upright. Split out so the duplicate scan
+    can hash and read the pixel size from a single decode."""
     px = np.asarray(
         im.convert("L").resize((_PH_N, _PH_N), PILImage.Resampling.LANCZOS),
         dtype=np.float64,
     )
     low = (_DCT @ px @ _DCT.T)[:_PH_HASH_SIZE, :_PH_HASH_SIZE]
     return np.packbits(low > np.median(low)).view(">u8")[0]
+
+
+# The names Finder ("IMG_1 copy", "IMG_1 copy 2") and Explorer ("IMG_1 (1)") give
+# a duplicated file. Anchored to the end of the stem so "copycat.jpg" is not one.
+_COPY_NAME = re.compile(r"( copy( \d+)?| \(\d+\))$", re.IGNORECASE)
+
+
+def _keeper_rank(path: str, info: Dict):
+    """
+    Sort key for a duplicate group: the copy worth keeping sorts first.
+
+    Most pixels, then most bytes (same resolution, less compression), then a name
+    that is not a copy, then the older file — the original usually came first.
+    The path is last only to make ties deterministic.
+    """
+    stem = os.path.splitext(os.path.basename(path))[0]
+    return (
+        -(info["width"] * info["height"]),
+        -info["bytes"],
+        bool(_COPY_NAME.search(stem)),
+        info["mtime"],
+        path,
+    )
 
 
 def _group_by_hash(file_hashes: List, max_distance: int) -> List[List[str]]:
@@ -820,6 +850,7 @@ async def run_find_duplicates_task(config: Dict):
     def scan():
         """Blocking hash + group pass. Runs off the event loop (see to_thread below)."""
         file_hashes = []
+        file_info = {}
         skipped = 0
         # Progress is reported per batch, not per file: at 15k files a callback each
         # time would put 15k JSON messages through the log queue for no added detail.
@@ -829,7 +860,12 @@ async def run_find_duplicates_task(config: Dict):
             if cancellation_events["duplicates"].is_set():
                 raise OperationAbortedError("Duplicate scan aborted by user.")
             try:
-                h = _phash(fp)
+                im = load_upright(fp)
+                h = None if im is None else _phash_of(im)
+                if h is not None:
+                    st = os.stat(fp)
+                    file_info[fp] = {"width": im.width, "height": im.height,
+                                     "bytes": st.st_size, "mtime": st.st_mtime}
             except Exception:
                 h = None  # Corrupt or unreadable image
             if h is None:
@@ -850,7 +886,13 @@ async def run_find_duplicates_task(config: Dict):
             "message": f"Comparing {len(file_hashes)} hashes...",
             "status": "running",
         })
-        return _group_by_hash(file_hashes, max_distance), len(file_hashes), skipped
+        groups = [
+            sorted(g, key=lambda p: _keeper_rank(p, file_info[p]))
+            for g in _group_by_hash(file_hashes, max_distance)
+        ]
+        # Only grouped files go out: this rides on every /api/job-status poll.
+        grouped_info = {p: file_info[p] for g in groups for p in g}
+        return groups, grouped_info, len(file_hashes), skipped
 
     try:
         if not image_files:
@@ -864,7 +906,7 @@ async def run_find_duplicates_task(config: Dict):
 
         # to_thread is required, not stylistic: callers poll /api/job-status once a
         # second while they wait, and a blocking loop here would starve those polls.
-        groups, scanned, skipped = await asyncio.to_thread(scan)
+        groups, grouped_info, scanned, skipped = await asyncio.to_thread(scan)
 
         # Results must be in place BEFORE the update that flips status to "complete" —
         # a poller reads the whole state dict on the poll that sees the terminal status,
@@ -873,6 +915,7 @@ async def run_find_duplicates_task(config: Dict):
         total_dupes = sum(len(g) for g in groups)
         current_job_state.update({
             "duplicate_groups": groups,
+            "duplicate_files": grouped_info,
             "total_scanned": scanned,
             "total_duplicates": total_dupes,
             "skipped": skipped,

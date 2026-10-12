@@ -331,6 +331,12 @@ def check_find_duplicates(base_url, source, original, duplicate):
     group = groups[0]
     assert str(original) in group and str(duplicate) in group, \
         f"byte-identical pair not both present in the group: {group}"
+    files = result.get("duplicate_files", {})
+    assert set(files) == set(group), f"duplicate_files does not cover the group: {sorted(files)}"
+    assert all({"width", "height", "bytes", "mtime"} <= set(v) for v in files.values()), files
+    # img_2.jpg and img_2_copy.jpg tie on pixels and bytes; the copy was written later,
+    # and even on a coarse-mtime filesystem the path tiebreak still puts img_2 first.
+    assert group[0] == str(original), f"keeper should be the original, got {group[0]}"
     return group, f"complete, 1 group containing the byte-identical pair"
 
 
