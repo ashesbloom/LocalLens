@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+
+- **Find and clear out duplicate photos, right in the app.** A new Duplicates tab scans a folder for copies of the same photo, including resized, re-exported and rotated copies and, if you choose, burst shots. Review each group side by side: Local Lens pre-selects the best copy (highest resolution, then least compressed, then the original over a "copy"), and you can pick another or keep them all. A short list opens one group at a time; a long one opens as a list you can skim. Everything you remove goes to the Trash. Free for everyone.
+- When the Claude agent cleans up duplicates, it now keeps the best copy too, rather than whichever file it found first.
 
 ## [3.1.0] - 2026-09-13
 ### Added
