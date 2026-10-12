@@ -25,6 +25,19 @@ def demo():
         os.makedirs(src); os.makedirs(dst)
         for n in ("a.jpg", "b.jpg", "skip.jpg"):
             open(os.path.join(src, n), "w").write(n)
+        # The endpoint only imports what the last comparison found new.
+        main.current_job_state.update({
+            "job_type": "duplicates", "source_folder": src, "library_folder": dst,
+            "new_files": [os.path.join(src, n) for n in ("a.jpg", "b.jpg")],
+        })
+        r = run(source_folder=src, destination_folder=dst, operation_mode="copy",
+                files=[os.path.join(src, "skip.jpg")])
+        assert r["imported"] == 0 and len(r["failed"]) == 1, "a file the comparison didn't list is refused"
+        try:
+            run(source_folder=src, destination_folder=d, operation_mode="copy", files=[os.path.join(src, "a.jpg")])
+            raise AssertionError("import into a folder other than the compared one accepted")
+        except HTTPException as e:
+            assert e.status_code in (400, 403), e
         os.makedirs(os.path.join(dst, "test"))
         open(os.path.join(dst, "test", "a.jpg"), "w").write("already here")
 
@@ -53,7 +66,7 @@ def demo():
                 run(source_folder=src, destination_folder=bad, operation_mode="copy", files=[os.path.join(src, "a.jpg")])
                 raise AssertionError(f"bad destination accepted: {bad}")
             except HTTPException as e:
-                assert e.status_code == 400
+                assert e.status_code in (400, 403)
     print("test_import_files: all assertions passed")
 
 

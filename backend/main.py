@@ -1335,6 +1335,15 @@ async def import_files_endpoint(request: ImportFilesRequest):
         raise HTTPException(status_code=400, detail="Source or destination is not a valid directory.")
     if current_job_state.get("is_active"):
         raise HTTPException(status_code=409, detail="Another job is running. Try again when it finishes.")
+    # Bound to the last folder comparison, like /api/thumbnail is to the last scan:
+    # this moves files, so it must not work as a general copy/move-anything API.
+    # It takes only that scan's new files, from its source into its compare folder.
+    s = current_job_state
+    if (s.get("job_type") != "duplicates" or not s.get("library_folder")
+            or os.path.normpath(s.get("source_folder") or "") != source
+            or os.path.normpath(s["library_folder"]) != dest):
+        raise HTTPException(status_code=403, detail="Only the photos from the last folder comparison can be imported. Compare again.")
+    allowed = set(s.get("new_files") or [])
     move = request.operation_mode == "move"
     target = os.path.join(dest, os.path.basename(source) or "Imported")
     if _overlaps(source, dest):
@@ -1342,13 +1351,15 @@ async def import_files_endpoint(request: ImportFilesRequest):
     real_source = os.path.realpath(source)
 
     def work():
-        os.makedirs(target, exist_ok=True)
         imported, failed = 0, []
         for fp in request.files:
             try:
+                if fp not in allowed:
+                    raise ValueError("not one of the new photos from the last comparison")
                 real = os.path.realpath(fp)
                 if os.path.commonpath([real, real_source]) != real_source or not os.path.isfile(real):
                     raise ValueError("not a file in the source folder")
+                os.makedirs(target, exist_ok=True)  # only once something is imported
                 out = _unique_path(os.path.join(target, os.path.basename(fp)))
                 shutil.move(fp, out) if move else shutil.copy2(fp, out)
                 imported += 1
