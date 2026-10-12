@@ -1,0 +1,9 @@
+/* --- Duplicates config --- */
+.dup-strictness {
+  grid-template-columns: repeat(3, 1fr);
+  min-height: 0;
+}
+
+@media (max-width: 760px) {
+  .dup-strictness { grid-template-columns: 1fr; }
+}

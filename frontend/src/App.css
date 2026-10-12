@@ -55,6 +55,16 @@ body, .theme-standard {
   --color-shadow-primary: rgba(220, 38, 38, 0.4);
 }
 
+/* Theme: Duplicates (Violet). No danger-colour overrides needed, unlike red. */
+.theme-duplicates {
+  --color-primary: #8b5cf6;
+  --color-primary-hover: #7c3aed;
+  --color-primary-rgb: 139, 92, 246;
+  --color-secondary: #c084fc;
+  --color-gradient: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  --color-shadow-primary: rgba(139, 92, 246, 0.4);
+}
+
 /* --- NEW: Color Conflict Resolution for Themes --- */
 /* Red Theme */
 .theme-find .btn-exit:hover {

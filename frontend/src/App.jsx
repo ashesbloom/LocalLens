@@ -16,6 +16,8 @@ import HierarchyToggle from './components/HierarchyToggle';
 import SortingModeSelector from './components/SortingModeSelector';
 import HybridSortConfig from './components/HybridSortConfig'; 
 import FindGroupConfig from './components/FindGroupConfig'; 
+import DuplicateConfig from './components/DuplicateConfig';
+import { STRICTNESS } from './components/duplicateReview';
 import EnrolledFacesModal from './components/EnrolledFacesModal';
 import FaceEnrollmentModal from './components/FaceEnrollmentModal';
 import FindGroupResultModal from './components/FindGroupResultModal';
@@ -517,6 +519,11 @@ function App() {
         locations: [],
         people: []
     });
+
+    // --- State for Duplicates ---
+    const [dupStrictness, setDupStrictness] = useState('near');
+    // Last scan's result, held here so the review can be reopened after closing it.
+    const [dupResult, setDupResult] = useState(null);
 
     // --- NEW State for Enrollment ---
     const [isEnrolled, setIsEnrolled] = useState(false);
@@ -1091,7 +1098,7 @@ function App() {
                 if (data.status === 'aborted') {
                     completionMsg = "Operation Aborted";
                 } else if (data.status === 'complete') {
-                    completionMsg = isEnrolling ? "Enrollment Complete" : "Organization Complete";
+                    completionMsg = isEnrolling ? "Enrollment Complete" : operationMode === 'duplicates' ? "Scan Complete" : "Organization Complete";
                 } else if (data.status === 'error') {
                     completionMsg = "Operation Failed";
                 }
@@ -1125,6 +1132,16 @@ function App() {
                             foundCount,
                             folderName,
                         });
+                    }
+
+                    if (operationMode === 'duplicates' && data.status === 'complete' && !isEnrolling) {
+                        apiCall('/api/job-status')
+                            .then((s) => setDupResult({
+                                groups: s.duplicate_groups || [],
+                                files: s.duplicate_files || {},
+                                strictness: dupStrictness,
+                            }))
+                            .catch(() => {});
                     }
                 }, 800); // 800ms delay for visual confirmation
 
@@ -1346,8 +1363,12 @@ function App() {
 
     // THIS FUNCTION IS MODIFIED TO HANDLE ALL MODES
     const handleStartSorting = async () => {
-        if (!sourceFolder || !destinationFolder) {
-            await message('Please select both source and destination folders.', { title: 'Missing Information', kind: 'warning' });
+        const needsDestination = operationMode !== 'duplicates';
+        if (!sourceFolder || (needsDestination && !destinationFolder)) {
+            await message(
+                needsDestination ? 'Please select both source and destination folders.' : 'Please select a source folder to scan.',
+                { title: 'Missing Information', kind: 'warning' }
+            );
             return;
         }
 
@@ -1355,6 +1376,7 @@ function App() {
 
         setLogs([]);
         setIsProcessing(true);
+        setDupResult(null); // any job clears the backend's scan result, so drop ours too
         logToConsole("Establishing connection to backend for real-time logging...");
 
         setupLogStream();
@@ -1421,13 +1443,30 @@ function App() {
                 ignore_list: ignoredSubfolders,
                 operation_mode: fileOperationMode, // <-- ADD THIS
             };
+        } else if (operationMode === 'duplicates') {
+            endpoint = '/api/find-duplicates';
+            payload = {
+                source_folder: sourceFolder,
+                ignore_list: ignoredSubfolders,
+                similarity_threshold: STRICTNESS[dupStrictness],
+            };
         }
 
         apiCall(endpoint, {
             method: 'POST',
             body: JSON.stringify(payload),
         })
-            .then(() => logToConsole("Job accepted by backend. Awaiting process start..."))
+            .then((r) => {
+                // find-duplicates reports a running job as a 200, not an error.
+                if (r?.status === 'busy') {
+                    logToConsole(r.message, 'warning');
+                    setIsProcessing(false);
+                    if (eventSourceRef.current) eventSourceRef.current.close();
+                    eventSourceRef.current = null;
+                    return;
+                }
+                logToConsole("Job accepted by backend. Awaiting process start...");
+            })
             .catch(() => {
                 setIsProcessing(false);
                 if (eventSourceRef.current) eventSourceRef.current.close();
@@ -1636,12 +1675,14 @@ function App() {
         standard: 'theme-standard',
         hybrid: 'theme-hybrid',
         find: 'theme-find',
+        duplicates: 'theme-duplicates',
     }[operationMode];
 
     const getOperationName = () => {
         switch (operationMode) {
             case 'hybrid': return 'Start Hybrid Sort';
             case 'find': return 'Start Find & Group';
+            case 'duplicates': return 'Find Duplicates';
             default: return 'Start Organizing';
         }
     };
@@ -1831,12 +1872,14 @@ function App() {
                                 handleSelectFolder={() => handleBrowseFolder('source')}
                                 data-tutorial-target="source-selector"
                             />
-                            <PathSelector
-                                label="Destination Folder"
-                                path={destinationFolder}
-                                handleSelectFolder={() => handleBrowseFolder('destination')}
-                                data-tutorial-target="destination-selector"
-                            />
+                            {operationMode !== 'duplicates' && (
+                                <PathSelector
+                                    label="Destination Folder"
+                                    path={destinationFolder}
+                                    handleSelectFolder={() => handleBrowseFolder('destination')}
+                                    data-tutorial-target="destination-selector"
+                                />
+                            )}
                             <PresetManager
                                 presets={presets}
                                 selectedPreset={selectedPreset}
@@ -1848,7 +1891,7 @@ function App() {
                             />
                         </div>
                         {/* --- ADD THIS COMPONENT --- */}
-                        {operationMode !== 'find' && (
+                        {operationMode !== 'find' && operationMode !== 'duplicates' && (
                             <OperationModeToggle
                                 operationMode={fileOperationMode}
                                 setOperationMode={setFileOperationMode}
@@ -1924,7 +1967,7 @@ function App() {
                     />
                 )}
 
-                {operationMode !== 'find' && (
+                {operationMode !== 'find' && operationMode !== 'duplicates' && (
                     <HierarchyToggle
                         maintainHierarchy={effectiveMaintainHierarchy}
                         setMaintainHierarchy={setEffectiveMaintainHierarchy}
@@ -1977,6 +2020,15 @@ function App() {
                            />
                         </div>
                     )}
+                    {operationMode === 'duplicates' && (
+                        <div className="mode-content">
+                            <DuplicateConfig
+                                strictness={dupStrictness}
+                                setStrictness={setDupStrictness}
+                                isProcessing={isProcessing || isEnrolling}
+                            />
+                        </div>
+                    )}
                 </div>
 
 
@@ -2005,9 +2057,11 @@ function App() {
                     ] : logs} />
                     <div className="footer-actions">
                         {!isProcessing && <button onClick={resetUi} className="btn btn-danger">Start Over</button>}
-                        <button onClick={handleOpenDestination} className="btn btn-secondary" data-tutorial-target="open-destination-btn">
-                            Open "{getFolderName(destinationFolder) || 'Destination'}"
-                        </button>
+                        {operationMode !== 'duplicates' && (
+                            <button onClick={handleOpenDestination} className="btn btn-secondary" data-tutorial-target="open-destination-btn">
+                                Open "{getFolderName(destinationFolder) || 'Destination'}"
+                            </button>
+                        )}
                     </div>
                 </footer>
             )}

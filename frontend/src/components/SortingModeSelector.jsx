@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sliders, Search, Trello, UserPlus } from 'react-feather';
+import { Sliders, Search, Trello, UserPlus, Copy } from 'react-feather';
 
 const SortingModeSelector = ({ operationMode, setOperationMode, onEnrollClick }) => {
   const modes = [
@@ -20,6 +20,12 @@ const SortingModeSelector = ({ operationMode, setOperationMode, onEnrollClick })
       title: 'Find & Group',
       description: 'Copy photos that match complex criteria into a new folder.',
       icon: <Search size={18} />,
+    },
+    {
+      key: 'duplicates',
+      title: 'Duplicates',
+      description: 'Find copies of the same photo and clear out the extras.',
+      icon: <Copy size={18} />,
     },
   ];
 
