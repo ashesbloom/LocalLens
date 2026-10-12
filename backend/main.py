@@ -311,7 +311,9 @@ current_job_state = {
     # fields survive completion so a caller can still read them afterwards.
     "duplicate_groups": [],     # [[keeper, dupe, ...], ...] — first entry is the keeper
     "duplicate_files": {},      # {path: {width, height, bytes, mtime}} for grouped files only
-    "total_scanned": 0,         # Files successfully hashed (excludes skipped)
+    "library_folder": None,     # Compare mode only: the library the source was checked against
+    "new_files": [],            # Compare mode only: source files found in no library group
+    "total_scanned": 0,        # Files successfully hashed (excludes skipped)
     "total_duplicates": 0,      # Files across all groups, keepers included
     "skipped": 0,               # Files nothing on this platform could decode
 }
@@ -321,6 +323,8 @@ current_job_state = {
 _DUP_RESULT_RESET = {
     "duplicate_groups": [],
     "duplicate_files": {},
+    "library_folder": None,
+    "new_files": [],
     "total_scanned": 0,
     "total_duplicates": 0,
     "skipped": 0,
@@ -808,27 +812,33 @@ async def run_find_group_task(config: Dict):
         print(f"BACKGROUND TASK ERROR: {e}")
 
 
-async def run_find_duplicates_task(config: Dict):
+def _phash_store():
+    """The fingerprint cache, or None. A function so tests can swap in a temp store."""
+    try:
+        from metadata_store import metadata_store
+        return metadata_store
+    except Exception:
+        return None
+
+
+def _overlaps(a: str, b: str) -> bool:
+    """Same folder, or one inside the other (case-insensitive where the OS is)."""
+    ra, rb = (os.path.normcase(os.path.realpath(p)) for p in (a, b))
+    try:
+        return os.path.commonpath([ra, rb]) in (ra, rb)
+    except ValueError:  # different drives on Windows
+        return False
+
+
+def _collect_images(root: str, ignore_set: set, seen_inodes: set) -> List[str]:
     """
-    Duplicate scan, wrapped to run in the background.
-
-    This is a background job rather than an inline response because hashing has to
-    decode every file: at 15k photos that is 5-15 minutes, far past any HTTP client's
-    timeout. Results land in current_job_state and are served by /api/job-status.
+    Supported images under root. A symlink or hard link is the same file under
+    another name, not a duplicate of it: grouping them would let the ranking trash
+    the real file and "keep" a link that then dangles, so links are skipped and each
+    inode is collected once (seen_inodes is shared across trees on purpose).
     """
-    global current_job_state
-    cancellation_events["duplicates"].clear()
-
-    source_folder = config["source_folder"]
-    ignore_list = config.get("ignore_list") or []
-    max_distance = config["max_distance"]
-
-    # A symlink or hard link is the same file under another name, not a duplicate of
-    # it. Grouping them would let the ranking trash the real file and "keep" a link
-    # that then dangles, so links are skipped and each inode is scanned once.
-    image_files = []
-    seen_inodes = set()
-    for dirpath, _, filenames in walk_ignoring(source_folder, set(ignore_list)):
+    out = []
+    for dirpath, _, filenames in walk_ignoring(root, ignore_set):
         for f in filenames:
             if not f.lower().endswith(SUPPORTED_EXTENSIONS):
                 continue
@@ -845,13 +855,38 @@ async def run_find_duplicates_task(config: Dict):
                 if (st.st_dev, st.st_ino) in seen_inodes:
                     continue
                 seen_inodes.add((st.st_dev, st.st_ino))
-            image_files.append(fp)
+            out.append(fp)
+    return out
+
+
+async def run_find_duplicates_task(config: Dict):
+    """
+    Duplicate scan, wrapped to run in the background.
+
+    This is a background job rather than an inline response because hashing has to
+    decode every file: at 15k photos that is 5-15 minutes, far past any HTTP client's
+    timeout. Results land in current_job_state and are served by /api/job-status.
+    """
+    global current_job_state
+    cancellation_events["duplicates"].clear()
+
+    source_folder = config["source_folder"]
+    ignore_list = config.get("ignore_list") or []
+    max_distance = config["max_distance"]
+
+    library_folder = config.get("library_folder")
+    seen_inodes = set()
+    image_files = _collect_images(source_folder, set(ignore_list), seen_inodes)
+    library_files = _collect_images(library_folder, set(), seen_inodes) if library_folder else []
+    in_library = set(library_files)
+    # Library first, so library photos seed the groups they belong to.
+    all_files = library_files + image_files
 
     current_job_state.update({
         "is_active": True,
         "status": "running",
         "progress": 0,
-        "message": f"Hashing {len(image_files)} photos...",
+        "message": f"Hashing {len(all_files)} photos...",
         # Job identity
         "job_type": "duplicates",
         "operation_mode": None,     # read-only scan; nothing is written or moved
@@ -865,30 +900,40 @@ async def run_find_duplicates_task(config: Dict):
         "filters_applied": None,
         # File scope
         "ignore_list": ignore_list,
-        "total_files": len(image_files),
+        "total_files": len(all_files),
         "files_written": 0,
         **_DUP_RESULT_RESET,
+        "library_folder": library_folder,
     })
 
     def scan():
         """Blocking hash + group pass. Runs off the event loop (see to_thread below)."""
+        store = _phash_store()
+        cached = store.phash_cache_get_many(all_files) if store else {}
+        fresh = []
         file_hashes = []
         file_info = {}
         skipped = 0
         # Progress is reported per batch, not per file: at 15k files a callback each
         # time would put 15k JSON messages through the log queue for no added detail.
-        step = max(1, len(image_files) // 100)
+        step = max(1, len(all_files) // 100)
 
-        for idx, fp in enumerate(image_files):
+        for idx, fp in enumerate(all_files):
             if cancellation_events["duplicates"].is_set():
                 raise OperationAbortedError("Duplicate scan aborted by user.")
             try:
-                im = load_upright(fp)
-                h = None if im is None else _phash_of(im)
+                st = os.stat(fp)
+                hit = cached.get(fp)
+                if hit:
+                    h, w, ht = np.uint64(hit["phash"]), hit["width"], hit["height"]
+                else:
+                    im = load_upright(fp)
+                    h = None if im is None else _phash_of(im)
+                    if h is not None:
+                        w, ht = im.width, im.height
+                        fresh.append((fp, st.st_size, st.st_mtime, int(h), w, ht))
                 if h is not None:
-                    st = os.stat(fp)
-                    file_info[fp] = {"width": im.width, "height": im.height,
-                                     "bytes": st.st_size, "mtime": st.st_mtime}
+                    file_info[fp] = {"width": w, "height": ht, "bytes": st.st_size, "mtime": st.st_mtime}
             except Exception:
                 h = None  # Corrupt or unreadable image
             if h is None:
@@ -898,27 +943,38 @@ async def run_find_duplicates_task(config: Dict):
 
             if idx % step == 0:
                 # Hashing owns 0-90%; grouping is comparatively instant.
+                which = "library" if fp in in_library else "source"
                 update_status_callback({
-                    "progress": int(90 * idx / len(image_files)),
-                    "message": f"Hashing photos... {idx}/{len(image_files)}",
+                    "progress": int(90 * idx / len(all_files)),
+                    "message": f"Hashing {which} photos... {idx}/{len(all_files)}",
                     "status": "running",
                 })
 
+        if store:
+            store.phash_cache_put_many(fresh)
         update_status_callback({
             "progress": 90,
             "message": f"Comparing {len(file_hashes)} hashes...",
             "status": "running",
         })
+        # Library copies first (so the keeper is always one), each side ranked best-first.
         groups = [
-            sorted(g, key=lambda p: _keeper_rank(p, file_info[p]))
+            sorted(g, key=lambda p: (p not in in_library, _keeper_rank(p, file_info[p])))
             for g in _group_by_hash(file_hashes, max_distance)
         ]
+        if library_folder:
+            # Only "already in the library" matters here: library-internal and
+            # source-internal duplicates are the plain scan's job.
+            groups = [g for g in groups
+                      if any(p in in_library for p in g) and any(p not in in_library for p in g)]
+        grouped = {p for g in groups for p in g}
         # Only grouped files go out: this rides on every /api/job-status poll.
-        grouped_info = {p: file_info[p] for g in groups for p in g}
-        return groups, grouped_info, len(file_hashes), skipped
+        grouped_info = {p: {**file_info[p], "in_library": p in in_library} for p in grouped}
+        new_files = [p for p in image_files if p not in grouped] if library_folder else []
+        return groups, grouped_info, new_files, len(file_hashes), skipped
 
     try:
-        if not image_files:
+        if not all_files:
             current_job_state.update({"total_scanned": 0, "total_duplicates": 0, "skipped": 0})
             update_status_callback({
                 "progress": 100,
@@ -929,7 +985,7 @@ async def run_find_duplicates_task(config: Dict):
 
         # to_thread is required, not stylistic: callers poll /api/job-status once a
         # second while they wait, and a blocking loop here would starve those polls.
-        groups, grouped_info, scanned, skipped = await asyncio.to_thread(scan)
+        groups, grouped_info, new_files, scanned, skipped = await asyncio.to_thread(scan)
 
         # Results must be in place BEFORE the update that flips status to "complete" —
         # a poller reads the whole state dict on the poll that sees the terminal status,
@@ -939,11 +995,17 @@ async def run_find_duplicates_task(config: Dict):
         current_job_state.update({
             "duplicate_groups": groups,
             "duplicate_files": grouped_info,
+            "new_files": new_files,
             "total_scanned": scanned,
             "total_duplicates": total_dupes,
             "skipped": skipped,
         })
-        summary = f"Scan complete. Found {total_dupes} duplicate files in {len(groups)} group(s)."
+        if library_folder:
+            in_lib = sum(1 for g in groups for p in g if p not in in_library)
+            summary = (f"Comparison complete. {in_lib} of {len(image_files)} photos are already "
+                       f"in your library; {len(new_files)} are new.")
+        else:
+            summary = f"Scan complete. Found {total_dupes} duplicate files in {len(groups)} group(s)."
         if skipped:
             summary += f" {skipped} file(s) could not be read."
         update_status_callback({"progress": 100, "message": summary, "status": "complete"})
@@ -1329,6 +1391,7 @@ class FindDuplicatesRequest(BaseModel):
     source_folder: str
     ignore_list: Optional[List[str]] = []
     similarity_threshold: Optional[float] = 0.95
+    library_folder: Optional[str] = None
 
 @app.post("/api/find-duplicates")
 async def find_duplicates_endpoint(request: FindDuplicatesRequest, background_tasks: BackgroundTasks):
@@ -1352,6 +1415,14 @@ async def find_duplicates_endpoint(request: FindDuplicatesRequest, background_ta
     source_folder = os.path.normpath(os.path.expanduser(request.source_folder)) if request.source_folder else ""
     if not source_folder or not os.path.isdir(source_folder):
         raise HTTPException(status_code=400, detail="Source path is not a valid directory.")
+    library_folder = os.path.normpath(os.path.expanduser(request.library_folder)) if request.library_folder else None
+    if library_folder:
+        if not os.path.isdir(library_folder):
+            raise HTTPException(status_code=400, detail="Library path is not a valid directory.")
+        if _overlaps(source_folder, library_folder):
+            raise HTTPException(status_code=400, detail=(
+                "The library and the folder to check overlap. Pick a library that is "
+                "neither the same folder nor inside it, or the other way round."))
 
     if current_job_state.get("is_active"):
         return {
@@ -1392,11 +1463,13 @@ async def find_duplicates_endpoint(request: FindDuplicatesRequest, background_ta
         "source_folder": source_folder,
         "ignore_list": request.ignore_list or [],
         "max_distance": max_distance,
+        "library_folder": library_folder,
     })
     return {
         "status": "started",
         "job_type": "duplicates",
         "source_folder": source_folder,
+        "library_folder": library_folder,
         "similarity_threshold": threshold,
         "message": "Duplicate scan started. Hashing every photo takes a while on a large folder.",
         "guidance": "Poll job status for progress; the groups appear there when it completes.",

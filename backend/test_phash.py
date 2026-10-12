@@ -167,6 +167,7 @@ def demo():
     # --- links: a symlink or hard link is the same file, never its duplicate ---
     import asyncio
     import main
+    main._phash_store = lambda: None   # never touch the real fingerprint cache
     with tempfile.TemporaryDirectory() as d:
         real = os.path.join(d, "real.jpg")
         _photo(seed=5).save(real, quality=95)
@@ -181,6 +182,62 @@ def demo():
         names = sorted(os.path.basename(p) for p in groups[0])
         assert names in (["real.jpg", "z_copy.jpg"], ["b_hard.jpg", "z_copy.jpg"]), \
             f"a link was grouped with its own target: {names}"
+
+    # --- library compare: only card-vs-library groups, library copy first ---
+    from fastapi import BackgroundTasks, HTTPException
+    from metadata_store import MetadataStore
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as d:
+        lib, card = os.path.join(d, "Library"), os.path.join(d, "Card")
+        os.makedirs(lib); os.makedirs(card)
+        _photo(seed=21).save(os.path.join(lib, "A.jpg"), quality=95)
+        _photo(seed=21).save(os.path.join(card, "A.jpg"), quality=95)       # already in library
+        _photo(seed=22).save(os.path.join(lib, "B.jpg"), quality=95)
+        _photo(seed=22).save(os.path.join(lib, "B2.jpg"), quality=95)       # library-internal dupe: not reported
+        _photo(seed=23).save(os.path.join(card, "C.jpg"), quality=95)       # new
+        _photo(seed=24).save(os.path.join(card, "D.jpg"), quality=95)
+        _photo(seed=24).save(os.path.join(card, "D2.jpg"), quality=95)      # card-internal dupe: both new
+        open(os.path.join(card, "broken.jpg"), "wb").write(b"no")           # unreadable: counts as new
+
+        store = MetadataStore.__new__(MetadataStore)
+        store._db_path = Path(d) / "m.db"; store._init_db()
+        main._phash_store = lambda: store
+        decodes = []
+        real_load = main.load_upright
+        main.load_upright = lambda p: (decodes.append(p), real_load(p))[1]
+
+        def compare():
+            asyncio.run(main.run_find_duplicates_task({"source_folder": card, "ignore_list": [],
+                                                       "library_folder": lib, "max_distance": MAX_DISTANCE}))
+            return main.current_job_state
+
+        s = compare()
+        assert s["duplicate_groups"] == [[os.path.join(lib, "A.jpg"), os.path.join(card, "A.jpg")]], s["duplicate_groups"]
+        assert s["duplicate_files"][os.path.join(lib, "A.jpg")]["in_library"] is True
+        assert s["duplicate_files"][os.path.join(card, "A.jpg")]["in_library"] is False
+        assert sorted(map(os.path.basename, s["new_files"])) == ["C.jpg", "D.jpg", "D2.jpg", "broken.jpg"], s["new_files"]
+        assert s["library_folder"] == lib
+
+        # Second run: every readable file comes from the cache (only broken.jpg is re-tried).
+        decodes.clear(); compare()
+        assert [os.path.basename(p) for p in decodes] == ["broken.jpg"], decodes
+        # An edited photo is re-decoded rather than served a stale fingerprint.
+        st = os.stat(os.path.join(lib, "B.jpg")); os.utime(os.path.join(lib, "B.jpg"), (st.st_atime, st.st_mtime + 5))
+        decodes.clear(); compare()
+        assert sorted(map(os.path.basename, decodes)) == ["B.jpg", "broken.jpg"], decodes
+        main.load_upright = real_load
+        main._phash_store = lambda: None
+
+        # Overlapping folders are refused before anything is scanned.
+        main.current_job_state["is_active"] = False
+        for src, libf in [(card, card), (d, lib), (lib, d)]:
+            try:
+                asyncio.run(main.find_duplicates_endpoint(
+                    main.FindDuplicatesRequest(source_folder=src, library_folder=libf), BackgroundTasks()))
+                raise AssertionError(f"overlap not refused: {src} vs {libf}")
+            except HTTPException as e:
+                assert e.status_code == 400, e
+        assert main.current_job_state["is_active"] is False, "a refused request must not claim the job slot"
 
     print("test_phash: all assertions passed")
 
