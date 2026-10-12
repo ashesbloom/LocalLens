@@ -69,7 +69,8 @@ const Group = ({ group, title, keeper, files, failed, apiBase, setKeeper, compar
                     {compare ? `Keep in ${names.source} too` : 'Keep every copy'}
                 </button>
             </header>
-            <div className="dup-photos">
+            {/* On the stage, at most 4 across; a burst wraps onto rows that share the height. */}
+            <div className="dup-photos" style={stage ? { '--cols': Math.min(group.length, 4) } : undefined}>
                 {group.map((p) => (
                     <Photo
                         key={p}

@@ -211,8 +211,8 @@
 .dup-photo:hover .dup-photo-pick + .dup-photo-state,
 .dup-photo:focus-visible .dup-photo-pick + .dup-photo-state { display: none; }
 
-.dup-photo-caption { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
-.dup-photo-state { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; }
+.dup-photo-caption { flex: none; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; max-width: 100%; overflow: hidden; }
+.dup-photo-state { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
 .dup-photo.is-keep .dup-photo-state { color: var(--dup-accent-text); }
 .dup-photo.is-trash .dup-photo-state { color: #fca5a5; }
 .dup-photo.is-library .dup-photo-state { color: #e5e7eb; }
@@ -250,17 +250,21 @@
 .dup-group.on-stage .dup-photos {
   flex: 1;
   min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 520px));
+  grid-auto-rows: minmax(0, 1fr);
   justify-content: center;
   gap: 1.25rem;
+  overflow: hidden;
 }
-.dup-photo.on-stage { flex: 1 1 0; width: auto; min-width: 150px; max-width: 520px; align-items: center; }
+.dup-photo.on-stage { width: auto; min-width: 0; min-height: 0; align-items: center; justify-content: center; }
 .dup-photo.on-stage .dup-photo-frame {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   width: 100%;
   aspect-ratio: auto;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   background: none;
   outline: none;
@@ -281,7 +285,9 @@
 .dup-photo.on-stage.is-keep .dup-photo-frame img { outline-color: var(--color-primary); box-shadow: 0 0 32px var(--color-shadow-primary); }
 .dup-photo.on-stage.is-library .dup-photo-frame img { outline-color: rgba(255, 255, 255, 0.55); }
 .dup-photo.on-stage.failed .dup-photo-frame img { outline-color: var(--color-error); }
-.dup-photo.on-stage .dup-photo-caption { align-items: center; text-align: center; }
+.dup-photo.on-stage .dup-photo-caption { align-items: center; text-align: center; width: 100%; }
+.dup-photo.on-stage .dup-photo-meta { flex-wrap: wrap; justify-content: center; row-gap: 0; max-width: 100%; }
+.dup-photo.on-stage .dup-photo-folder { max-width: 100%; }
 
 .dup-step {
   align-self: center;

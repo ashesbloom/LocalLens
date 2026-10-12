@@ -1945,6 +1945,7 @@ function App() {
                                     label="Compare with folder (optional)"
                                     path={libraryFolder}
                                     handleSelectFolder={() => handleBrowseFolder('library')}
+                                    placeholder="None, just find duplicates"
                                     onClear={() => setLibraryFolder('')}
                                     clearLabel="Don't compare, just find duplicates"
                                 />
