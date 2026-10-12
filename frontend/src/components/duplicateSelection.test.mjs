@@ -4,7 +4,7 @@
 import { strict as assert } from 'node:assert';
 import {
     KEEP_ALL, STRICTNESS, defaultView, initialKeepers, pathsToTrash,
-    reclaimBytes, afterDelete, formatBytes, scanStillCurrent,
+    reclaimBytes, afterDelete, formatBytes, scanStillCurrent, unprotectedCount,
 } from './duplicateSelection.js';
 
 const groups = [['/a/1.jpg', '/a/1 copy.jpg', '/b/1.jpg'], ['/a/2.jpg', '/c/2.jpg']];
@@ -69,6 +69,10 @@ const lg = [['/lib/a.jpg', '/lib/a2.jpg', '/card/a.jpg']];
 const libSet = new Set(['/lib/a.jpg', '/lib/a2.jpg']);
 assert.deepEqual(afterDelete(lg, ['/lib/a.jpg'], ['/card/a.jpg'], libSet).groups, []);
 assert.deepEqual(afterDelete(lg, ['/lib/a.jpg'], [], libSet).groups, lg);
+// Source photos found in the library: counted from the scan, so trashing them
+// from the card first doesn't turn "2 already in your library" into 0.
+assert.equal(unprotectedCount(lg, libSet), 1);
+assert.equal(unprotectedCount([], libSet), 0);
 
 assert.equal(formatBytes(0), '0 B');
 assert.equal(formatBytes(310 * 1024), '310 KB');

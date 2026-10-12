@@ -25,6 +25,11 @@ export const pathsToTrash = (groups, keeper, protectedPaths = new Set()) =>
         return g.filter((p) => p !== k && !protectedPaths.has(p));
     });
 
+// Grouped files that are not protected: in compare mode, the source photos
+// already in the library.
+export const unprotectedCount = (groups, protectedPaths) =>
+    groups.flat().filter((p) => !protectedPaths.has(p)).length;
+
 export const reclaimBytes = (paths, files) =>
     paths.reduce((sum, p) => sum + (files[p]?.bytes ?? 0), 0);
 

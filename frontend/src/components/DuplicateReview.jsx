@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { List, Square, ChevronLeft, ChevronRight, Star, X, Lock } from 'react-feather';
 import ConfirmationModal from './ConfirmationModal';
 import {
-    KEEP_ALL, defaultView, initialKeepers, pathsToTrash, reclaimBytes, afterDelete, formatBytes,
+    KEEP_ALL, defaultView, initialKeepers, pathsToTrash, reclaimBytes, afterDelete, formatBytes, unprotectedCount,
 } from './duplicateSelection';
 import './DuplicateReview.css';
 
@@ -103,7 +103,9 @@ const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned,
     );
     const trash = useMemo(() => pathsToTrash(groups, keeper, protectedPaths), [groups, keeper, protectedPaths]);
     const sourceName = baseName(result?.sourceFolder || '') || 'the source';
-    const onCard = groups.flat().filter((p) => !protectedPaths.has(p)).length;
+    const onCard = unprotectedCount(groups, protectedPaths);
+    // From the scan, not the review: photos already trashed here were still skipped.
+    const inLibrary = unprotectedCount(result?.groups || [], protectedPaths);
     const newCount = result?.newFiles?.length ?? 0;
     const bytes = reclaimBytes(trash, files);
     const setKeeper = (i) => (k) => setKeepers((prev) => prev.map((v, j) => (j === i ? k : v)));
@@ -228,7 +230,7 @@ const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned,
                         <button
                             className="btn btn-primary"
                             disabled={busy || (newCount === 0 && !scanFoundNone)}
-                            onClick={() => onImport(scanFoundNone ? { files: null, skipped: 0 } : { files: result.newFiles, skipped: onCard })}
+                            onClick={() => onImport(scanFoundNone ? { files: null, skipped: 0 } : { files: result.newFiles, skipped: inLibrary })}
                         >
                             {scanFoundNone ? 'Import all →' : `Import ${count(newCount, 'new photo')} →`}
                         </button>
