@@ -33,8 +33,17 @@ import { WHATS_NEW_KEY, shouldShowWhatsNew, whatsNewSteps, tourLabel } from './c
 import { tutorialSteps } from './config/tutorialSteps';
 import { advance, canAnnounce, initialGate } from './components/announceGate';
 import PrivacyPanel from './components/PrivacyPanel';
+import CommunityToast from './components/CommunityToast';
+import { useCommunityInbox } from './components/useCommunityInbox';
 import { useTutorial } from './context/TutorialContext'; // <-- ADD THIS
 import { version } from '../package.json';
+
+// What each backend component means to someone reading the log.
+const ISSUE_LABELS = {
+    pillow_heif: 'HEIC/HEIF photos',
+    rawpy: 'RAW photos',
+    wand: 'RAW photos',
+};
 
 import './App.css';
 
@@ -140,6 +149,8 @@ function App() {
 
     // --- MCP announcement & privacy inventory ---
     const [showPrivacyPanel, setShowPrivacyPanel] = useState(false);
+    // Replies to your community posts, and new posts, for the bell and the pod.
+    const community = useCommunityInbox();
 
     // --- NEW State for Subfolders ---
     const [subfolders, setSubfolders] = useState([]);
@@ -1006,6 +1017,18 @@ function App() {
         return false; // Backend never became ready
     };
 
+    // "When this happens, run this", one line each, under the failure it fixes.
+    const logFixes = (hints = []) => {
+        if (!hints.length) {
+            logToConsole('No known fix yet. Report it: https://github.com/ashesbloom/LocalLens/issues', 'warning');
+            return;
+        }
+        for (const hint of hints) {
+            logToConsole(`When: ${hint.when}`, 'warning');
+            for (const cmd of hint.run) logToConsole(`Run: ${cmd}`, 'warning');
+        }
+    };
+
     const runStartupChecks = async () => {
         logToConsole("System Initialized. Connecting to backend services...");
         
@@ -1019,12 +1042,24 @@ function App() {
         try {
             const status = await apiCall('/api/check-dependencies');
             logToConsole("Backend connected. Verifying component status...");
+            // Each failed component comes with its real error and this platform's
+            // fix (backend/troubleshoot.py). An older backend sends no `issues`.
+            const issues = status.issues ?? [];
+            const faceIssue = issues.find((i) => i.component === 'face_recognition');
             if (status.face_recognition_installed) {
                 // Let the enrollment check handle the specific logging.
                 await checkEnrollmentStatus();
             } else {
-                logToConsole("Face Recognition: Unavailable (library not installed). 'Sort by People' is disabled.", 'warning');
+                const why = faceIssue ? `: ${faceIssue.error}` : '';
+                logToConsole(`Face Recognition: Unavailable${why}. 'Sort by People' is disabled.`, 'warning');
                 setIsEnrolled(false);
+            }
+            for (const issue of issues) {
+                if (issue !== faceIssue) {
+                    const label = ISSUE_LABELS[issue.component] ?? issue.component;
+                    logToConsole(`${label}: Unavailable: ${issue.error}`, 'warning');
+                }
+                logFixes(issue.hints);
             }
         } catch (e) {
             logToConsole("Backend connection failed. Please ensure the server is running and refresh.", 'error');
@@ -1888,6 +1923,7 @@ function App() {
                     currentVersion={version}
                     backendPort={backendPort}
                     onShowPrivacy={() => setShowPrivacyPanel(true)}
+                    community={community}
                 />
 
                 {/* Tutorial Menu - with step selection dropdown */}
@@ -1902,6 +1938,7 @@ function App() {
                     }}
                     onStartFromScratch={handleStartTutorial}
                     forceOpen={isDemoMode && currentStep?.demoAnimation === 'open-help-pod'}
+                    community={community}
                 />
 
                 {/* Exit Button */}
@@ -2396,6 +2433,11 @@ function App() {
                     onClose={() => setShowPrivacyPanel(false)}
                 />
             )}
+            <CommunityToast
+                toast={community.toast}
+                onOpen={community.open}
+                onDismiss={community.dismissToast}
+            />
         </div>
     );
 }

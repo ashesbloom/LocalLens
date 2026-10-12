@@ -3,6 +3,7 @@ import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { MCP_SITE_URL } from './McpAnnounce';
+import { bellItems, ago, itemKey, updateIsStale } from './communityInbox';
 import './UpdateChecker.css';
 
 // Bell icon SVG
@@ -68,7 +69,26 @@ const SparkIcon = () => (
     </svg>
 );
 
-function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
+// One row of community activity. A reply to you is the row that matters, so
+// it carries the accent rule; a new post is quieter.
+const CommunityRow = ({ item, onOpen }) => (
+    <li>
+        <button
+            type="button"
+            className={`cm-row cm-${item.kind}${item.seen ? ' is-seen' : ''}`}
+            onClick={() => onOpen(item)}
+        >
+            <span className="cm-line">
+                <span className="cm-who">{item.author}</span>
+                {item.kind === 'reply' ? ' replied to your post' : ' posted'}
+            </span>
+            <time className="cm-when" dateTime={new Date(item.created).toISOString()}>{ago(item.created)}</time>
+            {item.excerpt && <span className="cm-excerpt">{item.excerpt}</span>}
+        </button>
+    </li>
+);
+
+function UpdateChecker({ currentVersion, backendPort, onShowPrivacy, community = null }) {
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [updateInfo, setUpdateInfo] = useState(null);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -79,6 +99,19 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
     const [isChecking, setIsChecking] = useState(false);
     const panelRef = useRef(null);
     const downloadedBytesRef = useRef(0);
+
+    // The Community rows are fixed when the panel opens. A poll that lands
+    // while it is open must not make rows appear, vanish or reorder under the
+    // cursor; it shows up next time. What was listed is also exactly what
+    // closing the panel marks as read.
+    const [shown, setShown] = useState([]);
+    // Finished the Claude setup page ("Done?" step), as the backend records it.
+    // Read on mount and whenever the window regains focus -- the setup page
+    // lives in the browser -- but applied to the panel only when it opens.
+    const [mcpDone, setMcpDone] = useState(false);
+    const [showMcp, setShowMcp] = useState(true);
+    const replyCount = community?.unread.replies ?? 0;
+    const hasDot = updateAvailable || (community?.unread.posts ?? 0) > 0;
 
     // ============================================
     // DEBUG MODE - Set to true to simulate update
@@ -172,7 +205,25 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
     // Every close routes through here so the panel always plays its exit
     // animation; the actual unmount happens on animationend.
     const closePanel = () => setIsClosing(true);
-    const openPanel = () => { setIsClosing(false); setIsExpanded(true); };
+    const openPanel = () => {
+        setShown(community ? bellItems(community.items) : []);
+        setShowMcp(!mcpDone);
+        setIsClosing(false);
+        setIsExpanded(true);
+    };
+
+    useEffect(() => {
+        if (!backendPort) return undefined;
+        const check = () => {
+            fetch(`http://127.0.0.1:${backendPort}/api/onboarding-status`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then((d) => { if (d) setMcpDone(Boolean(d.onboarded)); })
+                .catch(() => {}); // an older backend has no such route: keep the card
+        };
+        check();
+        window.addEventListener('focus', check);
+        return () => window.removeEventListener('focus', check);
+    }, [backendPort]);
 
     // Close panel when clicking outside
     useEffect(() => {
@@ -391,6 +442,36 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
         return "Release Notes";
     };
 
+
+    // Only when there is something unread. Past three days of an ignored
+    // update it moves above the update notes, so a reply is not buried under
+    // a notice the user has already decided to put off.
+    const communityFirst = updateAvailable && updateIsStale(updateInfo?.date);
+    const communitySection = shown.length > 0 && (
+        <div className={`mcp-card community-card${communityFirst ? ' is-first' : ''}`}>
+            <div className="mcp-card-head">
+                <span>Community</span>
+            </div>
+            <ul className="cm-list">
+                {shown.map((item) => (
+                    <CommunityRow
+                        key={itemKey(item)}
+                        item={item}
+                        onOpen={(it) => { community.open(it); closePanel(); }}
+                    />
+                ))}
+            </ul>
+            <div className="mcp-card-actions">
+                <button
+                    className="btn-mcp-privacy"
+                    onClick={() => { community.openTarget(); closePanel(); }}
+                >
+                    Open community
+                </button>
+            </div>
+        </div>
+    );
+
     // Always show the icon, but style differently based on update availability
     return (
         <div className="update-checker" ref={panelRef} data-tutorial-target="notification-panel">
@@ -398,11 +479,19 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
             <button 
                 className={`update-icon-btn ${updateAvailable ? 'has-update' : ''} ${isExpanded ? 'active' : ''}`}
                 onClick={() => (isExpanded && !isClosing ? closePanel() : openPanel())}
-                title={updateAvailable ? "Update available!" : `Version ${currentVersion}`}
+                title={replyCount ? community.target.label : updateAvailable ? "Update available!" : `Version ${currentVersion}`}
+                aria-label={replyCount ? `Notifications: ${community.target.label}` : 'Notifications'}
             >
                 <MatrixRain />
                 <BellIcon />
-                {updateAvailable && <span className="update-badge" />}
+                {replyCount > 0 ? (
+                    // Keyed on the count so it scales in again each time it rises.
+                    <span className="update-count" key={replyCount} aria-hidden="true">
+                        {replyCount > 9 ? '9+' : replyCount}
+                    </span>
+                ) : (
+                    hasDot && <span className="update-badge" />
+                )}
             </button>
 
             {/* Expanded Panel */}
@@ -415,11 +504,14 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
                         if (e.target === e.currentTarget && isClosing) {
                             setIsClosing(false);
                             setIsExpanded(false);
+                            if (shown.length) community.markSeen(shown.map(itemKey));
                         }
                     }}
                 >
                     {/* Triangle pointer */}
                     <div className="update-panel-arrow" />
+
+                    {communityFirst && communitySection}
                     
                     {updateAvailable ? (
                         <>
@@ -548,36 +640,53 @@ function UpdateChecker({ currentVersion, backendPort, onShowPrivacy }) {
                         </>
                     )}
 
-                    {/* Permanent home for the MCP announcement — stays reachable
-                        whether or not an update is pending. */}
-                    <div className="mcp-card">
-                        <div className="mcp-card-head">
-                            <SparkIcon />
-                            <span>Connect to Claude</span>
-                        </div>
-                        <p className="mcp-card-body">
-                            Sort and search your library by asking. Runs on 127.0.0.1 — nothing uploads.
-                        </p>
-                        <div className="mcp-card-actions">
-                            <button
-                                className="btn-mcp-setup"
-                                onClick={() => {
-                                    openUrl(backendPort ? `http://127.0.0.1:${backendPort}/setup` : MCP_SITE_URL);
-                                    closePanel();
-                                }}
-                            >
-                                Set it up
-                            </button>
-                            {onShowPrivacy && (
+                    {!communityFirst && communitySection}
+
+                    {/* Home for the MCP announcement until setup is finished;
+                        after that it is done and only clutters the bell. */}
+                    {showMcp && (
+                        <div className="mcp-card">
+                            <div className="mcp-card-head">
+                                <SparkIcon />
+                                <span>Connect to Claude</span>
+                            </div>
+                            <p className="mcp-card-body">
+                                Sort and search your library by asking. Runs on 127.0.0.1 — nothing uploads.
+                            </p>
+                            <div className="mcp-card-actions">
                                 <button
-                                    className="btn-mcp-privacy"
-                                    onClick={() => { closePanel(); onShowPrivacy(); }}
+                                    className="btn-mcp-setup"
+                                    onClick={() => {
+                                        openUrl(backendPort ? `http://127.0.0.1:${backendPort}/setup` : MCP_SITE_URL);
+                                        closePanel();
+                                    }}
                                 >
-                                    what we store
+                                    Set it up
                                 </button>
-                            )}
+                                {onShowPrivacy && (
+                                    <button
+                                        className="btn-mcp-privacy"
+                                        onClick={() => { closePanel(); onShowPrivacy(); }}
+                                    >
+                                        what we store
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
+
+                    {/* The privacy panel's erase controls must stay reachable
+                        once the card that linked to it is gone. */}
+                    {!showMcp && onShowPrivacy && (
+                        <div className="update-panel-foot">
+                            <button
+                                className="btn-mcp-privacy"
+                                onClick={() => { closePanel(); onShowPrivacy(); }}
+                            >
+                                What LocalLens stores
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

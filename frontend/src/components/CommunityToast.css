@@ -1,0 +1,87 @@
+/* Same glass as the bell's panel, so a reply reads as part of the bell rather
+   than a system alert. Bottom-right, clear of the header controls. */
+.cm-toast-region {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 2000;
+    pointer-events: none;
+}
+
+.cm-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: min(340px, calc(100vw - 2.5rem));
+    padding: 0.7rem 0.6rem 0.7rem 0.95rem;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-left: 3px solid rgb(var(--color-primary-rgb));
+    border-radius: 0.85rem;
+    background: linear-gradient(145deg, rgba(42, 55, 74, 0.96) 0%, rgba(31, 41, 55, 0.96) 100%);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    animation: cm-toast-in 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes cm-toast-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.cm-toast-text { flex: 1 1 auto; min-width: 0; }
+.cm-toast-title {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.94);
+}
+.cm-toast-excerpt {
+    margin: 0.2rem 0 0;
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.55);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cm-toast-open {
+    flex: 0 0 auto;
+    padding: 0.35rem 0.8rem;
+    border: none;
+    border-radius: 0.45rem;
+    background: var(--color-gradient, linear-gradient(135deg, #3b82f6, #06b6d4));
+    color: #06121f;
+    font-family: inherit;
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.cm-toast-open:hover { filter: brightness(1.1); }
+
+.cm-toast-close {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+}
+.cm-toast-close:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+
+.cm-toast-open:focus-visible,
+.cm-toast-close:focus-visible {
+    outline: 2px solid rgb(var(--color-primary-rgb));
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cm-toast { animation: none; }
+}

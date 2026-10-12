@@ -632,3 +632,17 @@
 @media (prefers-reduced-motion: reduce) {
     .hpod-tip { transition: opacity 0.1s linear; transform: translate(0, -50%); }
 }
+
+/* Something new behind the Community ball: the same red as the bell's badge,
+   so the two read as one signal. */
+.hpod-news {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border: 2px solid var(--color-bg, #111827);
+    pointer-events: none;
+}

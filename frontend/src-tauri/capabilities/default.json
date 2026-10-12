@@ -17,6 +17,10 @@
     "updater:allow-install",
     "process:allow-restart",
     "process:allow-exit",
-    "updater:allow-download-and-install"
+    "updater:allow-download-and-install",
+    "notification:default",
+    "core:window:allow-set-badge-count",
+    "core:window:allow-set-overlay-icon",
+    "core:image:default"
   ]
 }

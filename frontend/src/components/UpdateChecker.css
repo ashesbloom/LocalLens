@@ -630,7 +630,10 @@
 }
 .mcp-card-head svg { color: rgb(var(--color-primary-rgb)); flex: 0 0 auto; }
 
-.mcp-card-body {
+/* Scoped under the panel: the bell lives inside .app-header, whose `p` rule
+   (1.1rem) otherwise outranks a single class and blows this text up. */
+.update-panel .mcp-card-body {
+    text-align: left;
     margin: 0 0 0.7rem;
     font-size: 0.75rem;
     line-height: 1.5;
@@ -675,4 +678,112 @@
 .btn-mcp-privacy:focus-visible {
     outline: 2px solid rgb(var(--color-primary-rgb));
     outline-offset: 2px;
+}
+
+/* ========================================
+   COMMUNITY ACTIVITY
+   ======================================== */
+
+/* Replies to your posts, counted. The one loud thing on the bell: it scales in
+   once when the count rises and otherwise sits still, unlike the update dot. */
+.update-count {
+    position: absolute;
+    top: 1px;
+    right: -1px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    box-sizing: border-box;
+    border-radius: 99px;
+    border: 2px solid var(--color-bg, #111827);
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: #fff;
+    font: 700 0.62rem/14px var(--font-sans, system-ui, sans-serif);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    pointer-events: none;
+    animation: count-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes count-in {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
+}
+
+.community-card .mcp-card-head { margin-bottom: 0.5rem; }
+/* Leading the panel (an update left uninstalled for days): the rule moves to
+   the bottom edge, so it still divides this from the update notes. */
+.community-card.is-first {
+    margin-top: 0;
+    padding-top: 1rem;
+    border-top: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cm-list {
+    list-style: none;
+    margin: 0 0 0.6rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cm-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.6rem;
+    row-gap: 2px;
+    width: 100%;
+    padding: 0.45rem 0.55rem;
+    border: none;
+    border-left: 2px solid transparent;
+    border-radius: 0 0.45rem 0.45rem 0;
+    background: none;
+    color: rgba(255, 255, 255, 0.62);
+    font-family: inherit;
+    font-size: 0.74rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.cm-row:hover { background: rgba(255, 255, 255, 0.06); }
+.cm-row:focus-visible {
+    outline: 2px solid rgb(var(--color-primary-rgb));
+    outline-offset: 1px;
+}
+
+.cm-reply { border-left-color: rgb(var(--color-primary-rgb)); }
+.cm-reply:not(.is-seen) { background: rgba(var(--color-primary-rgb), 0.08); }
+.cm-reply:not(.is-seen):hover { background: rgba(var(--color-primary-rgb), 0.14); }
+.cm-row.is-seen { opacity: 0.55; }
+.cm-row.is-seen.cm-reply { border-left-color: rgba(255, 255, 255, 0.18); }
+
+.cm-line {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cm-who { font-weight: 600; color: rgba(255, 255, 255, 0.94); }
+.cm-when { color: rgba(255, 255, 255, 0.4); font-size: 0.68rem; white-space: nowrap; }
+.cm-excerpt {
+    grid-column: 1 / -1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.48);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .update-count { animation: none; }
+}
+
+/* Left behind when the "Connect to Claude" card is gone: one quiet line. */
+.update-panel-foot {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.6rem 1rem 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 }

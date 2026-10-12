@@ -3,6 +3,7 @@ import { openExternal } from './openExternal';
 import { getGroupedSteps } from '../config/tutorialSteps';
 import { COMMUNITY_LINKS } from './communitySite';
 import { version } from '../../package.json';
+import { keyedLink } from './communityInbox';
 import './TutorialMenu.css';
 
 /** A lens ringed by three people — the trigger's own dots, gathered round. */
@@ -23,7 +24,7 @@ const TutorialMark = () => (
     </svg>
 );
 
-const TutorialMenu = ({ onStartFromStep, onStartFromScratch, forceOpen = false }) => {
+const TutorialMenu = ({ onStartFromStep, onStartFromScratch, forceOpen = false, community = null }) => {
     // Two stages: the bubbles fan out of the dots, then the Tutorial bubble
     // opens the step list. Keeping them separate means the community link is
     // one click away instead of buried under the tutorial's panel.
@@ -85,8 +86,13 @@ const TutorialMenu = ({ onStartFromStep, onStartFromScratch, forceOpen = false }
         onStartFromScratch();
     };
 
+    // Goes wherever there is something new: the reply to your post, the one
+    // new post, or the forum (see communityTarget).
+    const communityLabel = community?.target.label ?? 'Community';
+    const communityHasNews = Boolean(community && community.target.kind !== 'board');
     const openCommunity = () => {
-        openExternal(COMMUNITY_LINKS.root);
+        if (community) community.openTarget();
+        else openExternal(keyedLink(COMMUNITY_LINKS.forum));
         closeAll();
     };
 
@@ -198,11 +204,12 @@ const TutorialMenu = ({ onStartFromStep, onStartFromScratch, forceOpen = false }
                         role="menuitem"
                         tabIndex={isOpen ? 0 : -1}
                         onClick={openCommunity}
-                        aria-label="Community website"
-                        title="Community website"
+                        aria-label={communityLabel}
+                        title={communityLabel}
                     >
                         <CommunityMark />
-                        <span className="hpod-tip" aria-hidden="true">Community</span>
+                        {communityHasNews && <span className="hpod-news" aria-hidden="true" />}
+                        <span className="hpod-tip" aria-hidden="true">{communityLabel}</span>
                     </button>
                 </div>
             </div>
