@@ -1885,7 +1885,7 @@ function App() {
             />
 
             <main className="app-main">
-                <div className="setup-grid">
+                <div className={`setup-grid ${operationMode !== 'standard' ? 'setup-grid--tree' : ''}`}>
                     <div className="setup-column">
                         <div data-tutorial-target="path-preset-group">
                             <PathSelector
@@ -1912,6 +1912,16 @@ function App() {
                                 data-tutorial-target="preset-manager"
                             />
                         </div>
+                        {/* A scan has no destination or copy/move choice, so its one setting
+                            sits here, beside the folder it applies to, instead of leaving
+                            this column empty next to the tall subfolder panel. */}
+                        {operationMode === 'duplicates' && (
+                            <DuplicateConfig
+                                strictness={dupStrictness}
+                                setStrictness={setDupStrictness}
+                                isProcessing={isProcessing || isEnrolling}
+                            />
+                        )}
                         {/* --- ADD THIS COMPONENT --- */}
                         {operationMode !== 'find' && operationMode !== 'duplicates' && (
                             <OperationModeToggle
@@ -2040,15 +2050,6 @@ function App() {
                                 isEnrolled={isEnrolled}
                                 isProcessing={isProcessing || isEnrolling}
                            />
-                        </div>
-                    )}
-                    {operationMode === 'duplicates' && (
-                        <div className="mode-content">
-                            <DuplicateConfig
-                                strictness={dupStrictness}
-                                setStrictness={setDupStrictness}
-                                isProcessing={isProcessing || isEnrolling}
-                            />
                         </div>
                     )}
                 </div>

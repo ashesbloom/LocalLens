@@ -259,6 +259,24 @@ p {
   flex-grow: 1; /* Allow list to expand */
 }
 
+/* Hybrid / Find / Duplicates: the right column is the folder tree, which can be far
+   taller than the few inputs on the left and used to leave a void under them. Take
+   the tree out of the row's height so the left column sets it (with a floor that
+   keeps the tree usable), and let the tree scroll inside whatever height that is. */
+@media (min-width: 768px) {
+  .setup-grid--tree { grid-auto-rows: minmax(380px, auto); }
+  .setup-grid--tree > .setup-column:last-child { position: relative; }
+  .setup-grid--tree > .setup-column:last-child > .subfolder-selector-section {
+    position: absolute;
+    inset: 0;
+  }
+  .setup-grid--tree .subfolder-list.tree-view {
+    max-height: none;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
 .divider {
   border: none;
   border-top: 1px solid var(--color-border);

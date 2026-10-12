@@ -1,12 +1,13 @@
-/* --- Duplicates config --- */
+/* --- Duplicates config: a compact stack in the setup grid's left column --- */
 .dup-strictness {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
   min-height: 0;
+  margin-top: 0.25rem;
 }
-
-@media (max-width: 760px) {
-  .dup-strictness { grid-template-columns: 1fr; }
-}
+.dup-strictness .sorting-card { padding: 0.9rem 1.1rem; }
+.dup-strictness .sorting-card-icon { min-width: 52px; height: 52px; font-size: 1.8rem; border-radius: 12px; }
+.dup-strictness .sorting-card-description { margin-bottom: 0; }
 
 /* --- Review overlay --- */
 .dup-overlay {

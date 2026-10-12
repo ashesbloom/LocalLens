@@ -3,7 +3,7 @@ import { ChevronRight, Folder } from 'lucide-react';
 
 // NEW: Recursive component to render each level of the folder tree
 const FolderTreeItem = ({ folder, ignoredSubfolders, onToggle, isProcessing }) => {
-    const [isExpanded, setIsExpanded] = useState(true);
+    const [isExpanded, setIsExpanded] = useState(false); // nested folders start collapsed
     const isIgnored = ignoredSubfolders.includes(folder.path);
 
     const handleToggleExpand = (e) => {
