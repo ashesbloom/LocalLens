@@ -1214,10 +1214,16 @@ function App() {
         };
     }
 
+    // Each picker remembers its own place: it opens at the field's current folder,
+    // or at the last folder picked for that field (not wherever the OS last was).
     const handleBrowseFolder = async (target) => {
+        const current = { source: sourceFolder, library: libraryFolder }[target] ?? destinationFolder;
+        let remembered = null;
+        try { remembered = localStorage.getItem(`browse_last_${target}`); } catch { /* storage unavailable */ }
         try {
-            const selected = await open({ directory: true, multiple: false });
+            const selected = await open({ directory: true, multiple: false, defaultPath: current || remembered || undefined });
             if (selected) {
+                try { localStorage.setItem(`browse_last_${target}`, selected); } catch { /* storage unavailable */ }
                 if (target === 'source') setSourceFolder(selected);
                 else if (target === 'library') setLibraryFolder(selected);
                 else setDestinationFolder(selected);

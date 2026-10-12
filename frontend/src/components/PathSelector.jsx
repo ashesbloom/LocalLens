@@ -15,7 +15,7 @@ const PathSelector = ({ label, path, handleSelectFolder, onClear, clearLabel = '
             <label>{label}</label>
             <div className="input-group">
                 <FolderIcon />
-                <input type="text" readOnly value={path} placeholder={placeholder ?? `Path to your ${label.toLowerCase()}`} className={`input-field with-icon ${clearable ? 'with-clear' : ''}`} />
+                <input type="text" readOnly value={path} title={path || undefined}placeholder={placeholder ?? `Path to your ${label.toLowerCase()}`} className={`input-field with-icon ${clearable ? 'with-clear' : ''}`} />
                 {clearable && (
                     <button type="button" onClick={onClear} className="path-clear" title={clearLabel} aria-label={clearLabel}>
                         <X size={14} />
