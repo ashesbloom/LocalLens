@@ -150,6 +150,20 @@ CREATE TABLE IF NOT EXISTS face_cache (
 
     PRIMARY KEY (path, engine_version)
 );
+
+-- Duplicate-scan fingerprint cache ------------------------------------------
+-- Decoding every photo for its pHash is what makes a duplicate scan slow, and a
+-- library compared against each new SD card barely changes between runs. A row is
+-- only valid for the (size, mtime) it was computed from, like face_cache.
+-- phash is the 64-bit hash stored as a signed INTEGER (two's complement).
+CREATE TABLE IF NOT EXISTS phash_cache (
+    path       TEXT    PRIMARY KEY,
+    file_size  INTEGER NOT NULL,
+    file_mtime REAL    NOT NULL,
+    phash      INTEGER NOT NULL,
+    width      INTEGER NOT NULL,
+    height     INTEGER NOT NULL
+);
 """
 
 
@@ -559,6 +573,51 @@ class MetadataStore:
             _log.warning(f"face_cache_clear failed: {e}")
             return 0
 
+    def phash_cache_get_many(self, paths: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Cached fingerprints for `paths` whose size and mtime still match. Never raises."""
+        stats = {}
+        for p in paths:
+            try:
+                st = os.stat(p)
+                stats[p] = (st.st_size, st.st_mtime)
+            except OSError:
+                pass
+        found = {}
+        try:
+            with self._connect() as conn:
+                keys = list(stats)
+                for i in range(0, len(keys), 500):    # stay under SQLite's variable limit
+                    chunk = keys[i:i + 500]
+                    rows = conn.execute(
+                        f"SELECT * FROM phash_cache WHERE path IN ({','.join('?' * len(chunk))})", chunk
+                    ).fetchall()
+                    for row in rows:
+                        size, mtime = stats[row["path"]]
+                        if row["file_size"] != size or abs(row["file_mtime"] - mtime) > 1e-6:
+                            continue  # file changed on disk
+                        h = row["phash"]
+                        found[row["path"]] = {"phash": h + (1 << 64) if h < 0 else h,
+                                              "width": row["width"], "height": row["height"]}
+        except Exception as e:
+            _log.warning(f"phash_cache_get_many failed, hashing everything: {e}")
+            return {}
+        return found
+
+    def phash_cache_put_many(self, rows) -> None:
+        """Store (path, size, mtime, phash, width, height) rows. Never raises."""
+        if not rows:
+            return
+        try:
+            with self._connect() as conn:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO phash_cache VALUES (?,?,?,?,?,?)",
+                    [(p, s, m, h - (1 << 64) if h >= (1 << 63) else h, w, ht)
+                     for p, s, m, h, w, ht in rows],
+                )
+                conn.commit()
+        except Exception as e:
+            _log.debug(f"phash_cache_put_many skipped: {e}")
+
     # ── Self-optimization: Compaction ───────────────────────────────────────
 
     def compact_old_records(self, months_threshold: int = COMPACT_MONTHS) -> Dict[str, Any]:
@@ -633,6 +692,7 @@ class MetadataStore:
                 conn.execute("DELETE FROM photo_metadata")
                 conn.execute("DELETE FROM suggestion_history")
                 conn.execute("DELETE FROM compaction_log")
+                conn.execute("DELETE FROM phash_cache")
                 conn.commit()
 
             with self._connect() as conn:
