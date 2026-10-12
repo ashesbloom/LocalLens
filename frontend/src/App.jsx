@@ -901,6 +901,10 @@ function App() {
     }, [isBackendConnected]);
 
 
+    // Errors that need the user, not just the log: the message plus how to fix it.
+    const showProblem = (title, text, hint, kind = 'error') =>
+        message(hint ? `${text}\n\n${hint}` : text, { title, kind }).catch(() => {});
+
     // --- Core API Functions ---
     const apiCall = async (endpoint, options = {}) => {
         if (!isBackendReady || !backendPort) {
@@ -1149,6 +1153,10 @@ function App() {
                     completionMsg = isEnrolling ? "Enrollment Complete" : operationMode === 'duplicates' ? "Scan Complete" : "Organization Complete";
                 } else if (data.status === 'error') {
                     completionMsg = "Operation Failed";
+                    showProblem(isEnrolling ? 'Enrollment failed' : 'Something went wrong', data.message, data.hint);
+                }
+                if (data.status === 'complete' && data.hint) {
+                    showProblem('Finished, with a problem', data.message, data.hint, 'warning');
                 }
                 setProgressLabel(completionMsg);
 
@@ -1537,9 +1545,10 @@ function App() {
                 }
                 logToConsole("Job accepted by backend. Awaiting process start...");
             })
-            .catch(() => {
+            .catch((error) => {
                 setIsProcessing(false);
                 if (eventSourceRef.current) eventSourceRef.current.close();
+                showProblem('Could not start', error.message);
             });
     };
 
@@ -1573,9 +1582,11 @@ function App() {
             });
             logToConsole(r.message, r.failed.length ? 'warning' : 'success');
             r.failed.forEach((f) => logToConsole(`Could not import ${f.path}: ${f.error}`, 'error'));
+            if (r.failed.length) showProblem('Some photos were not imported', r.message, r.hint, 'warning');
             setImportOnly(null);
         } catch (error) {
             logToConsole(`Import failed: ${error.message}`, 'error');
+            showProblem('Import failed', error.message);
         } finally {
             setIsProcessing(false);
         }

@@ -134,9 +134,11 @@ async def require_local_token(x_local_token: Optional[str] = Header(None)) -> No
 from organizer_logic import (
     process_photos, SUPPORTED_EXTENSIONS, 
     load_face_encodings, find_and_group_photos, get_metadata_overview, 
-    initialize_libraries, build_folder_tree, walk_ignoring, effective_ignore_set
+    initialize_libraries, build_folder_tree, walk_ignoring, effective_ignore_set,
+    read_only_problem,
 )
 import organizer_logic
+import troubleshoot
 from enrollment_logic import update_encodings
 from face_engine import load_upright, RAW_EXTENSIONS
 
@@ -709,13 +711,15 @@ async def run_organization_task(config: Dict):
         config["cancellation_event"] = cancellation_events["sorting"]
         
         # Create an adapter for the callback to match the expected signature
-        def callback_adapter(progress: int, message: str, status: str = "running", analytics: Optional[Dict] = None):
+        def callback_adapter(progress: int, message: str, status: str = "running", analytics: Optional[Dict] = None, hint: Optional[str] = None):
             update_data = {
                 "progress": progress, 
                 "message": message, 
                 "status": status,
                 "analytics": analytics or {}
             }
+            if hint:
+                update_data["hint"] = hint
             update_status_callback(update_data)
 
         # Run the entire blocking function in a separate thread
@@ -726,7 +730,7 @@ async def run_organization_task(config: Dict):
         error_update = {"progress": 100, "message": abort_message, "status": "aborted"}
         update_status_callback(error_update)
     except Exception as e:
-        error_update = {"progress": 100, "message": f"An error occurred: {e}", "status": "error"}
+        error_update = {"progress": 100, "message": f"An error occurred: {e}", "status": "error", "hint": troubleshoot.hint(e)}
         update_status_callback(error_update)
         print(f"BACKGROUND TASK ERROR: {e}")
 
@@ -787,13 +791,15 @@ async def run_find_group_task(config: Dict):
         target_folder = os.path.join(config["destination_folder"], target_folder_name)
 
         # FIX: The callback adapter now accepts the 'analytics' dictionary.
-        def callback_adapter(progress: int, message: str, status: str = "running", analytics: Optional[Dict] = None):
+        def callback_adapter(progress: int, message: str, status: str = "running", analytics: Optional[Dict] = None, hint: Optional[str] = None):
             update_data = {
                 "progress": progress, 
                 "message": message, 
                 "status": status,
                 "analytics": analytics or {}
             }
+            if hint:
+                update_data["hint"] = hint
             update_status_callback(update_data)
 
         # Run the entire blocking function in a separate thread
@@ -807,7 +813,7 @@ async def run_find_group_task(config: Dict):
         error_update = {"progress": 100, "message": abort_message, "status": "aborted"}
         update_status_callback(error_update)
     except Exception as e:
-        error_update = {"progress": 100, "message": f"An error occurred: {e}", "status": "error"}
+        error_update = {"progress": 100, "message": f"An error occurred: {e}", "status": "error", "hint": troubleshoot.hint(e)}
         update_status_callback(error_update)
         print(f"BACKGROUND TASK ERROR: {e}")
 
@@ -1014,7 +1020,7 @@ async def run_find_duplicates_task(config: Dict):
         print(f"BACKGROUND TASK: {abort_message}")
         update_status_callback({"progress": 100, "message": abort_message, "status": "aborted"})
     except Exception as e:
-        update_status_callback({"progress": 100, "message": f"An error occurred: {e}", "status": "error"})
+        update_status_callback({"progress": 100, "message": f"An error occurred: {e}", "status": "error", "hint": troubleshoot.hint(e)})
         print(f"BACKGROUND TASK ERROR: {e}")
 
 
@@ -1145,6 +1151,10 @@ async def list_subfolders(request: SubfolderRequest):
 @app.post("/api/start-sorting")
 async def start_sorting_endpoint(request: SortRequest, background_tasks: BackgroundTasks):
     """Starts the photo organization process in the background."""
+    problem = read_only_problem(os.path.expanduser(request.source_folder),
+                                os.path.expanduser(request.destination_folder), request.operation_mode)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
     sort_opts = request.sorting_options.dict()
     config = {
         "source_folder": os.path.expanduser(request.source_folder),
@@ -1166,6 +1176,9 @@ async def start_sorting_endpoint(request: SortRequest, background_tasks: Backgro
 @app.post("/api/start-find-group")
 async def start_find_group_endpoint(request: FindGroupRequest, background_tasks: BackgroundTasks):
     """Starts the 'Find & Group' process in the background."""
+    problem = read_only_problem(None, os.path.expanduser(request.destination_folder), "copy")
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
     config = {
         "source_folder": os.path.expanduser(request.source_folder),
         "destination_folder": os.path.expanduser(request.destination_folder),
@@ -1349,10 +1362,17 @@ async def import_files_endpoint(request: ImportFilesRequest):
     if _overlaps(source, dest):
         raise HTTPException(status_code=400, detail="The destination and the source overlap.")
     real_source = os.path.realpath(source)
+    problem = read_only_problem(source, dest, request.operation_mode)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+    stop = cancellation_events["sorting"]
+    stop.clear()
 
     def work():
         imported, failed = 0, []
         for fp in request.files:
+            if stop.is_set():
+                break
             try:
                 if fp not in allowed:
                     raise ValueError("not one of the new photos from the last comparison")
@@ -1364,16 +1384,28 @@ async def import_files_endpoint(request: ImportFilesRequest):
                 shutil.move(fp, out) if move else shutil.copy2(fp, out)
                 imported += 1
             except Exception as e:
-                failed.append({"path": fp, "error": str(e)})
+                failed.append({"path": fp, "error": str(e), "hint": troubleshoot.hint(e)})
         return imported, failed
 
-    imported, failed = await asyncio.to_thread(work)
+    # Shown as a running job while it works, so Abort can reach it. Only the
+    # activity fields change: the comparison this import is bound to stays put.
+    s.update({"is_active": True, "status": "running"})
+    try:
+        imported, failed = await asyncio.to_thread(work)
+    finally:
+        s.update({"is_active": False, "status": "complete"})
     verb = "Moved" if move else "Copied"
+    message = f"{verb} {imported} photo(s) into {target}."
+    if stop.is_set():
+        message = f"Stopped: {verb.lower()} {imported} of {len(request.files)} photo(s) into {target}."
+    if failed:
+        message += f" {len(failed)} could not be imported."
     return {
         "imported": imported,
         "failed": failed,
         "folder": target,
-        "message": f"{verb} {imported} photo(s) into {target}." + (f" {len(failed)} could not be imported." if failed else ""),
+        "message": message,
+        "hint": next((f["hint"] for f in failed if f["hint"]), None),
     }
 
 

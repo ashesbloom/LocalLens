@@ -31,6 +31,8 @@ import tempfile
 from multiprocessing import Pool
 import time
 
+import troubleshoot
+
 
 # --- Custom Exception Import ---
 from exceptions import OperationAbortedError
@@ -789,6 +791,9 @@ def find_and_group_photos(config, update_callback):
     cancellation_event = config.get("cancellation_event")
     # NEW: Force operation mode to 'copy' for Find & Group, ignoring any user input
     operation_mode = "copy"
+    problem = read_only_problem(source_dir, base_dest_dir, operation_mode)
+    if problem:
+        raise RuntimeError(problem)  # the message already carries the fix
 
     target_folder_name = find_config.get('folderName', "Find_Results")
     target_folder = os.path.join(base_dest_dir, target_folder_name)
@@ -1289,6 +1294,76 @@ def _use_safe_copy_path(operation_mode, source_dir, dest_dir, specific_files):
         return False
     return os.stat(source_dir).st_dev != os.stat(dest_dir).st_dev
 
+def _read_only(path):
+    try:
+        if hasattr(os, "statvfs"):
+            return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
+    except OSError:
+        pass
+    return not os.access(path, os.W_OK)
+
+def read_only_problem(source_dir, dest_dir, operation_mode):
+    """
+    Why this job can't run, or None. Checked before anything is copied: a Move
+    off a read-only drive (macOS mounts NTFS that way) used to copy everything,
+    fail to delete the originals, and still report success.
+    """
+    why = troubleshoot.READ_ONLY_WHY
+    if dest_dir and os.path.isdir(dest_dir) and _read_only(dest_dir):
+        return f"Can't write to '{dest_dir}': its drive is read-only.{why} Pick a destination on another drive."
+    if operation_mode == 'move' and source_dir and os.path.isdir(source_dir) and _read_only(source_dir):
+        return f"Can't move photos off '{source_dir}': its drive is read-only.{why} Use Copy instead."
+    return None
+
+def _remove_copied_source(source_dir, ignore_set):
+    """
+    Deletes what the cross-drive Move copied, leaving ignored subtrees (and the
+    folders leading to them) in place. Keeps going past a file that won't delete.
+    Returns (files_left, first_error).
+    """
+    # Every directory that is an ancestor of an ignored path stays, even if empty.
+    # Normalised, so it can be compared against _norm()ed walked paths.
+    ancestor_dirs = set()
+    for ignored_path in ignore_set:
+        rel = os.path.relpath(ignored_path, _norm(source_dir))
+        parts = rel.split(os.sep)
+        for i in range(len(parts)):
+            ancestor_dirs.add(_norm(os.path.join(source_dir, *parts[:i])))
+
+    left, first_error = 0, None
+    # Bottom-up walk so we can safely remove empty dirs as we go.
+    for dirpath, dirnames, filenames in os.walk(source_dir, topdown=False):
+        if _is_ignored(dirpath, ignore_set):
+            continue
+        for fname in filenames:
+            fpath = os.path.join(dirpath, fname)
+            if not _is_ignored(fpath, ignore_set):
+                try:
+                    os.remove(fpath)
+                except Exception as del_e:
+                    left += 1
+                    first_error = first_error or del_e
+                    logging.error(f"Could not delete source file '{fpath}': {del_e}")
+        for dname in dirnames:
+            dpath = os.path.join(dirpath, dname)
+            if _is_ignored(dpath, ignore_set):
+                continue  # Is, or is inside, an ignored subtree — leave it.
+            if _norm(dpath) not in ancestor_dirs and os.path.isdir(dpath) and not os.listdir(dpath):
+                try:
+                    os.rmdir(dpath)
+                except Exception as del_e:
+                    logging.error(f"Could not remove source dir '{dpath}': {del_e}")
+
+    # The root goes only if it is now empty (ignored subtrees keep it alive).
+    if not os.listdir(source_dir):
+        try:
+            os.rmdir(source_dir)
+        except Exception as del_e:
+            logging.error(f"Could not remove source dir '{source_dir}': {del_e}")
+    else:
+        logging.info(f"Original source directory kept; it still holds files: {source_dir}")
+    return left, first_error
+
 def process_photos(config, update_callback):
     """Main entry point called by the API, orchestrating the entire process."""
     source_dir = config["source_folder"]
@@ -1301,6 +1376,10 @@ def process_photos(config, update_callback):
     operation_mode = config.get("operation_mode", "move")
     encodings_path = config.get("encodings_path")
     cancellation_event = config.get("cancellation_event")
+
+    problem = read_only_problem(source_dir, dest_dir, operation_mode)
+    if problem:
+        raise RuntimeError(problem)  # the message already carries the fix
 
     log_file_handle, temp_log_path = tempfile.mkstemp(suffix=".log", text=True)
     os.close(log_file_handle)
@@ -1397,13 +1476,24 @@ def process_photos(config, update_callback):
         # scheduler_daemon.py as a fallback — keep that wording intact.
         # The space clause is appended after it, so the scraped substring is
         # untouched.
-        completion_message = f"Process complete. {moved_count} files successfully {operation_mode}d from {total_files} source photos."
+        # Remove the originals BEFORE saying "complete", so the final message is the
+        # truth. (It used to run afterwards, and a failure there was only logged.)
+        left, cleanup_error = 0, None
+        if delete_original_source_on_success:
+            update_callback(99, "Finalizing move: removing the originals...", "running", initial_analytics)
+            left, cleanup_error = _remove_copied_source(source_dir, ignore_set)
+
+        completion_message = f"Process complete. {moved_count} files successfully {'moved' if operation_mode == 'move' else 'copied'} from {total_files} source photos."
         completion_message += format_space_savings()
+        if left:
+            completion_message += f" {left} originals could not be removed from '{source_dir}'; they are still there."
         logging.info(completion_message)
         # Ride the analytics dict so the count lands in job state in the SAME update that
         # flips status to "complete" — setting it after this call returns would leave a
         # window where a poller sees complete with files_written still 0.
-        update_callback(100, completion_message, "complete", {**initial_analytics, "files_written": moved_count})
+        update_callback(100, completion_message, "complete",
+                        {**initial_analytics, "files_written": moved_count},
+                        hint=troubleshoot.hint(cleanup_error) if left else None)
         operation_successful = True
         return moved_count  # Return count so callers (scheduler daemon, API) can track it
 
@@ -1428,78 +1518,11 @@ def process_photos(config, update_callback):
                     logging.error(f"CRITICAL: Rollback failed for '{op['destination']}'. Please move it manually to '{op['source']}'. Error: {rollback_e}")
             logging.info("Rollback complete.")
 
-        # This block runs on success, failure, or abort.
-        # FIX: Only delete the original source if the 'safe move' path was taken and was successful.
-        if delete_original_source_on_success and operation_successful:
-            try:
-                update_callback(99, "Finalizing move: Removing original source directory...", "running", initial_analytics)
-
-                # BUG FIX: A blanket shutil.rmtree(source_dir) would permanently destroy any
-                # ignored subfolders that were intentionally skipped during the copy step and
-                # therefore never transferred anywhere. Instead, we perform an ignore-aware
-                # deletion: remove only what was actually copied, and leave ignored subtrees
-                # (plus any ancestor directory that leads to one) intact.
-                if not ignore_set:
-                    # No ignore list — safe to remove the whole tree as before.
-                    shutil.rmtree(source_dir)
-                else:
-                    # Determine every directory that is an ancestor of an ignored path so
-                    # we can keep those directories alive even if they contain no other content.
-                    # Normalised, so it can be compared against _norm()ed walked paths.
-                    ancestor_dirs = set()
-                    for ignored_path in ignore_set:
-                        # Walk from source_dir down to the ignored path's parent.
-                        rel = os.path.relpath(ignored_path, _norm(source_dir))
-                        parts = rel.split(os.sep)
-                        for i in range(len(parts)):
-                            ancestor_dirs.add(_norm(os.path.join(source_dir, *parts[:i])))
-
-                    # Bottom-up walk so we can safely remove empty dirs as we go.
-                    for dirpath, dirnames, filenames in os.walk(source_dir, topdown=False):
-                        # Never touch an ignored subtree.
-                        if _is_ignored(dirpath, ignore_set):
-                            continue
-
-                        # Delete individual files that are not inside an ignored subtree.
-                        for fname in filenames:
-                            fpath = os.path.join(dirpath, fname)
-                            if not _is_ignored(fpath, ignore_set):
-                                try:
-                                    os.remove(fpath)
-                                except Exception as del_e:
-                                    logging.error(f"Could not delete source file '{fpath}': {del_e}")
-
-                        # Remove subdirectories that are not ignored and not ancestors of an
-                        # ignored path, provided they are now empty.
-                        for dname in dirnames:
-                            dpath = os.path.join(dirpath, dname)
-                            if _is_ignored(dpath, ignore_set):
-                                continue  # Is, or is inside, an ignored subtree — leave it.
-                            if _norm(dpath) not in ancestor_dirs and not os.listdir(dpath):
-                                try:
-                                    os.rmdir(dpath)
-                                except Exception as del_e:
-                                    logging.error(f"Could not remove source dir '{dpath}': {del_e}")
-
-                    # Finally, remove the root source_dir itself only if it is now empty
-                    # (it won't be if any ignored subtree lives inside it).
-                    if not os.listdir(source_dir):
-                        os.rmdir(source_dir)
-                    else:
-                        logging.info(
-                            f"Original source directory kept because it still contains "
-                            f"ignored sub-folders: {source_dir}"
-                        )
-
-                logging.info(f"Successfully removed copied content from original source directory: {source_dir}")
-            except Exception as e:
-                logging.error(f"CRITICAL: Failed to remove original source directory after move: {e}")
-                update_callback(100, f"Error: Could not remove original source folder. Please remove it manually: {source_dir}", "warning", initial_analytics)
-
         if temp_source_path and os.path.exists(temp_source_path):
-            # This cleanup is for the 'safe move' path, especially on abort.
-            update_callback(99, "Finalizing operation: Cleaning up temporary workspace...", "running", initial_analytics)
-            shutil.rmtree(temp_source_path)
+            # This cleanup is for the 'safe move' path, especially on abort. No status
+            # update here: on success "complete" was already sent, and a "running"
+            # one would flip the job back to active for every poller.
+            shutil.rmtree(temp_source_path, ignore_errors=True)
             logging.info("Temporary folder cleanup complete.")
         
         if log_handler:

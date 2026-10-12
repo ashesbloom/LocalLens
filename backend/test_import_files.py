@@ -67,6 +67,38 @@ def demo():
                 raise AssertionError(f"bad destination accepted: {bad}")
             except HTTPException as e:
                 assert e.status_code in (400, 403)
+
+        # Failures say how to fix them.
+        r = run(source_folder=src, destination_folder=dst, operation_mode="copy", files=[os.path.join(src, "gone.jpg")])
+        assert "hint" in r["failed"][0]
+
+        # A read-only drive is refused up front, with the fix in the message.
+        real = main.read_only_problem
+        main.read_only_problem = lambda s, t, m: "Can't write to it. This drive is read-only."
+        try:
+            run(source_folder=src, destination_folder=dst, operation_mode="copy", files=[os.path.join(src, "a.jpg")])
+            raise AssertionError("read-only destination accepted")
+        except HTTPException as e:
+            assert e.status_code == 400 and "read-only" in e.detail
+        finally:
+            main.read_only_problem = real
+
+        # Abort: the import shows as running, so the abort endpoint reaches it.
+        main.current_job_state["new_files"].append(os.path.join(src, "skip.jpg"))
+        real_copy = main.shutil.copy2
+        def copy_then_abort(a, b):
+            real_copy(a, b)
+            assert main.current_job_state["is_active"], "import must show as a running job"
+            asyncio.run(main.abort_process())
+        main.shutil.copy2 = copy_then_abort
+        try:
+            r = run(source_folder=src, destination_folder=dst, operation_mode="copy",
+                    files=[os.path.join(src, "a.jpg"), os.path.join(src, "skip.jpg")])
+        finally:
+            main.shutil.copy2 = real_copy
+        assert r["imported"] == 1 and r["message"].startswith("Stopped"), r
+        assert not main.current_job_state["is_active"]
+        assert main.current_job_state["job_type"] == "duplicates", "the comparison stays bound"
     print("test_import_files: all assertions passed")
 
 

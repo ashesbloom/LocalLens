@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Moving new photos to another drive no longer risks deleting files that weren't sorted.
+- Moving photos off a drive that can't be changed (such as a Windows drive on a Mac) now stops with a clear message, instead of copying them and reporting a move.
+- Sorting problems now open a message that says how to fix them, instead of only appearing in the log.
+- Abort now works while importing photos unsorted.
 - When face recognition, HEIC or RAW support can't start, the log now says why and how to fix it.
 - The setup screen no longer leaves an empty gap beside the folder list.
 
