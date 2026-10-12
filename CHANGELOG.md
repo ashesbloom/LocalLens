@@ -8,13 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 
-- **Find and clear out duplicate photos, right in the app.** A new Duplicates tab scans a folder for copies of the same photo, including resized, re-exported and rotated copies and, if you choose, burst shots. Review each group side by side: Local Lens pre-selects the best copy (highest resolution, then least compressed, then the original over a "copy"), and you can pick another or keep them all. A short list opens one group at a time; a long one opens as a list you can skim. Everything you remove goes to the Trash. Free for everyone.
-- When the Claude agent cleans up duplicates, it now keeps the best copy too, rather than whichever file it found first.
-- **See what's already in your photo library before you import.** In the Duplicates tab, choose a folder under "Compare with folder" and Local Lens checks a card or another folder against it. Photos you already have are shown next to their existing copy so you can clear them off the card (to the Trash; the folder you compared with is never touched), and one click imports only the new ones through a normal sort, filed by date, place or people like everything else. Repeat comparisons are much faster: Local Lens remembers each photo's fingerprint on this device, and "Delete my data" clears it.
+- **Duplicates tab.** Finds copies of the same photo, including resized, re-exported and rotated ones, and burst shots if you want. Local Lens picks the best copy; you check it and send the rest to the Trash. Free for everyone.
+- **Compare with another folder.** Check a memory card against your library. Clear off the card what you already have, and import only the new photos, sorted or as they are.
+- **Replies to your community posts.** A reply shows up as a notification, a count on the bell and the app icon, and a system alert when Local Lens is in the background. New posts appear quietly in the bell. No account needed.
+- **A tour of what's new.** After an update, Local Lens shows the new features once. They stay in the tutorial menu, marked New.
+
+### Changed
+
+- The Community button opens what's new for you: a reply, a new post, or the forum.
+- The bell only shows what still needs you.
+- Repeat duplicate scans are much faster. Photo fingerprints are kept on this device; "Delete my data" clears them.
+- Each Browse button remembers its own folder, and hovering a folder shows its full path.
+- The Claude agent keeps the best copy when it cleans up duplicates.
+- Nested folders in the folder list start collapsed.
+- The tutorial spotlight glides between steps and follows the page as you scroll.
 
 ### Fixed
 
-- **Moving newly arrived photos to another drive no longer risks deleting files it didn't sort.** When a watched folder set to Move picked up a few new photos and the destination was on a different drive, Local Lens could remove the whole watched folder afterwards, including files it hadn't touched. It now moves just the photos it sorts.
+- Moving new photos to another drive no longer risks deleting files that weren't sorted.
+- When face recognition, HEIC or RAW support can't start, the log now says why and how to fix it.
+- The setup screen no longer leaves an empty gap beside the folder list.
 
 ## [3.1.0] - 2026-09-13
 ### Added
