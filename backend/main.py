@@ -318,6 +318,7 @@ current_job_state = {
     "total_scanned": 0,        # Files successfully hashed (excludes skipped)
     "total_duplicates": 0,      # Files across all groups, keepers included
     "skipped": 0,               # Files nothing on this platform could decode
+    "skipped_duplicates": [],   # Sort with skip_duplicates: source photos left out (still in the source)
 }
 
 # Reset applied at the start of EVERY job: a stale duplicate result must never leak
@@ -330,6 +331,7 @@ _DUP_RESULT_RESET = {
     "total_scanned": 0,
     "total_duplicates": 0,
     "skipped": 0,
+    "skipped_duplicates": [],
 }
 
 # --- Cancellation Events for Aborting Tasks ---
@@ -394,6 +396,7 @@ class SortOptions(BaseModel):
     # --- Fields for Scheduler Daemon (new files only) ---
     mtime_cutoff: Optional[float] = None     # Unix timestamp — skip files older than this
     specific_files: Optional[List[str]] = None  # Process only these files
+    skip_duplicates: Optional[bool] = False  # Leave out photos already in the destination / repeated in the source
 
 
 class SortRequest(BaseModel):
@@ -709,9 +712,31 @@ async def run_organization_task(config: Dict):
         # Pass the centralized encodings file path to the logic function
         config["encodings_path"] = ENCODINGS_FILE
         config["cancellation_event"] = cancellation_events["sorting"]
-        
+
+        # Opt-in only: the sort is handed just the kept photos (specific_files), so the
+        # skipped ones are never copied, moved or deleted. Off = no hashing at all.
+        skipped_dupes = []
+        if sort_opts.get("skip_duplicates"):
+            source_files, skipped_dupes = await asyncio.to_thread(_find_skippable, config)
+            if skipped_dupes:
+                skip = set(skipped_dupes)
+                kept = [p for p in source_files if p not in skip]
+                current_job_state.update({"skipped_duplicates": skipped_dupes, "total_files": len(kept)})
+                if not kept:
+                    update_status_callback({
+                        "progress": 100, "status": "complete",
+                        "message": f"Nothing to sort: all {len(skipped_dupes)} photo(s) are already in the "
+                                   "destination or duplicated in the source.",
+                    })
+                    return
+                config["specific_files"] = kept
+        n = len(skipped_dupes)
+        skipped_note = f" {n} duplicate{'s' if n != 1 else ''} skipped." if n else ""
+
         # Create an adapter for the callback to match the expected signature
         def callback_adapter(progress: int, message: str, status: str = "running", analytics: Optional[Dict] = None, hint: Optional[str] = None):
+            if status == "complete":
+                message += skipped_note
             update_data = {
                 "progress": progress, 
                 "message": message, 
@@ -865,6 +890,98 @@ def _collect_images(root: str, ignore_set: set, seen_inodes: set) -> List[str]:
     return out
 
 
+def _hash_files(files: List[str], cancel_event, progress, abort_message: str):
+    """
+    pHash every file, through the fingerprint cache. Returns (file_hashes, file_info,
+    unreadable_count); file_info is {path: {width, height, bytes, mtime}} for hashed files.
+    Blocking: call it from a worker thread. progress(idx, path) runs about every 1%.
+    """
+    store = _phash_store()
+    cached = store.phash_cache_get_many(files) if store else {}
+    fresh = []
+    file_hashes = []
+    file_info = {}
+    skipped = 0
+    # Progress is reported per batch, not per file: at 15k files a callback each
+    # time would put 15k JSON messages through the log queue for no added detail.
+    step = max(1, len(files) // 100)
+
+    for idx, fp in enumerate(files):
+        if cancel_event.is_set():
+            raise OperationAbortedError(abort_message)
+        try:
+            st = os.stat(fp)
+            hit = cached.get(fp)
+            if hit:
+                h, w, ht = np.uint64(hit["phash"]), hit["width"], hit["height"]
+            else:
+                im = load_upright(fp)
+                h = None if im is None else _phash_of(im)
+                if h is not None:
+                    w, ht = im.width, im.height
+                    fresh.append((fp, st.st_size, st.st_mtime, int(h), w, ht))
+            if h is not None:
+                file_info[fp] = {"width": w, "height": ht, "bytes": st.st_size, "mtime": st.st_mtime}
+        except Exception:
+            h = None  # Corrupt or unreadable image
+        if h is None:
+            skipped += 1
+        else:
+            file_hashes.append((fp, h))
+        if idx % step == 0:
+            progress(idx, fp)
+
+    if store:
+        store.phash_cache_put_many(fresh)
+    return file_hashes, file_info, skipped
+
+
+# Near-identical, the duplicate scan's default. Skipping happens without a review,
+# so the looser "similar / burst" level is deliberately not offered here.
+_SKIP_MAX_DISTANCE = 3
+
+
+def _plan_skips(source_files: List[str], dest_set: set, file_hashes: List, file_info: Dict,
+                max_distance: int = _SKIP_MAX_DISTANCE) -> List[str]:
+    """
+    Which source photos a "skip duplicates" sort leaves out, in source order: every
+    source copy of a photo already in the destination, and all but the best copy
+    (by _keeper_rank) of a photo repeated inside the source. A file that could not
+    be hashed is never skipped, so nothing is silently left behind.
+    """
+    skip = set()
+    for g in _group_by_hash(file_hashes, max_distance):
+        src = sorted((p for p in g if p not in dest_set), key=lambda p: _keeper_rank(p, file_info[p]))
+        skip.update(src if len(src) < len(g) else src[1:])
+    return [p for p in source_files if p in skip]
+
+
+def _find_skippable(config: Dict):
+    """Blocking pre-sort pass for skip_duplicates: (source photos, the ones to leave out)."""
+    source, dest = config["source_folder"], config["destination_folder"]
+    if config.get("specific_files") is not None:
+        source_files = [p for p in config["specific_files"]
+                        if p.lower().endswith(SUPPORTED_EXTENSIONS) and os.path.isfile(p) and not os.path.islink(p)]
+    else:
+        source_files = _collect_images(
+            source, effective_ignore_set(source, dest, config.get("ignore_list") or []), set())
+    # The source subtree is excluded so a source inside the destination never matches
+    # itself; separate inode sets so a hard link across the two still counts as "there".
+    dest_files = _collect_images(dest, {source}, set())
+    all_files = dest_files + source_files  # destination first: it seeds the groups
+
+    def progress(idx, fp):
+        update_status_callback({
+            "progress": int(5 * idx / len(all_files)),
+            "message": f"Checking for duplicates... {idx}/{len(all_files)}",
+            "status": "running",
+        })
+
+    file_hashes, file_info, _ = _hash_files(
+        all_files, cancellation_events["sorting"], progress, "Sort aborted by user.")
+    return source_files, _plan_skips(source_files, set(dest_files), file_hashes, file_info)
+
+
 async def run_find_duplicates_task(config: Dict):
     """
     Duplicate scan, wrapped to run in the background.
@@ -914,50 +1031,17 @@ async def run_find_duplicates_task(config: Dict):
 
     def scan():
         """Blocking hash + group pass. Runs off the event loop (see to_thread below)."""
-        store = _phash_store()
-        cached = store.phash_cache_get_many(all_files) if store else {}
-        fresh = []
-        file_hashes = []
-        file_info = {}
-        skipped = 0
-        # Progress is reported per batch, not per file: at 15k files a callback each
-        # time would put 15k JSON messages through the log queue for no added detail.
-        step = max(1, len(all_files) // 100)
+        def progress(idx, fp):
+            # Hashing owns 0-90%; grouping is comparatively instant.
+            which = "library" if fp in in_library else "source"
+            update_status_callback({
+                "progress": int(90 * idx / len(all_files)),
+                "message": f"Hashing {which} photos... {idx}/{len(all_files)}",
+                "status": "running",
+            })
 
-        for idx, fp in enumerate(all_files):
-            if cancellation_events["duplicates"].is_set():
-                raise OperationAbortedError("Duplicate scan aborted by user.")
-            try:
-                st = os.stat(fp)
-                hit = cached.get(fp)
-                if hit:
-                    h, w, ht = np.uint64(hit["phash"]), hit["width"], hit["height"]
-                else:
-                    im = load_upright(fp)
-                    h = None if im is None else _phash_of(im)
-                    if h is not None:
-                        w, ht = im.width, im.height
-                        fresh.append((fp, st.st_size, st.st_mtime, int(h), w, ht))
-                if h is not None:
-                    file_info[fp] = {"width": w, "height": ht, "bytes": st.st_size, "mtime": st.st_mtime}
-            except Exception:
-                h = None  # Corrupt or unreadable image
-            if h is None:
-                skipped += 1
-            else:
-                file_hashes.append((fp, h))
-
-            if idx % step == 0:
-                # Hashing owns 0-90%; grouping is comparatively instant.
-                which = "library" if fp in in_library else "source"
-                update_status_callback({
-                    "progress": int(90 * idx / len(all_files)),
-                    "message": f"Hashing {which} photos... {idx}/{len(all_files)}",
-                    "status": "running",
-                })
-
-        if store:
-            store.phash_cache_put_many(fresh)
+        file_hashes, file_info, skipped = _hash_files(
+            all_files, cancellation_events["duplicates"], progress, "Duplicate scan aborted by user.")
         update_status_callback({
             "progress": 90,
             "message": f"Comparing {len(file_hashes)} hashes...",
