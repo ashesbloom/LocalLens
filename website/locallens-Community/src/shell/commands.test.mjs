@@ -60,14 +60,8 @@ for (const route of ROUTES) {
     check(typeof route.path === 'string', `route '${route.cmd}' must declare a path`)
   }
 }
-// The agent hub is an internal page now; its product site stays reachable as `site`.
-check(resolveRoute('mcp')?.path === '/agent', "'mcp' should resolve to the agent hub")
-check(resolveRoute('agent')?.path === '/agent', "'agent' should resolve to the agent hub")
-check(routeForPath('/agent')?.cmd === 'agent', "/agent should map back to 'agent'")
-check(resolveRoute('agent')?.url === undefined, 'the agent hub must not also carry an external url')
-check(resolveRoute('site')?.url === 'https://www.locallens.in', "'site' should still reach the agent's product site")
-check(!NAV_ITEMS.some((r) => r.cmd === 'site'), 'the product site is deliberately not in the nav')
-check(!LISTED_ITEMS.some((r) => r.cmd === 'site'), 'the product site is deliberately not in ls')
+check(resolveRoute('mcp')?.url === 'https://locallensmcp.vercel.app', "'mcp' should resolve to the MCP agent site")
+check(routeForPath('/agent') === null, 'there is no /agent route any more')
 
 // --- the two explainer routes exist and are reachable every way they claim to be ---
 for (const [cmd, path] of [['how', '/how'], ['pipeline', '/pipeline']]) {
@@ -111,9 +105,7 @@ for (const route of SECTION_CYCLE) {
   check(typeof route.path === 'string', `cycle entry '${route.cmd}' must have a path`)
   check(!route.url, `cycle must not contain the external route '${route.cmd}'`)
 }
-// The agent hub is internal, so unlike the product site it does belong in the cycle.
-check(SECTION_CYCLE.some((r) => r.cmd === 'agent'), 'the arrow cycle must include the agent hub')
-check(!SECTION_CYCLE.some((r) => r.cmd === 'site'), "the arrow cycle must skip the agent's external product site")
+check(!SECTION_CYCLE.some((r) => r.cmd === 'agent'), 'the arrow cycle must skip the external agent link')
 
 // stepSection wraps at both ends, and enters the cycle from anywhere outside it.
 const first = SECTION_CYCLE[0]

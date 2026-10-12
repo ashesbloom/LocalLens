@@ -8,7 +8,6 @@ import PostPage from './routes/PostPage.jsx'
 import Announce from './routes/Announce.jsx'
 import Blog from './routes/Blog.jsx'
 import HowItWorks from './routes/HowItWorks.jsx'
-import Agent from './routes/Agent.jsx'
 import Pipeline from './routes/Pipeline.jsx'
 import Article from './routes/Article.jsx'
 import Contact from './routes/Contact.jsx'
@@ -49,7 +48,6 @@ createRoot(document.getElementById('root')).render(
           <Route path="/blog/:id" element={<Article />} />
           <Route path="/how" element={<HowItWorks />} />
           <Route path="/pipeline" element={<Pipeline />} />
-          <Route path="/agent" element={<Agent />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="*" element={<NotFound />} />
         </Route>

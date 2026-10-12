@@ -70,40 +70,21 @@ export const ROUTES = [
     echo: 'cat pipeline.md',
   },
   {
-    // LL Agent's community hub: its walkthrough and its releases, served from here. It was
-    // an external link to the agent's product site until this community became the common
-    // channel for both products — every LL Agent user already runs LocalLens, so one board
-    // and one release page serve the same people rather than splitting them in two.
+    // External: the MCP agent has its own site, so there is no /agent route here — the nav
+    // item and the command open it directly. `path` stays null and `url` carries it; Nav and
+    // CommandLine branch on `url`, and commands.test.mjs asserts both shapes.
     //
-    // The product site did not go away; it moved to the `site` record below.
+    // Deliberately has no `key`: a chord that opens a new browser tab is not what someone
+    // pressing an arrow or a two-key jump expects. Reachable by typing `agent` / `mcp`.
     cmd: 'agent',
     aliases: ['ll-agent', 'mcp'],
-    path: '/agent',
+    path: null,
+    url: 'https://locallensmcp.vercel.app',
     label: 'LL Agent',
     icon: 'agent',
-    blurb: 'the MCP bridge: how it works, and what shipped',
+    blurb: 'run LocalLens from Claude Desktop',
     nav: true,
     listed: true,
-    key: 'm',
-    echo: 'cat ll-agent.md',
-  },
-  {
-    // The agent's product site — downloads and pricing, which are its business and not
-    // this board's. External, and deliberately neither in the nav nor in `ls`: the nav has
-    // as many items as it can carry, and /agent links here prominently anyway. Typing
-    // `site` still gets you there.
-    //
-    // No `key`, because a chord that opens a new browser tab is not what someone pressing
-    // a two-key jump expects. commands.test.mjs pins that for every external route.
-    cmd: 'site',
-    aliases: ['llagent-site', 'download-agent'],
-    path: null,
-    url: 'https://www.locallens.in',
-    label: 'LL Agent site',
-    icon: 'agent',
-    blurb: 'downloads and pricing for the agent',
-    nav: false,
-    listed: false,
     key: null,
   },
   {
@@ -181,22 +162,17 @@ export function completions(input) {
 // `ls` content — same section list the Home page shows. Meta is real where the site
 // actually has the number (the shipped version; the MCP agent's verified tool count) and
 // '—' everywhere else — open-issue counts and view counts are not fetched yet (Task 7).
-//
-// The split is 16 free / 10 Pro, and it must not be flattened into a bare "26 tools"
-// (task-5-brief.md) — shown as '16+10' to keep both numbers visible in this compact column.
-// Counted by parsing the decorators in locallens_mcp_agent/src/mcp_server/tools/*.py: 26
-// functions carry @mcp.tool, of which 10 also carry @require_pro. This line previously read
-// '15+11' and claimed the README and marketing/CLAIMS.md miscounted start_find_group as
-// free; that was backwards. start_find_group carries @mcp.tool() and no @require_pro, and
-// actions.py states outright that nothing in that module is Pro-gated. The README's tables
-// (16 rows free, 10 rows Pro) were right all along.
+// The 15/11 split (by @require_pro decorator in locallens_mcp_agent/src/mcp_server/tools/*.py
+// — the README and marketing/CLAIMS.md both say 16/10, which miscounts start_find_group as
+// free when it is Pro-gated) must not be flattened into a bare "26 tools" (task-5-brief.md) —
+// shown here as '15+11' to keep both numbers visible even in this compact column.
 const LS_META = {
   post: 'open',
   announce: `v${APP_VERSION}`,
   blog: '—',
   how: '5 min read',
   pipeline: '12 min read',
-  agent: '16+10 tools',
+  agent: '15+11 tools',
   contact: 'email',
 }
 
