@@ -31,8 +31,6 @@ import tempfile
 from multiprocessing import Pool
 import time
 
-import troubleshoot
-
 
 # --- Custom Exception Import ---
 from exceptions import OperationAbortedError
@@ -41,6 +39,8 @@ from exceptions import OperationAbortedError
 # Shared with enrollment_logic so the gallery and the query encodings are
 # produced by identical image handling.
 import face_engine
+# Turns a failed import into "what happened, and what to run" for this platform.
+import troubleshoot
 
 # --- REVERT: REMOVE ALL MULTIPROCESSING WORKER FUNCTIONS ---
 
@@ -49,14 +49,19 @@ try:
     from pillow_heif import register_heif_opener
     register_heif_opener()
     print("HEIC/HEIF format support enabled.")
-except ImportError:
-    print("Warning: 'pillow-heif' not installed. HEIC/HEIF files will be ignored.")
+except Exception as e:
+    print("Warning: HEIC/HEIF support is unavailable. HEIC/HEIF files will be ignored.")
+    troubleshoot.record("pillow_heif", e)
 
+# Not just ImportError: a missing dylib/DLL under dlib surfaces as OSError, and
+# face_recognition calls quit() (SystemExit) when its model package is missing.
+# Either way the real reason is logged with its fix, not "not installed".
 try:
     import face_recognition
     print("Facial recognition library loaded.")
-except ImportError:
-    print("CRITICAL ERROR: 'face_recognition' library not installed.")
+except (Exception, SystemExit) as e:
+    print("CRITICAL ERROR: face recognition is unavailable. 'Sort by People' is disabled.")
+    troubleshoot.record("face_recognition", e)
     face_recognition = None
 
 import reverse_geocoder as rg
@@ -65,28 +70,33 @@ import reverse_geocoder as rg
 rawpy = None
 WandImage = None
 
+# Kept so the platform check below can say why, not just that, RAW is off.
+_rawpy_error = _wand_error = None
+
 # 1. Try rawpy (Preferred for Windows, optional for others)
 try:
     import rawpy
     print("Raw image format support (DNG, CR2, etc.) enabled via rawpy.")
-except ImportError:
-    pass
+except Exception as e:
+    _rawpy_error = e
 
 # 2. Try Wand (Preferred for macOS/Linux if rawpy is missing)
 try:
     from wand.image import Image as WandImage
     print("Wand (ImageMagick) support enabled.")
-except ImportError:
-    pass
+except Exception as e:
+    _wand_error = e
 
-# 3. Log status based on platform expectations
+# 3. Log status based on platform expectations. Only where the platform actually
+# loses RAW support -- one of the two missing elsewhere is normal, not a fault.
 if sys.platform == 'win32':
     if not rawpy:
         print("Warning: 'rawpy' is missing on Windows. RAW face recognition will be disabled.")
+        troubleshoot.record("rawpy", _rawpy_error)
 elif sys.platform == 'darwin': # macOS
     if not WandImage and not rawpy:
         print("Warning: Neither 'Wand' nor 'rawpy' found. RAW face recognition will be disabled.")
-        print("  -> Install ImageMagick (`brew install imagemagick`) and reinstall requirements.")
+        troubleshoot.record("wand", _wand_error)
 
 
 # --- Global State for Libraries ---
@@ -109,18 +119,20 @@ def initialize_libraries(is_main_process: bool = False):
         register_heif_opener()
         if is_main_process:
             print("HEIC/HEIF format support enabled.")
-    except ImportError:
+    except Exception as e:
         if is_main_process:
-            print("Warning: 'pillow-heif' not installed. HEIC/HEIF files will be ignored.")
+            print("Warning: HEIC/HEIF support is unavailable. HEIC/HEIF files will be ignored.")
+            troubleshoot.record("pillow_heif", e)
 
     try:
         import face_recognition as fr
         face_recognition = fr
         if is_main_process:
             print("Facial recognition library loaded.")
-    except ImportError:
+    except (Exception, SystemExit) as e:
         if is_main_process:
-            print("CRITICAL ERROR: 'face_recognition' library not installed.")
+            print("CRITICAL ERROR: face recognition is unavailable. 'Sort by People' is disabled.")
+            troubleshoot.record("face_recognition", e)
         face_recognition = None
     _libraries_initialized = True
     

@@ -287,6 +287,17 @@ def check_health(base_url):
     return "status=ok"
 
 
+def check_onboarding(base_url):
+    # A fresh install has not finished the Claude setup page, so the app keeps
+    # showing its card; finishing it is what hides the card.
+    before = get(base_url, "/api/onboarding-status")
+    assert before == {"onboarded": False}, f"fresh sandbox reported {before!r}"
+    post(base_url, "/api/complete-onboarding")
+    after = get(base_url, "/api/onboarding-status")
+    assert after == {"onboarded": True}, f"after finishing, got {after!r}"
+    return "False -> True"
+
+
 def check_stats(base_url, expect_version):
     r = get(base_url, "/api/stats")
     assert r.get("face_recognition_active") is True, \
@@ -493,6 +504,7 @@ def main():
              lambda: check_start_sorting(base_url, source, dest_root))
         step("[8] POST /api/export-report", lambda: check_export_report(base_url, source))
         step("[9] POST /api/metadata-overview", lambda: check_metadata_overview(base_url, source))
+        step("[10] GET /api/onboarding-status", lambda: check_onboarding(base_url))
 
     finally:
         stop_backend(proc, base_url)

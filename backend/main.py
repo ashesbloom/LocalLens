@@ -490,6 +490,12 @@ def update_status_callback(update_data: Dict):
     try:
         # Use put_nowait for thread-safe adding from background tasks
         log_queue.put_nowait(json.dumps(update_data))
+        # A job that breaks on a known failure says what to run, right under the error.
+        if st == "error":
+            for hint in troubleshoot.diagnose(update_data.get("message", "")):
+                log_queue.put_nowait(json.dumps({"status": "warning", "message": f"When: {hint['when']}"}))
+                for cmd in hint["run"]:
+                    log_queue.put_nowait(json.dumps({"status": "warning", "message": f"Run: {cmd}"}))
     except Exception as e:
         print(f"Error adding log to queue: {e}")
 
@@ -1901,7 +1907,12 @@ async def get_stats():
 async def check_dependencies():
     """Checks for the presence of optional heavy dependencies like face_recognition."""
     # MODIFIED: Access the variable through the module to get its current state.
-    return {"face_recognition_installed": organizer_logic.face_recognition is not None}
+    # `issues` carries each failed component's real error and the platform's fix,
+    # so the app can say what to run instead of "not installed".
+    return {
+        "face_recognition_installed": organizer_logic.face_recognition is not None,
+        "issues": troubleshoot.ISSUES,
+    }
 
 @app.get("/api/job-status")
 async def get_job_status():
@@ -2303,6 +2314,14 @@ async def setup_page():
     # Inject the actual instructions into the placeholder
     html = html.replace("LOCALLENS_INSTRUCTIONS_PLACEHOLDER", _SETUP_INSTRUCTIONS.replace("`", "\\`"))
     return HTMLResponse(content=html)
+
+
+@app.get("/api/onboarding-status")
+async def onboarding_status():
+    """Whether the user finished the Claude setup page (its "Done?" step), so
+    the app can stop showing the "Connect to Claude" card. Opening the page is
+    not enough; only the finish button writes the marker."""
+    return {"onboarded": _ONBOARDING_FILE.exists()}
 
 
 @app.post("/api/complete-onboarding")
