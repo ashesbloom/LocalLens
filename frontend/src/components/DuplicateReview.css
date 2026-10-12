@@ -206,3 +206,18 @@
   .dup-tile, .dup-tile.large { width: calc(50% - 0.4rem); }
   .dup-footer { flex-wrap: wrap; }
 }
+
+/* Compare mode: library copies are shown for reference and can't be picked. */
+.dup-tile.locked { cursor: default; border-color: rgba(255, 255, 255, 0.35); box-shadow: none; }
+.dup-tile.locked .dup-badge { background: rgba(255, 255, 255, 0.9); color: #111827; }
+.dup-clear-library {
+  align-self: flex-start;
+  margin-top: 0.35rem;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.dup-clear-library:hover { text-decoration: underline; }

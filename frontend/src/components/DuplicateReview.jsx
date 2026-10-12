@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { List, Square, ChevronLeft, ChevronRight, Star, X } from 'react-feather';
+import { List, Square, ChevronLeft, ChevronRight, Star, X, Lock } from 'react-feather';
 import ConfirmationModal from './ConfirmationModal';
 import {
     KEEP_ALL, defaultView, initialKeepers, pathsToTrash, reclaimBytes, afterDelete, formatBytes,
@@ -10,16 +10,19 @@ const baseName = (p) => p.split(/[\\/]/).pop();
 const parentName = (p) => p.split(/[\\/]/).slice(-2, -1)[0] || p;
 const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-const Tile = ({ path, info, keep, error, large, apiBase, onPick }) => {
+const Tile = ({ path, info, keep, locked, error, large, apiBase, onPick }) => {
     const [broken, setBroken] = useState(false);
     return (
         <button
             type="button"
-            className={`dup-tile ${keep ? 'keep' : 'trash'} ${large ? 'large' : ''} ${error ? 'failed' : ''}`}
-            onClick={onPick}
+            className={`dup-tile ${keep ? 'keep' : 'trash'} ${locked ? 'locked' : ''} ${large ? 'large' : ''} ${error ? 'failed' : ''}`}
+            onClick={locked ? undefined : onPick}
+            aria-disabled={locked || undefined}
             title={error ? `${path}\nCould not remove: ${error}` : path}
         >
-            <span className="dup-badge">{keep ? <><Star size={12} /> Keep</> : <><X size={12} /> Trash</>}</span>
+            <span className="dup-badge">
+                {locked ? <><Lock size={12} /> In library</> : keep ? <><Star size={12} /> Keep</> : <><X size={12} /> Trash</>}
+            </span>
             {broken ? (
                 <div className="dup-thumb dup-thumb-missing">No preview</div>
             ) : (
@@ -37,9 +40,9 @@ const Tile = ({ path, info, keep, error, large, apiBase, onPick }) => {
     );
 };
 
-const Group = ({ group, label, keeper, files, failed, large, apiBase, setKeeper }) => {
+const Group = ({ group, label, keeper, files, failed, large, apiBase, setKeeper, compare, protectedPaths }) => {
     const keepAll = keeper === KEEP_ALL;
-    const save = reclaimBytes(pathsToTrash([group], [keeper]), files);
+    const save = reclaimBytes(pathsToTrash([group], [keeper], protectedPaths), files);
     return (
         <section className="dup-group">
             <header className="dup-group-header">
@@ -49,7 +52,7 @@ const Group = ({ group, label, keeper, files, failed, large, apiBase, setKeeper 
                     className={`dup-keep-all ${keepAll ? 'active' : ''}`}
                     onClick={() => setKeeper(keepAll ? group[0] : KEEP_ALL)}
                 >
-                    {keepAll ? 'Keeping all' : 'Keep all'}
+                    {compare ? (keepAll ? 'Keeping on card' : 'Keep on card') : (keepAll ? 'Keeping all' : 'Keep all')}
                 </button>
             </header>
             <div className="dup-tiles">
@@ -58,11 +61,12 @@ const Group = ({ group, label, keeper, files, failed, large, apiBase, setKeeper 
                         key={p}
                         path={p}
                         info={files[p]}
-                        keep={keepAll || keeper === p}
+                        keep={keepAll || keeper === p || protectedPaths.has(p)}
+                        locked={protectedPaths.has(p)}
                         error={failed[p]}
                         large={large}
                         apiBase={apiBase}
-                        onPick={() => setKeeper(p)}
+                        onPick={compare ? undefined : () => setKeeper(p)}
                     />
                 ))}
             </div>
@@ -70,7 +74,7 @@ const Group = ({ group, label, keeper, files, failed, large, apiBase, setKeeper 
     );
 };
 
-const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned }) => {
+const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned, onImport }) => {
     const [groups, setGroups] = useState([]);
     const [keeper, setKeepers] = useState([]);
     const [view, setView] = useState('list');
@@ -91,7 +95,16 @@ const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned 
     }, [result]);
 
     const files = result?.files || {};
-    const trash = useMemo(() => pathsToTrash(groups, keeper), [groups, keeper]);
+    // Compare mode: the library copies are locked, only the source side can go.
+    const compare = !!result?.libraryFolder;
+    const protectedPaths = useMemo(
+        () => new Set(Object.keys(result?.files || {}).filter((p) => result.files[p].in_library)),
+        [result],
+    );
+    const trash = useMemo(() => pathsToTrash(groups, keeper, protectedPaths), [groups, keeper, protectedPaths]);
+    const sourceName = baseName(result?.sourceFolder || '') || 'the source';
+    const onCard = groups.flat().filter((p) => !protectedPaths.has(p)).length;
+    const newCount = result?.newFiles?.length ?? 0;
     const bytes = reclaimBytes(trash, files);
     const setKeeper = (i) => (k) => setKeepers((prev) => prev.map((v, j) => (j === i ? k : v)));
 
@@ -105,12 +118,12 @@ const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned 
             if (!g) return;
             if (e.key === 'ArrowRight') setIndex((i) => Math.min(i + 1, groups.length - 1));
             else if (e.key === 'ArrowLeft') setIndex((i) => Math.max(i - 1, 0));
-            else if (e.key.toLowerCase() === 'k') setKeeper(index)(KEEP_ALL);
-            else if (/^[1-9]$/.test(e.key) && g[Number(e.key) - 1]) setKeeper(index)(g[Number(e.key) - 1]);
+            else if (e.key.toLowerCase() === 'k') setKeeper(index)(keeper[index] === KEEP_ALL ? g[0] : KEEP_ALL);
+            else if (!compare && /^[1-9]$/.test(e.key) && g[Number(e.key) - 1]) setKeeper(index)(g[Number(e.key) - 1]);
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [isOpen, preview, view, groups, index]);
+    }, [isOpen, preview, view, groups, keeper, index, compare]);
 
     // Dry run first: it tells us whether the Trash is available before we promise it.
     const askConfirm = async () => {
@@ -134,7 +147,7 @@ const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned 
                 method: 'POST',
                 body: JSON.stringify({ file_paths: paths, dry_run: false }),
             });
-            const next = afterDelete(groups, keeper, r.deleted);
+            const next = afterDelete(groups, keeper, r.deleted, protectedPaths);
             setGroups(next.groups);
             setKeepers(next.keeper);
             setIndex((i) => Math.min(i, Math.max(next.groups.length - 1, 0)));
@@ -146,18 +159,23 @@ const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned 
     if (!isOpen) return null;
 
     const scanFoundNone = (result?.groups || []).length === 0;
-    const common = { files, failed, apiBase };
+    const common = { files, failed, apiBase, compare, protectedPaths };
 
     return (
         <div className="dup-overlay">
-            <div className="dup-panel" role="dialog" aria-label="Review duplicates">
+            <div className="dup-panel" role="dialog" aria-label={compare ? 'Already in your library' : 'Review duplicates'}>
                 <header className="dup-header">
                     <div>
-                        <h2>Review duplicates</h2>
+                        <h2>{compare ? 'Already in your library' : 'Review duplicates'}</h2>
                         <p>
-                            {groups.length
-                                ? `${count(groups.length, "group")} · ${count(trash.length, "extra copy", "extra copies")} · ${formatBytes(bytes)} reclaimable`
-                                : scanFoundNone ? 'No duplicates found in this folder.' : 'All cleaned up.'}
+                            {compare
+                                ? (groups.length
+                                    ? `${onCard} of ${onCard + newCount} photos in ${sourceName} are already in your library · ${newCount} new`
+                                    : scanFoundNone ? `None of these ${count(newCount, 'photo')} are in your library yet.`
+                                        : `Nothing left on ${sourceName} that is already in your library · ${newCount} new`)
+                                : groups.length
+                                    ? `${count(groups.length, "group")} · ${count(trash.length, "extra copy", "extra copies")} · ${formatBytes(bytes)} reclaimable`
+                                    : scanFoundNone ? 'No duplicates found in this folder.' : 'All cleaned up.'}
                         </p>
                     </div>
                     {groups.length > 0 && (
@@ -173,11 +191,17 @@ const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned 
                     <button className="dup-close" onClick={onClose} title="Close" aria-label="Close"><X size={22} /></button>
                 </header>
 
-                {groups.length > 0 && <p className="dup-hint">The best copy is pre-selected. Click a photo to keep that one instead.</p>}
+                {groups.length > 0 && (
+                    <p className="dup-hint">
+                        {compare
+                            ? `Library copies are locked. Photos on ${sourceName} are marked for the Trash; use “Keep on card” to keep a group.`
+                            : 'The best copy is pre-selected. Click a photo to keep that one instead.'}
+                    </p>
+                )}
 
                 <div className="dup-body">
                     {groups.length === 0 ? (
-                        <div className="dup-empty">{scanFoundNone ? 'Every photo here is one of a kind.' : 'Nothing left to review.'}</div>
+                        <div className="dup-empty">{scanFoundNone ? (compare ? 'Everything here is new.' : 'Every photo here is one of a kind.') : 'Nothing left to review.'}</div>
                     ) : view === 'list' ? (
                         groups.map((g, i) => (
                             <Group key={i} group={g} label={`Group ${i + 1}`} keeper={keeper[i]} setKeeper={setKeeper(i)} {...common} />
@@ -189,7 +213,7 @@ const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned 
                                 <button className="btn btn-secondary" disabled={index === 0} onClick={() => setIndex(index - 1)}><ChevronLeft size={16} /> Prev</button>
                                 <button className="btn btn-secondary" disabled={index === groups.length - 1} onClick={() => setIndex(index + 1)}>Next <ChevronRight size={16} /></button>
                             </nav>
-                            <p className="dup-keys">← → move between groups · 1–9 choose the keeper · K keep all</p>
+                            <p className="dup-keys">{compare ? '← → move between groups · K keep on card' : '← → move between groups · 1–9 choose the keeper · K keep all'}</p>
                         </>
                     )}
                 </div>
@@ -198,8 +222,17 @@ const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned 
                     <span className="dup-footer-note">Removed photos go to the Trash. You can restore them from there.</span>
                     <button className="btn btn-secondary" onClick={onClose}>Close</button>
                     <button className="btn btn-primary" disabled={!trash.length || busy} onClick={askConfirm}>
-                        {busy ? 'Working…' : `Move ${count(trash.length, "file")} to Trash`}
+                        {busy ? 'Working…' : compare ? `Move ${count(trash.length, "file")} from ${sourceName} to Trash` : `Move ${count(trash.length, "file")} to Trash`}
                     </button>
+                    {compare && (
+                        <button
+                            className="btn btn-primary"
+                            disabled={busy || (newCount === 0 && !scanFoundNone)}
+                            onClick={() => onImport(scanFoundNone ? { files: null, skipped: 0 } : { files: result.newFiles, skipped: onCard })}
+                        >
+                            {scanFoundNone ? 'Import all →' : `Import ${count(newCount, 'new photo')} →`}
+                        </button>
+                    )}
                 </footer>
             </div>
 
@@ -214,7 +247,9 @@ const DuplicateReview = ({ isOpen, result, apiBase, apiCall, onClose, onCleaned 
                 <p>
                     {preview?.use_trash === false
                         ? <>The Trash is unavailable, so <strong>{count(preview?.deleted.length ?? 0, "file")} ({preview?.total_freed_mb} MB)</strong> will be deleted permanently. This cannot be undone.</>
-                        : <>Move <strong>{count(preview?.deleted.length ?? 0, "file")} ({preview?.total_freed_mb} MB)</strong> to the Trash? The kept copy of each photo stays where it is.</>}
+                        : compare
+                            ? <>Move <strong>{count(preview?.deleted.length ?? 0, "file")} ({preview?.total_freed_mb} MB)</strong> from {sourceName} to the Trash? Your library is not touched.</>
+                            : <>Move <strong>{count(preview?.deleted.length ?? 0, "file")} ({preview?.total_freed_mb} MB)</strong> to the Trash? The kept copy of each photo stays where it is.</>}
                 </p>
             </ConfirmationModal>
         </div>

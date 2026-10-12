@@ -523,6 +523,9 @@ function App() {
 
     // --- State for Duplicates ---
     const [dupStrictness, setDupStrictness] = useState('near');
+    // Remembered per device: the same library is compared against every new card.
+    const [libraryFolder, setLibraryFolderRaw] = useState(() => localStorage.getItem('library_folder') || '');
+    const setLibraryFolder = (p) => { setLibraryFolderRaw(p); localStorage.setItem('library_folder', p); };
     // Last scan's result, held here so the review can be reopened after closing it.
     const [dupResult, setDupResult] = useState(null);
     const [showDupReview, setShowDupReview] = useState(false);
@@ -1141,7 +1144,12 @@ function App() {
                         apiCall('/api/job-status')
                             .then((s) => {
                                 const groups = s.duplicate_groups || [];
-                                setDupResult({ groups, files: s.duplicate_files || {}, strictness: dupStrictness });
+                                setDupResult({
+                                    groups, files: s.duplicate_files || {}, strictness: dupStrictness,
+                                    libraryFolder: s.library_folder || null,
+                                    sourceFolder: s.source_folder,
+                                    newFiles: s.new_files || [],
+                                });
                                 setDupRemaining(groups.length);
                                 setShowDupReview(true);
                             })
@@ -1168,6 +1176,7 @@ function App() {
             const selected = await open({ directory: true, multiple: false });
             if (selected) {
                 if (target === 'source') setSourceFolder(selected);
+                else if (target === 'library') setLibraryFolder(selected);
                 else setDestinationFolder(selected);
             }
         } catch (error) {
@@ -1454,6 +1463,7 @@ function App() {
                 source_folder: sourceFolder,
                 ignore_list: ignoredSubfolders,
                 similarity_threshold: STRICTNESS[dupStrictness],
+                library_folder: libraryFolder || undefined,
             };
         }
 
@@ -1704,7 +1714,7 @@ function App() {
         switch (operationMode) {
             case 'hybrid': return 'Start Hybrid Sort';
             case 'find': return 'Start Find & Group';
-            case 'duplicates': return 'Find Duplicates';
+            case 'duplicates': return libraryFolder ? 'Compare with Library' : 'Find Duplicates';
             default: return 'Start Organizing';
         }
     };
@@ -1894,7 +1904,20 @@ function App() {
                                 handleSelectFolder={() => handleBrowseFolder('source')}
                                 data-tutorial-target="source-selector"
                             />
-                            {operationMode !== 'duplicates' && (
+                            {operationMode === 'duplicates' ? (
+                                <>
+                                    <PathSelector
+                                        label="Compare with library (optional)"
+                                        path={libraryFolder}
+                                        handleSelectFolder={() => handleBrowseFolder('library')}
+                                    />
+                                    {libraryFolder && (
+                                        <button type="button" className="dup-clear-library" onClick={() => setLibraryFolder('')}>
+                                            Don't compare — just find duplicates in the source
+                                        </button>
+                                    )}
+                                </>
+                            ) : (
                                 <PathSelector
                                     label="Destination Folder"
                                     path={destinationFolder}
@@ -2080,9 +2103,10 @@ function App() {
                     ] : logs} />
                     <div className="footer-actions">
                         {!isProcessing && <button onClick={resetUi} className="btn btn-danger">Start Over</button>}
-                        {operationMode === 'duplicates' && dupResult && !isProcessing && dupRemaining > 0 && (
+                        {/* A comparison stays reopenable with zero groups: it still holds the import. */}
+                        {operationMode === 'duplicates' && dupResult && !isProcessing && (dupRemaining > 0 || dupResult.libraryFolder) && (
                             <button onClick={handleReopenDupReview} className="btn btn-primary">
-                                Review duplicates ({dupRemaining} groups)
+                                {dupResult.libraryFolder ? 'Review comparison' : `Review duplicates (${dupRemaining} groups)`}
                             </button>
                         )}
                         {operationMode !== 'duplicates' && (
