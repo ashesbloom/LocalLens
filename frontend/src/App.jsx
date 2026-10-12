@@ -540,6 +540,14 @@ function App() {
             setImportOnly(null);
         }
     }, [operationMode, sourceFolder, destinationFolder]);
+    // Arriving from "Import": bring the banner into view so it is clear what the
+    // next sort will do. The delay lets the mode switch finish laying out.
+    const importBannerRef = useRef(null);
+    useEffect(() => {
+        if (!importOnly) return undefined;
+        const t = setTimeout(() => importBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 350);
+        return () => clearTimeout(t);
+    }, [importOnly]);
 
     // --- NEW State for Enrollment ---
     const [isEnrolled, setIsEnrolled] = useState(false);
@@ -1742,7 +1750,7 @@ function App() {
         switch (operationMode) {
             case 'hybrid': return 'Start Hybrid Sort';
             case 'find': return 'Start Find & Group';
-            case 'duplicates': return libraryFolder ? 'Compare with Library' : 'Find Duplicates';
+            case 'duplicates': return libraryFolder ? 'Compare Folders' : 'Find Duplicates';
             default: return 'Start Organizing';
         }
     };
@@ -1933,18 +1941,13 @@ function App() {
                                 data-tutorial-target="source-selector"
                             />
                             {operationMode === 'duplicates' ? (
-                                <>
-                                    <PathSelector
-                                        label="Compare with library (optional)"
-                                        path={libraryFolder}
-                                        handleSelectFolder={() => handleBrowseFolder('library')}
-                                    />
-                                    {libraryFolder && (
-                                        <button type="button" className="dup-clear-library" onClick={() => setLibraryFolder('')}>
-                                            Don't compare — just find duplicates in the source
-                                        </button>
-                                    )}
-                                </>
+                                <PathSelector
+                                    label="Compare with folder (optional)"
+                                    path={libraryFolder}
+                                    handleSelectFolder={() => handleBrowseFolder('library')}
+                                    onClear={() => setLibraryFolder('')}
+                                    clearLabel="Don't compare, just find duplicates"
+                                />
                             ) : (
                                 <PathSelector
                                     label="Destination Folder"
@@ -2066,13 +2069,10 @@ function App() {
                     {operationMode === 'standard' && (
                         <div className="mode-content">
                             {importOnly && (
-                                <div className="import-only-banner" role="status">
+                                <div className="import-only-banner" role="status" ref={importBannerRef}>
                                     <span>
-                                        Importing only the <strong>{importOnly.files.length} new photos</strong> from{' '}
-                                        <strong>{getFolderName(importOnly.source)}</strong> —{' '}
-                                        {importOnly.skipped
-                                            ? `the ${importOnly.skipped} already in your library are skipped.`
-                                            : 'none of them are in your library yet.'}
+                                        Only the <strong>{importOnly.files.length} {importOnly.files.length === 1 ? 'photo' : 'photos'}</strong> in{' '}
+                                        {getFolderName(importOnly.source)} that aren't in {getFolderName(importOnly.library)} will be sorted.
                                     </span>
                                     <button type="button" onClick={() => setImportOnly(null)}>Cancel</button>
                                 </div>

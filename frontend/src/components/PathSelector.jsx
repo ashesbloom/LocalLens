@@ -1,4 +1,5 @@
 import React from 'react';
+import { X } from 'react-feather';
 
 const FolderIcon = ({ className = "icon" }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -6,15 +7,24 @@ const FolderIcon = ({ className = "icon" }) => (
     </svg>
 );
 
-const PathSelector = ({ label, path, handleSelectFolder, ...props }) => (
-    <div className="form-group" {...props}>
-        <label>{label}</label>
-        <div className="input-group">
-            <FolderIcon />
-            <input type="text" readOnly value={path} placeholder={`Path to your ${label.toLowerCase()}`} className="input-field with-icon" />
-            <button onClick={handleSelectFolder} className="btn btn-browse">Browse</button>
+// onClear (optional): an inline × beside Browse, for fields that may be left empty.
+const PathSelector = ({ label, path, handleSelectFolder, onClear, clearLabel = 'Clear', ...props }) => {
+    const clearable = !!(onClear && path);
+    return (
+        <div className="form-group" {...props}>
+            <label>{label}</label>
+            <div className="input-group">
+                <FolderIcon />
+                <input type="text" readOnly value={path} placeholder={`Path to your ${label.toLowerCase()}`} className={`input-field with-icon ${clearable ? 'with-clear' : ''}`} />
+                {clearable && (
+                    <button type="button" onClick={onClear} className="path-clear" title={clearLabel} aria-label={clearLabel}>
+                        <X size={14} />
+                    </button>
+                )}
+                <button onClick={handleSelectFolder} className="btn btn-browse">Browse</button>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 export default PathSelector;

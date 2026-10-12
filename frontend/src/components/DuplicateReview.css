@@ -9,7 +9,10 @@
 .dup-strictness .sorting-card-icon { min-width: 52px; height: 52px; font-size: 1.8rem; border-radius: 12px; }
 .dup-strictness .sorting-card-description { margin-bottom: 0; }
 
-/* --- Review overlay --- */
+/* --- Review overlay: a light table for culling ---
+   The photos are the content. Their fate is shown on the photo itself (kept
+   copies in colour with the theme ring, Trash-bound copies grey), so the chrome
+   around them can stay quiet. The gradient is spent on one button only. */
 .dup-overlay {
   position: fixed;
   inset: 0;
@@ -17,164 +20,95 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(17, 24, 39, 0.55);
-  animation: modal-fade-in 0.3s ease-out;
+  background: rgba(3, 7, 18, 0.6);
+  animation: modal-fade-in 0.25s ease-out;
 }
 
 .dup-panel {
   /* Dark glass like the app's other modals, so re-point the (light-theme) text
      tokens at light values for everything inside. */
   --color-text: #f3f4f6;
-  --color-text-muted: rgba(255, 255, 255, 0.65);
-  --color-border: rgba(255, 255, 255, 0.14);
+  --color-text-muted: rgba(255, 255, 255, 0.62);
+  --color-border: rgba(255, 255, 255, 0.12);
+  --dup-accent-text: var(--color-secondary); /* the theme's lighter hue reads on dark */
   color: var(--color-text);
-  position: relative;
   display: flex;
   flex-direction: column;
-  width: min(1100px, 94vw);
-  height: 90vh;
+  width: min(1120px, 94vw);
+  height: min(880px, 92vh);
   border-radius: 1rem;
   overflow: hidden;
-  background: rgba(17, 24, 39, 0.85);
-  border: 1px solid rgba(var(--color-primary-rgb), 0.35);
+  background: rgba(17, 24, 39, 0.88);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.3);
   -webkit-backdrop-filter: blur(24px) saturate(150%);
   backdrop-filter: blur(24px) saturate(150%);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px var(--color-shadow-primary);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 0 48px var(--color-shadow-primary);
 }
 
+.dup-panel button:focus-visible {
+  outline: 2px solid var(--dup-accent-text);
+  outline-offset: 2px;
+}
+
+/* Header: what this is, the one-line verdict, and how to look at it. */
 .dup-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
-  padding: 1.25rem 1.5rem 0.5rem;
+  padding: 1.25rem 1.5rem 1rem;
 }
-.dup-header > div:first-child { flex: 1; }
-.dup-header h2 { margin: 0; font-size: 1.3rem; color: var(--color-primary); }
-.dup-header p { margin: 0.25rem 0 0; color: var(--color-text-muted); font-size: 0.9rem; }
-
-.dup-close {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  padding: 0.25rem;
-}
-.dup-close:hover { color: var(--color-text); }
+.dup-heading { flex: 1; min-width: 0; }
+.dup-heading h2 { margin: 0; font-size: 1.25rem; font-weight: 650; letter-spacing: -0.01em; color: #fff; }
+.dup-heading p { margin: 0.3rem 0 0; max-width: 64ch; font-size: 0.92rem; line-height: 1.45; color: var(--color-text-muted); }
 
 .dup-view-toggle {
   display: flex;
-  border: 1px solid var(--color-border);
+  flex: none;
+  padding: 3px;
   border-radius: 999px;
-  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
 }
 .dup-view-toggle button {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.4rem 0.9rem;
-  background: none;
+  padding: 0.35rem 0.85rem;
   border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dup-view-toggle button.active { background: rgba(var(--color-primary-rgb), 0.28); color: #fff; }
+
+.dup-close {
+  flex: none;
+  display: flex;
+  padding: 0.35rem;
+  border: none;
+  border-radius: 999px;
+  background: none;
   color: var(--color-text-muted);
   cursor: pointer;
-  font-size: 0.85rem;
 }
-.dup-view-toggle button.active { background: var(--color-gradient); color: #fff; }
+.dup-close:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
 
-.dup-hint { margin: 0 1.5rem 0.5rem; font-size: 0.85rem; color: var(--color-text-muted); }
-
+/* Body */
 .dup-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 0.5rem 1.5rem 1rem;
+  padding: 0 1.5rem 1rem;
 }
-
-.dup-group {
-  margin-bottom: 1rem;
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.dup-group-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
-  font-size: 0.9rem;
-}
-
-.dup-keep-all {
-  padding: 0.3rem 0.8rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: none;
-  color: var(--color-text);
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-.dup-keep-all.active { border-color: var(--color-primary); color: var(--color-primary); }
-
-.dup-tiles { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-
-.dup-tile {
-  position: relative;
+.dup-body.is-single {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  width: 160px;
-  padding: 0.4rem;
-  border-radius: var(--border-radius);
-  border: 2px solid transparent;
-  background: rgba(0, 0, 0, 0.25);
-  color: var(--color-text);
-  cursor: pointer;
-  text-align: left;
-  transition: all var(--transition-speed);
+  gap: 0.75rem;
+  overflow: hidden;
+  padding-bottom: 0.75rem;
 }
-.dup-tile.large { width: 300px; }
-.dup-tile.keep { border-color: var(--color-primary); box-shadow: 0 0 16px var(--color-shadow-primary); }
-.dup-tile.trash { opacity: 0.55; }
-.dup-tile.trash:hover { opacity: 0.85; }
-.dup-tile.failed { border-color: var(--color-error); opacity: 1; }
-
-.dup-thumb {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: contain;
-  border-radius: calc(var(--border-radius) - 2px);
-  background: rgba(255, 255, 255, 0.04);
-}
-.dup-thumb-missing {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.dup-badge {
-  position: absolute;
-  top: 0.6rem;
-  left: 0.6rem;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  background: rgba(17, 24, 39, 0.85);
-}
-.dup-tile.keep .dup-badge { background: var(--color-primary); color: #fff; }
-
-.dup-meta { font-size: 0.75rem; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dup-folder { opacity: 0.8; }
-
-.dup-nav { display: flex; justify-content: center; gap: 1rem; margin-top: 0.5rem; }
-.dup-keys { text-align: center; font-size: 0.8rem; color: var(--color-text-muted); }
 
 .dup-empty {
   display: flex;
@@ -184,40 +118,265 @@
   color: var(--color-text-muted);
 }
 
+/* A group: a bar of facts, then its photos. In the list they are separated by
+   rules rather than boxed, so the photos carry the page. */
+.dup-group { padding: 1rem 0 1.1rem; border-top: 1px solid var(--color-border); }
+.dup-group:first-child { border-top: none; padding-top: 0.25rem; }
+
+.dup-group-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+.dup-group-bar h3 { margin: 0; font-size: 0.95rem; font-weight: 600; color: #fff; white-space: nowrap; }
+.dup-group-facts { display: flex; gap: 0.9rem; font-size: 0.85rem; color: var(--color-text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.dup-keep-all {
+  margin-left: auto;
+  flex: none;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dup-keep-all:hover { border-color: rgba(255, 255, 255, 0.3); }
+.dup-keep-all.active {
+  border-color: rgba(var(--color-primary-rgb), 0.7);
+  background: rgba(var(--color-primary-rgb), 0.18);
+  color: #fff;
+}
+
+.dup-photos { display: flex; gap: 1rem; overflow-x: auto; padding: 4px 4px 2px; }
+
+/* A photo: frame, then a caption with its fate and its facts. */
+.dup-photo {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 184px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.dup-photo:disabled { cursor: default; }
+
+.dup-photo-frame {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  border-radius: 0.6rem;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.35);
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+  transition: outline-color 0.2s, box-shadow 0.2s;
+}
+.dup-photo-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.25s, opacity 0.25s;
+}
+.dup-photo-missing {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.dup-photo.is-keep .dup-photo-frame { outline-color: var(--color-primary); box-shadow: 0 0 28px var(--color-shadow-primary); }
+.dup-photo.is-library .dup-photo-frame { outline-color: rgba(255, 255, 255, 0.55); }
+.dup-photo.is-trash img { filter: grayscale(1) brightness(0.5); }
+.dup-photo.is-trash:hover img,
+.dup-photo.is-trash:focus-visible img { filter: grayscale(0.25) brightness(0.85); }
+.dup-photo.failed .dup-photo-frame { outline-color: var(--color-error); }
+
+/* Hovering a copy headed for the Trash offers the swap in its caption. */
+.dup-photo-pick { display: none; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; color: var(--dup-accent-text); }
+.dup-photo:hover .dup-photo-pick,
+.dup-photo:focus-visible .dup-photo-pick { display: inline-flex; }
+.dup-photo:hover .dup-photo-pick + .dup-photo-state,
+.dup-photo:focus-visible .dup-photo-pick + .dup-photo-state { display: none; }
+
+.dup-photo-caption { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.dup-photo-state { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; }
+.dup-photo.is-keep .dup-photo-state { color: var(--dup-accent-text); }
+.dup-photo.is-trash .dup-photo-state { color: #fca5a5; }
+.dup-photo.is-library .dup-photo-state { color: #e5e7eb; }
+.dup-photo-meta {
+  display: flex;
+  gap: 0.6rem;
+  min-width: 0;
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dup-photo-folder { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* One by one: the stage takes every pixel the panel can spare, and the photos
+   scale to fit it instead of overflowing. */
+.dup-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  padding: 1rem 0.75rem;
+  border-radius: 0.9rem;
+  background: rgba(0, 0, 0, 0.3);
+}
+.dup-group.on-stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: none;
+}
+.dup-group.on-stage .dup-photos {
+  flex: 1;
+  min-height: 0;
+  justify-content: center;
+  gap: 1.25rem;
+}
+.dup-photo.on-stage { flex: 1 1 0; width: auto; min-width: 150px; max-width: 520px; align-items: center; }
+.dup-photo.on-stage .dup-photo-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  aspect-ratio: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  outline: none;
+  box-shadow: none;
+  overflow: visible;
+}
+.dup-photo.on-stage .dup-photo-frame img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+  transition: filter 0.25s, outline-color 0.2s, box-shadow 0.2s;
+}
+.dup-photo.on-stage.is-keep .dup-photo-frame img { outline-color: var(--color-primary); box-shadow: 0 0 32px var(--color-shadow-primary); }
+.dup-photo.on-stage.is-library .dup-photo-frame img { outline-color: rgba(255, 255, 255, 0.55); }
+.dup-photo.on-stage.failed .dup-photo-frame img { outline-color: var(--color-error); }
+.dup-photo.on-stage .dup-photo-caption { align-items: center; text-align: center; }
+
+.dup-step {
+  align-self: center;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.dup-step:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
+.dup-step:disabled { opacity: 0.25; cursor: default; }
+
+/* Filmstrip: every group at a glance; dashed frames lose nothing. */
+.dup-filmstrip {
+  position: relative; /* offsetParent for the frames, so the strip can centre one */
+  flex: none;
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding: 4px 2px;
+  scrollbar-width: thin;
+}
+.dup-frame {
+  flex: none;
+  width: 3.25rem;
+  height: 3.25rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 0.45rem;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.2s, border-color 0.2s;
+}
+.dup-frame:first-child { margin-left: auto; }
+.dup-frame:last-child { margin-right: auto; }
+.dup-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.dup-frame:hover { opacity: 0.85; }
+.dup-frame.kept { border-style: dashed; border-color: rgba(255, 255, 255, 0.35); }
+.dup-frame.active { opacity: 1; border-style: solid; border-color: var(--color-primary); }
+
+.dup-keys { flex: none; margin: 0; text-align: center; font-size: 0.75rem; color: var(--color-text-muted); white-space: pre; }
+
+/* Footer: one row. The reassurance gives way first when space runs out. */
 .dup-footer {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 1rem 1.5rem;
+  padding: 0.9rem 1.5rem;
   border-top: 1px solid var(--color-border);
 }
-.dup-footer-note { flex: 1; font-size: 0.85rem; color: var(--color-text-muted); }
-.dup-footer .btn, .dup-nav .btn { width: auto; margin: 0; }
-.dup-nav .btn { display: inline-flex; align-items: center; gap: 0.3rem; }
-.dup-panel .btn-secondary {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+.dup-footer-note {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.dup-panel .btn-secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
+.dup-footer .btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: auto;
+  margin: 0;
+  padding: 0.65rem 1.15rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.dup-btn-quiet {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+.dup-btn-quiet:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
 
 @media (max-width: 760px) {
   .dup-header { flex-wrap: wrap; }
-  .dup-tile, .dup-tile.large { width: calc(50% - 0.4rem); }
+  .dup-footer-note { display: none; }
   .dup-footer { flex-wrap: wrap; }
+  .dup-footer .btn { flex: 1 1 auto; justify-content: center; }
+  .dup-keys { display: none; }
+  .dup-step { display: none; }
 }
 
-/* Compare mode: library copies are shown for reference and can't be picked. */
-.dup-tile.locked { cursor: default; border-color: rgba(255, 255, 255, 0.35); box-shadow: none; }
-.dup-tile.locked .dup-badge { background: rgba(255, 255, 255, 0.9); color: #111827; }
-.dup-clear-library {
-  align-self: flex-start;
-  margin-top: 0.35rem;
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--color-primary);
-  font-size: 0.85rem;
-  cursor: pointer;
+@media (prefers-reduced-motion: reduce) {
+  .dup-overlay { animation: none; }
+  .dup-panel * { transition: none !important; }
 }
-.dup-clear-library:hover { text-decoration: underline; }
