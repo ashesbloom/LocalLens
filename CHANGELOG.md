@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Find and clear out duplicate photos, right in the app.** A new Duplicates tab scans a folder for copies of the same photo, including resized, re-exported and rotated copies and, if you choose, burst shots. Review each group side by side: Local Lens pre-selects the best copy (highest resolution, then least compressed, then the original over a "copy"), and you can pick another or keep them all. A short list opens one group at a time; a long one opens as a list you can skim. Everything you remove goes to the Trash. Free for everyone.
 - When the Claude agent cleans up duplicates, it now keeps the best copy too, rather than whichever file it found first.
+- **See what's already in your library before you import.** In the Duplicates tab, pick your library under "Compare with library" and Local Lens checks a card or folder against it. Photos you already have are shown next to their library copy so you can clear them off the card (to the Trash, your library is never touched), and one click imports only the new ones through a normal sort, filed by date, place or people like everything else. Repeat comparisons are much faster: Local Lens remembers each photo's fingerprint on this device, and "Delete my data" clears it.
+
+### Fixed
+
+- **Moving a scheduled folder to another drive no longer risks deleting files it didn't sort.** When a scheduled Move only had a few new photos to sort and the destination was on a different drive, Local Lens could remove the whole watched folder afterwards, including photos it hadn't touched. It now moves just the photos it sorts.
 
 ## [3.1.0] - 2026-09-13
 ### Added
