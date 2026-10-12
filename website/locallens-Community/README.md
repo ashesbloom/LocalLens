@@ -45,6 +45,12 @@ npx wrangler d1 create locallens-community      # put the id in wrangler.toml
 npx wrangler d1 execute locallens-community --remote --file=schema.sql
 ```
 
+A database created before the app inbox existed also needs its one migration, once:
+
+```
+npx wrangler d1 execute locallens-community --remote --file=migrations/0001_app_key.sql
+```
+
 Then set the four runtime secrets. `IP_SALT` and `ADMIN_KEY` should be fresh random values
 (`openssl rand -hex 32`), not the local ones from `.dev.vars`:
 

@@ -18,6 +18,7 @@ import { onRequestGet as onReplies, onRequestPost as onReply } from '../function
 import { onRequestDelete as onDeleteReply } from '../functions/api/posts/[id]/replies/[replyId].js'
 import { onRequestGet as onStats, onRequestPost as onVisit } from '../functions/api/stats.js'
 import { hashToken, tokenMatches } from '../functions/_lib/tokens.js'
+import { onRequestGet as onInbox, onRequestOptions as onInboxPreflight, clampSince } from '../functions/api/inbox.js'
 import { EDIT_WINDOW_MS } from '../src/data/postRules.js'
 
 let checks = 0
@@ -131,6 +132,16 @@ globalThis.fetch = async (url, init) => {
     if (githubFailure === 'error') throw new TypeError('network down')
     if (typeof githubFailure === 'number') {
       return new Response('{}', { status: githubFailure, headers: { 'content-type': 'application/json' } })
+    }
+    if (href.includes('/releases')) {
+      const asset = (name, download_count) => ({ name, download_count })
+      return new Response(
+        JSON.stringify([
+          { assets: [asset('Local_Lens_v3.1.0_aarch64.dmg', 11), asset('Local.Lens_3.1.0_x64-setup.exe', 124), asset('latest.json', 331)] },
+          { assets: [asset('Local_Lens_v3.0.2_x64_en-US.msi', 33), asset('Local_Lens_v3.0.2_aarch64.app.tar.gz', 3), asset('checksums-macos.txt', 4)] },
+        ]),
+        { headers: { 'content-type': 'application/json' } },
+      )
     }
     return new Response(
       JSON.stringify({ stargazers_count: 153, forks_count: 12, open_issues_count: 7 }),
@@ -504,7 +515,8 @@ async function postReply(env, request) {
   check(res.status === 200, 'stats answers')
   check(data.stars === 153 && data.forks === 12 && data.openIssues === 7, 'the GitHub numbers come through')
   check(data.visits === 4210, 'and the visit count comes from the database')
-  check(githubCalls === 1, 'exactly one GitHub call per request, not one per field')
+  check(githubCalls === 2, 'one GitHub call per source (repo, releases), not one per field')
+  check(data.downloads === 171, 'downloads count installer and update files only, not latest.json or checksums')
   check(/max-age=/.test(res.headers.get('cache-control') ?? ''), 'the answer is cacheable — that is what keeps the site inside the rate limit')
 
   // GitHub answers 403 to a request with no User-Agent. Getting this wrong would show dashes
@@ -522,6 +534,7 @@ for (const failure of ['error', 500, 403]) {
   const data = await res.json()
   check(res.status === 200, `GitHub ${failure} still answers 200`)
   check(data.stars === null && data.forks === null && data.openIssues === null, `GitHub ${failure} yields nulls, never a guess`)
+  check(data.downloads === null, `GitHub ${failure} yields a null download count too`)
   check(data.visits === 11, `GitHub ${failure} does not hide the visit count as well`)
 }
 githubFailure = null
@@ -656,6 +669,91 @@ githubFailure = null
   // A near-miss of the same length would pass a comparison that only checked length.
   const sameLength = 'let-me-in-pleasX'.slice(0, 'let-me-in-please'.length)
   check((await ask({ 'x-admin-key': sameLength })).status === 404, 'a same-length near miss is still refused')
+}
+
+// ============================ the app inbox ========================================
+// Records every read the handler makes, so a test can see what was bound -- the plaintext
+// key reaching a query would be the bug this whole design exists to avoid.
+function spyReads(db) {
+  const reads = []
+  const prepare = db.prepare
+  db.prepare = (sql) => {
+    const stmt = prepare.call(db, sql)
+    const all = stmt.all
+    stmt.all = async () => {
+      reads.push({ sql, args: stmt.args })
+      return all()
+    }
+    return stmt
+  }
+  return reads
+}
+const APP_KEY = 'a'.repeat(32)
+const inboxReq = (path, headers = {}, origin = 'tauri://localhost') => req('GET', path, { origin, headers })
+
+{
+  const db = makeDb({ rows: [{ id: 'p1' }], replies: [{ id: 'r1' }] })
+  const reads = spyReads(db)
+  const res = await onInbox({ env: { ...BASE_ENV, DB: db }, request: inboxReq('/api/inbox?since=0') })
+  const data = await res.json()
+  check(res.status === 200 && data.posts.length === 1, 'the inbox lists new posts without a key')
+  check(data.replies.length === 0 && !reads.some((r) => /FROM replies/.test(r.sql)), 'and never asks for replies without one')
+  check(typeof data.now === 'number', 'and hands back the server clock for the next since')
+}
+{
+  const db = makeDb({ rows: [], replies: [{ id: 'r1' }] })
+  const reads = spyReads(db)
+  const res = await onInbox({ env: { ...BASE_ENV, DB: db }, request: inboxReq('/api/inbox?since=0', { 'x-app-key': APP_KEY }) })
+  const data = await res.json()
+  const digest = await hashToken(APP_KEY)
+  const replyRead = reads.find((r) => /FROM replies/.test(r.sql))
+  check(data.replies.length === 1, 'with a key, replies on its posts come back')
+  check(replyRead.args[0] === digest, 'matched by the hash of the key')
+  check(/r\.app_key_hash != \?1/.test(replyRead.sql), 'leaving out replies the key wrote itself')
+  check(reads.find((r) => /FROM posts/.test(r.sql) && !/FROM replies/.test(r.sql)).args[1] === digest, 'and posts it wrote itself')
+  check(!reads.some((r) => r.args.includes(APP_KEY)), 'the plaintext key is never bound into a query')
+}
+{
+  const db = makeDb({ replies: [{ id: 'r1' }] })
+  const reads = spyReads(db)
+  const res = await onInbox({ env: { ...BASE_ENV, DB: db }, request: inboxReq('/api/inbox', { 'x-app-key': 'not-a-key' }) })
+  check((await res.json()).replies.length === 0 && !reads.some((r) => /FROM replies/.test(r.sql)), 'a malformed key is no key')
+}
+{
+  const now = 1_000_000_000_000
+  const WEEK = 7 * 24 * 60 * 60 * 1000
+  check(clampSince('0', now) === now - WEEK, 'since cannot reach back past a week')
+  check(clampSince(String(now + 5000), now) === now, 'nor into the future')
+  check(clampSince('nonsense', now) === now - WEEK, 'and garbage means a week')
+  check(clampSince(String(now - 60000), now) === now - 60000, 'a recent since passes through')
+}
+{
+  const db = makeDb()
+  const app = await onInbox({ env: { ...BASE_ENV, DB: db }, request: inboxReq('/api/inbox') })
+  check(app.headers.get('access-control-allow-origin') === 'tauri://localhost', 'the desktop app may read the inbox')
+  const evil = await onInbox({ env: { ...BASE_ENV, DB: db }, request: inboxReq('/api/inbox', {}, 'https://evil.test') })
+  check(evil.headers.get('access-control-allow-origin') === null, 'another site may not')
+  check(evil.headers.get('vary') === 'Origin', 'and caches keep the two apart')
+  const pre = await onInboxPreflight({ request: req('OPTIONS', '/api/inbox', { origin: 'http://tauri.localhost' }) })
+  check(pre.status === 204 && /x-app-key/.test(pre.headers.get('access-control-allow-headers')), 'the preflight allows the key header')
+}
+{
+  const db = makeDb()
+  await post({ ...BASE_ENV, DB: db }, req('POST', '/api/posts', { body: goodPost({ appKey: APP_KEY }) }))
+  const args = db.written[0].args
+  check(args.includes(await hashToken(APP_KEY)), 'a linked post stores the hash of the app key')
+  check(!args.includes(APP_KEY), 'never the key')
+}
+{
+  const db = makeDb()
+  await post({ ...BASE_ENV, DB: db }, req('POST', '/api/posts', { body: goodPost({ appKey: 'x'.repeat(32) }) }))
+  check(db.written[0].args.at(-1) === null, 'a malformed app key is stored as nothing')
+}
+{
+  const db = makeDb({ targetPost: { id: 'abc' } })
+  await postReply({ ...BASE_ENV, DB: db }, req('POST', '/api/posts/abc/replies', { body: reply({ appKey: APP_KEY }) }))
+  const args = db.batched[0][0].args
+  check(args.includes(await hashToken(APP_KEY)) && !args.includes(APP_KEY), 'a linked reply stores only the hash too')
 }
 
 console.log(`ok - check-endpoints.mjs (${checks} checks)`)
