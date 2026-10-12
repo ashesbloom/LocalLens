@@ -73,10 +73,11 @@ the Trash, or leave them where they are.
 
 ## Replies to your community posts
 
-Post on the [community forum](https://locallens-community.pages.dev) from a browser
-Local Lens opened, and replies come back to the app: in the bell, as a count on the app
-icon, and as a system notification when Local Lens is in the background. There's no
-account. The app and the forum share a random key that is stored only as a hash.
+Open the [community forum](https://locallens-community.pages.dev) from Local Lens's
+Community button and post there, and replies come back to the app: in the bell, as a
+count on the app icon, and as a system notification when Local Lens is in the
+background. There's no account. The app and the forum tab share a random key that the
+forum stores only as a hash.
 
 <p align="center">
     <img src="https://github.com/ashesbloom/LocalLens/blob/main/assets/Preview/v3.2.0/community-replies.png?raw=true" alt="The bell panel showing two replies to the user's community post" width="420"/>
