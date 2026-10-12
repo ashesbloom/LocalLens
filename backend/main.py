@@ -138,7 +138,7 @@ from organizer_logic import (
 )
 import organizer_logic
 from enrollment_logic import update_encodings
-from face_engine import load_upright
+from face_engine import load_upright, RAW_EXTENSIONS
 
 # --- Lifespan Context Manager ---
 @asynccontextmanager
@@ -571,12 +571,16 @@ def _keeper_rank(path: str, info: Dict):
     """
     Sort key for a duplicate group: the copy worth keeping sorts first.
 
-    Most pixels, then most bytes (same resolution, less compression), then a name
-    that is not a copy, then the older file — the original usually came first.
-    The path is last only to make ties deterministic.
+    A RAW master first, whatever its size: Pillow opens NEF/DNG/ARW as TIFF and
+    reports the embedded preview's 160x120, so pixels would hand the win to the
+    camera JPEG and pre-select the RAW for Trash. Then most pixels, then most bytes
+    (same resolution, less compression), then a name that is not a copy, then the
+    older file — the original usually came first. The path is last only to make
+    ties deterministic.
     """
-    stem = os.path.splitext(os.path.basename(path))[0]
+    stem, ext = os.path.splitext(os.path.basename(path))
     return (
+        ext.lower() not in RAW_EXTENSIONS,
         -(info["width"] * info["height"]),
         -info["bytes"],
         bool(_COPY_NAME.search(stem)),
@@ -819,11 +823,29 @@ async def run_find_duplicates_task(config: Dict):
     ignore_list = config.get("ignore_list") or []
     max_distance = config["max_distance"]
 
+    # A symlink or hard link is the same file under another name, not a duplicate of
+    # it. Grouping them would let the ranking trash the real file and "keep" a link
+    # that then dangles, so links are skipped and each inode is scanned once.
     image_files = []
+    seen_inodes = set()
     for dirpath, _, filenames in walk_ignoring(source_folder, set(ignore_list)):
         for f in filenames:
-            if f.lower().endswith(SUPPORTED_EXTENSIONS):
-                image_files.append(os.path.join(dirpath, f))
+            if not f.lower().endswith(SUPPORTED_EXTENSIONS):
+                continue
+            fp = os.path.join(dirpath, f)
+            try:
+                if os.path.islink(fp):
+                    continue
+                st = os.stat(fp)
+            except OSError:
+                continue
+            # st_ino is 0 on filesystems without inodes (FAT, some network shares);
+            # deduping on it there would collapse every file into one.
+            if st.st_ino:
+                if (st.st_dev, st.st_ino) in seen_inodes:
+                    continue
+                seen_inodes.add((st.st_dev, st.st_ino))
+            image_files.append(fp)
 
     current_job_state.update({
         "is_active": True,

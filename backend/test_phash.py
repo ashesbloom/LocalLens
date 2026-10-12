@@ -159,6 +159,28 @@ def demo():
     # Everything else equal: the older file is the original.
     assert best(("/p/x.jpg", info(100, 100, 500, 200)),
                 ("/p/y.jpg", info(100, 100, 500, 100))) == "/p/y.jpg"
+    # A RAW master beats its camera JPEG even when Pillow only read the RAW's tiny
+    # embedded preview (NEF/DNG/ARW open as TIFF at 160x120, so pixels lie).
+    assert best(("/p/IMG_2.JPG", info(6000, 4000, 8_000_000, 1)),
+                ("/p/IMG_2.NEF", info(160, 120, 25_000_000, 1))) == "/p/IMG_2.NEF"
+
+    # --- links: a symlink or hard link is the same file, never its duplicate ---
+    import asyncio
+    import main
+    with tempfile.TemporaryDirectory() as d:
+        real = os.path.join(d, "real.jpg")
+        _photo(seed=5).save(real, quality=95)
+        copy = os.path.join(d, "z_copy.jpg")
+        _photo(seed=5).save(copy, quality=95)
+        os.symlink(real, os.path.join(d, "a_link.jpg"))   # sorts first: would be kept
+        os.link(real, os.path.join(d, "b_hard.jpg"))      # same inode as real.jpg
+        asyncio.run(main.run_find_duplicates_task(
+            {"source_folder": d, "ignore_list": [], "max_distance": MAX_DISTANCE}))
+        groups = main.current_job_state["duplicate_groups"]
+        assert len(groups) == 1, f"expected one group (real + copy), got {groups}"
+        names = sorted(os.path.basename(p) for p in groups[0])
+        assert names in (["real.jpg", "z_copy.jpg"], ["b_hard.jpg", "z_copy.jpg"]), \
+            f"a link was grouped with its own target: {names}"
 
     print("test_phash: all assertions passed")
 
