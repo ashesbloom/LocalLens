@@ -32,6 +32,7 @@ import tempfile
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -340,6 +341,25 @@ def check_find_duplicates(base_url, source, original, duplicate):
     return group, f"complete, 1 group containing the byte-identical pair"
 
 
+def get_status(base_url, path):
+    """Status and content type of a GET, for endpoints that do not return JSON."""
+    try:
+        with urllib.request.urlopen(base_url + path, timeout=30) as resp:
+            return resp.status, resp.headers.get("Content-Type")
+    except urllib.error.HTTPError as e:
+        return e.code, None
+
+
+def check_thumbnail(base_url, source, group):
+    url = lambda p: "/api/thumbnail?path=" + urllib.parse.quote(str(p))
+    status, ctype = get_status(base_url, url(group[0]))
+    assert (status, ctype) == (200, "image/jpeg"), f"grouped path: {status} {ctype}"
+    outsider = next(p for p in source.rglob("*.jpg") if str(p) not in group)
+    status, _ = get_status(base_url, url(outsider))
+    assert status == 403, f"path outside the scan returned {status}, expected 403"
+    return "200 for a grouped photo, 403 outside the scan"
+
+
 def check_delete_files_dry_run(base_url, group):
     keeper, *dupes = group
     assert dupes, f"group had no non-keeper entries to delete: {group}"
@@ -456,6 +476,12 @@ def main():
             dup_group["group"] = group
             return detail
         step("[5] POST /api/find-duplicates -> GET /api/job-status", _check5)
+
+        def _check5b():
+            if "group" not in dup_group:
+                raise AssertionError("skipped — check 5 did not produce a duplicate group")
+            return check_thumbnail(base_url, source, dup_group["group"])
+        step("[5b] GET /api/thumbnail", _check5b)
 
         def _check6():
             if "group" not in dup_group:

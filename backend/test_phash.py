@@ -110,6 +110,30 @@ def demo():
             "is _phash still decoding via load_upright?"
         )
 
+        # --- /api/thumbnail: serves scan results only, odd filenames included ---
+        import asyncio
+        import io
+        import main
+        from fastapi import HTTPException
+
+        def thumb(path):
+            try:
+                r = asyncio.run(main.thumbnail_endpoint(path=path))
+                return r.status_code, r.media_type, Image.open(io.BytesIO(r.body)).size
+            except HTTPException as e:
+                return e.status_code, None, None
+
+        odd = os.path.join(d, "Goa trip #1 & café 😀.jpg")
+        _photo(seed=3, size=(1600, 1200)).save(odd, quality=90)
+        main.current_job_state["duplicate_groups"] = [[odd, original, broken]]
+        status, mime, size = thumb(odd)
+        assert status == 200 and mime == "image/jpeg", (status, mime)
+        assert max(size) <= 320, f"thumbnail not downscaled: {size}"
+        assert thumb(unrelated)[0] == 403, "a path outside the scan must be refused"
+        assert thumb(broken)[0] == 404, "an undecodable grouped file must be a 404"
+        main.current_job_state["duplicate_groups"] = []
+        assert thumb(odd)[0] == 403, "a cleared scan must not keep serving files"
+
     # --- keeper ranking: the best copy of a group sorts first ---
     def info(w, h, size, mtime):
         return {"width": w, "height": h, "bytes": size, "mtime": mtime}

@@ -22,6 +22,7 @@ except ImportError:
 
 import os
 import asyncio
+import io
 import json
 import re
 import sys
@@ -33,7 +34,7 @@ import signal
 from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Body, Request, BackgroundTasks, UploadFile, File, Form, Depends, Header
+from fastapi import FastAPI, HTTPException, Body, Request, BackgroundTasks, UploadFile, File, Form, Depends, Header, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -1378,6 +1379,39 @@ async def find_duplicates_endpoint(request: FindDuplicatesRequest, background_ta
         "message": "Duplicate scan started. Hashing every photo takes a while on a large folder.",
         "guidance": "Poll job status for progress; the groups appear there when it completes.",
     }
+
+
+def _thumbnail_jpeg(path: str):
+    """≤320px upright JPEG bytes, or None when nothing can decode the file.
+    ponytail: a full decode per thumbnail; switch JPEGs to Image.draft() if a
+    long review list ever feels slow to fill in."""
+    im = load_upright(path)
+    if im is None:
+        return None
+    im.thumbnail((320, 320))
+    buf = io.BytesIO()
+    im.convert("RGB").save(buf, "JPEG", quality=80)
+    return buf.getvalue()
+
+
+@app.get("/api/thumbnail")
+async def thumbnail_endpoint(path: str):
+    """
+    Small preview of one photo from the current duplicate scan, for the in-app
+    review screen.
+
+    Only paths in the current duplicate_groups are served. Anything on the machine
+    can point an <img> at this localhost port, and an unrestricted version would
+    hand any webpage the user's photos. Starting any other job clears the groups
+    (_DUP_RESULT_RESET), which closes the window again.
+    """
+    if not any(path in g for g in current_job_state.get("duplicate_groups") or []):
+        raise HTTPException(status_code=403, detail="Not part of the current duplicate scan.")
+    data = await asyncio.to_thread(_thumbnail_jpeg, path)
+    if data is None:
+        raise HTTPException(status_code=404, detail="This photo could not be decoded.")
+    return Response(content=data, media_type="image/jpeg",
+                    headers={"Cache-Control": "private, max-age=3600"})
 
 
 class ExportReportRequest(BaseModel):
