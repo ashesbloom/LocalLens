@@ -26,7 +26,11 @@ import { track } from '../data/analytics.js'
 //   · http://127.0.0.1:<port> — src/mcp_server/config.py
 //   · ~/.config/LocalLens/port.txt — src/tray/status.py (PORT_FILE)
 //   · 7-day re-check, 14-day offline grace, 3 machines per key — src/mcp_server/license.py
-//     (_RECHECK_EVERY, _OFFLINE_GRACE)
+//     (_RECHECK_EVERY, _OFFLINE_GRACE); activation posts {license_key, name: <hash>},
+//     the re-check {license_key, license_key_instance_id}
+//   · update check: GET version.json from raw.githubusercontent.com, User-Agent only,
+//     24h disk cache — src/mcp_server/updater.py, called by check_app_status and
+//     locallens_help('whats_new') in tools/status.py
 
 function Section({ kicker, title, children }) {
   return (
@@ -63,7 +67,7 @@ export default function Agent() {
           </div>
           <div className="doc-spec">
             <b>127.0.0.1</b>
-            <span>the only address it calls</span>
+            <span>where every photo job goes</span>
           </div>
         </div>
         <a
@@ -208,30 +212,54 @@ export default function Agent() {
       <Section kicker="Step three" title="What leaves your machine">
         <div className="doc-prose">
           <p>
-            No photo, no file path and no piece of metadata is sent anywhere. The agent has
-            exactly one reason to use the network, and it is the licence check — so here is
-            precisely what that sends:
+            No photo, no file path and no piece of metadata is sent anywhere. The agent uses
+            the network for two things, both there to keep it working for you: checking for
+            updates, and checking a Pro licence. Here is precisely what each one sends.
+          </p>
+          <p>
+            <strong>The update check</strong> downloads one small public file,{' '}
+            <code>version.json</code>, from <code>raw.githubusercontent.com</code>, so the
+            assistant can tell you when a new version is out. It sends nothing about you — the
+            only thing in the request is which version you are running:
+          </p>
+        </div>
+        <pre className="doc-pre">
+          <code>
+            GET version.json{'\n'}
+            User-Agent: locallens-mcp/&lt;version&gt;
+          </code>
+        </pre>
+        <div className="doc-prose">
+          <p>
+            It happens when you ask whether LocalLens is running or what is new, at most once a
+            day — the answer is cached on disk for 24 hours. If you are offline it is skipped
+            silently and nothing else changes.
+          </p>
+          <p>
+            <strong>The licence check</strong> only happens if you activate a Pro key. At
+            activation it sends:
           </p>
         </div>
         <pre className="doc-pre">
           <code>
             {'{'}{'\n'}
             {'  '}<span className="k">"license_key"</span>: <span className="s">"the key you pasted"</span>,{'\n'}
-            {'  '}<span className="k">"machine_id"</span>:  <span className="s">"an anonymous hash of this computer"</span>{'\n'}
+            {'  '}<span className="k">"name"</span>:        <span className="s">"an anonymous hash of this computer"</span>{'\n'}
             {'}'}
           </code>
         </pre>
         <div className="doc-prose">
           <p>
             The hash exists so one key's three machines can be told apart. It is not your
-            hostname and it is not reversible. A subscription re-checks about{' '}
-            <strong>once a week</strong> and keeps working for <strong>fourteen days</strong> if
-            you are offline; a founding-user key makes <strong>one</strong> request ever, at
-            activation, and never speaks again.
+            hostname and it is not reversible. A subscription then re-checks about{' '}
+            <strong>once a week</strong>, sending the key and the activation id the licence
+            server handed back — not the hash again — and keeps working for{' '}
+            <strong>fourteen days</strong> if you are offline. A founding-user key makes{' '}
+            <strong>one</strong> licence request ever, at activation, and never re-checks.
           </p>
           <p>
-            Free tools make no network request at all. Neither does sorting, searching or
-            reading your folders — that is all LocalLens, on your own disk.
+            Beyond those two, the free tools make no network request. Neither does sorting,
+            searching or reading your folders — that is all LocalLens, on your own disk.
           </p>
         </div>
       </Section>
