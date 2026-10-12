@@ -4,7 +4,7 @@
 import { strict as assert } from 'node:assert';
 import {
     KEEP_ALL, STRICTNESS, defaultView, initialKeepers, pathsToTrash,
-    reclaimBytes, afterDelete, formatBytes,
+    reclaimBytes, afterDelete, formatBytes, scanStillCurrent,
 } from './duplicateSelection.js';
 
 const groups = [['/a/1.jpg', '/a/1 copy.jpg', '/b/1.jpg'], ['/a/2.jpg', '/c/2.jpg']];
@@ -50,6 +50,15 @@ assert.deepEqual(next.keeper, ['/b/1.jpg']);
 // A "keep all" group is untouched and keeps its choice.
 const kept = afterDelete(groups, [KEEP_ALL, '/a/2.jpg'], ['/c/2.jpg']);
 assert.deepEqual(kept, { groups: [groups[0]], keeper: [KEEP_ALL] });
+
+// A held result is only reviewable while the backend still holds that scan:
+// any later job (the scheduler, the Claude agent) resets it and the thumbnails 403.
+const live = { job_type: 'duplicates', duplicate_groups: groups };
+assert.equal(scanStillCurrent(live, { groups }), true);
+assert.equal(scanStillCurrent({ job_type: 'sorting', duplicate_groups: [] }, { groups }), false);
+assert.equal(scanStillCurrent({ job_type: 'duplicates', duplicate_groups: [['/x/1.jpg', '/y/1.jpg']] }, { groups }), false,
+    'a newer scan of another folder must not pass for ours');
+assert.equal(scanStillCurrent(undefined, { groups }), false);
 
 assert.equal(formatBytes(0), '0 B');
 assert.equal(formatBytes(310 * 1024), '310 KB');

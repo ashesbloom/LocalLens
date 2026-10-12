@@ -40,6 +40,15 @@ export const afterDelete = (groups, keeper, deletedPaths) => {
     return next;
 };
 
+// The backend keeps one scan result and any later job resets it: the scheduler or
+// the Claude agent can do that behind the app's back. A held result is only safe to
+// review while every one of its photos is still in the backend's current scan.
+export const scanStillCurrent = (status, result) => {
+    if (status?.job_type !== 'duplicates') return false;
+    const live = new Set((status.duplicate_groups || []).flat());
+    return (result?.groups || []).flat().every((p) => live.has(p));
+};
+
 export const formatBytes = (bytes) => {
     if (!bytes) return '0 B';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];

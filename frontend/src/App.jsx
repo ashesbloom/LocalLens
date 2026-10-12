@@ -18,7 +18,7 @@ import HybridSortConfig from './components/HybridSortConfig';
 import FindGroupConfig from './components/FindGroupConfig'; 
 import DuplicateConfig from './components/DuplicateConfig';
 import DuplicateReview from './components/DuplicateReview';
-import { STRICTNESS } from './components/duplicateSelection';
+import { STRICTNESS, scanStillCurrent } from './components/duplicateSelection';
 import EnrolledFacesModal from './components/EnrolledFacesModal';
 import FaceEnrollmentModal from './components/FaceEnrollmentModal';
 import FindGroupResultModal from './components/FindGroupResultModal';
@@ -1478,6 +1478,23 @@ function App() {
             });
     };
 
+    // Reopening a held result: the scheduler or the Claude agent may have run a job
+    // since, which resets the backend's scan and would leave every thumbnail blank.
+    const handleReopenDupReview = async () => {
+        try {
+            const status = await apiCall('/api/job-status');
+            if (!scanStillCurrent(status, dupResult)) {
+                setDupResult(null);
+                logToConsole('These duplicate results are out of date because another job has run since. Scan again to review them.', 'warning');
+                return;
+            }
+        } catch (error) {
+            logToConsole(`Could not reopen the duplicate review: ${error.message}`, 'error');
+            return;
+        }
+        setShowDupReview(true);
+    };
+
     const handleAbortProcess = async () => {
         logToConsole("Sending abort signal to backend...", 'warning');
         try {
@@ -2063,7 +2080,7 @@ function App() {
                     <div className="footer-actions">
                         {!isProcessing && <button onClick={resetUi} className="btn btn-danger">Start Over</button>}
                         {operationMode === 'duplicates' && dupResult && !isProcessing && dupRemaining > 0 && (
-                            <button onClick={() => setShowDupReview(true)} className="btn btn-primary">
+                            <button onClick={handleReopenDupReview} className="btn btn-primary">
                                 Review duplicates ({dupRemaining} groups)
                             </button>
                         )}
