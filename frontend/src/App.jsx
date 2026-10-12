@@ -12,8 +12,7 @@ import OperationModeToggle from './components/OperationModeToggle'; // <-- ADD T
 import ProgressTracker from './components/ProgressTracker';
 import LogConsole from './components/LogConsole';
 import SubfolderSelector from './components/SubfolderSelector';
-import HierarchyToggle from './components/HierarchyToggle';
-import SkipDuplicatesToggle from './components/SkipDuplicatesToggle';
+import OutputOptions from './components/OutputOptions';
 import SortingModeSelector from './components/SortingModeSelector';
 import HybridSortConfig from './components/HybridSortConfig'; 
 import FindGroupConfig from './components/FindGroupConfig'; 
@@ -1222,7 +1221,9 @@ function App() {
                                     newFiles: s.new_files || [],
                                 });
                                 setDupRemaining(groups.length);
-                                setShowDupReview(true);
+                                // A plain scan with no groups has nothing to review: the log says so.
+                                // A comparison still opens, for its "Import all" action.
+                                setShowDupReview(groups.length > 0 || !!s.library_folder);
                             })
                             .catch(() => {});
                     }
@@ -2152,17 +2153,10 @@ function App() {
                     />
                 )}
 
-                {operationMode !== 'find' && operationMode !== 'duplicates' && (
-                    <HierarchyToggle
+                {(operationMode === 'standard' || operationMode === 'hybrid') && (
+                    <OutputOptions
                         maintainHierarchy={effectiveMaintainHierarchy}
                         setMaintainHierarchy={setEffectiveMaintainHierarchy}
-                        isProcessing={isProcessing || isEnrolling}
-                        data-tutorial-target="hierarchy-toggle"
-                    />
-                )}
-
-                {(operationMode === 'standard' || operationMode === 'hybrid') && (
-                    <SkipDuplicatesToggle
                         skipDuplicates={skipDuplicates}
                         setSkipDuplicates={setSkipDuplicates}
                         isProcessing={isProcessing || isEnrolling}

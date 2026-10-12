@@ -1,0 +1,117 @@
+.output-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+@media (max-width: 760px) {
+    .output-options { grid-template-columns: 1fr; }
+}
+
+.choice-group {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+}
+
+.choice-group legend {
+    padding: 0;
+    margin-bottom: 0.6rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--color-text);
+}
+
+.choice-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.choice {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.choice input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.choice:hover {
+    border-color: var(--color-text-muted);
+}
+
+.choice.is-selected {
+    border-color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.1);
+    color: var(--color-text);
+}
+
+.choice:has(input:focus-visible) {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.choice-group:disabled .choice {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.choice-group:disabled .choice:hover {
+    border-color: var(--color-border);
+}
+
+.choice-glyph {
+    flex: none;
+    width: 64px;
+    height: 42px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.choice-glyph * {
+    vector-effect: non-scaling-stroke;
+}
+
+.choice.is-selected .choice-glyph {
+    stroke: var(--color-primary);
+}
+
+/* The copy "Skip" leaves out: ghosted, dashed. */
+.glyph-skipped {
+    opacity: 0.4;
+    stroke-dasharray: 2 2;
+}
+
+.choice-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.choice-hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--color-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .choice { transition: none; }
+}
