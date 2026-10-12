@@ -902,8 +902,14 @@ function App() {
 
 
     // Errors that need the user, not just the log: the message plus how to fix it.
-    const showProblem = (title, text, hint, kind = 'error') =>
-        message(hint ? `${text}\n\n${hint}` : text, { title, kind }).catch(() => {});
+    // The log line is the fallback: if the dialog can't open, the error still shows.
+    const showProblem = (title, text, hint, kind = 'error') => {
+        const full = hint ? `${text}\n\n${hint}` : text;
+        return message(full, { title, kind }).catch((e) => {
+            console.error('dialog failed', e);
+            logToConsole(`${title}: ${full}`, kind);
+        });
+    };
 
     // --- Core API Functions ---
     const apiCall = async (endpoint, options = {}) => {

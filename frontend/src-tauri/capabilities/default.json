@@ -6,6 +6,7 @@
   "permissions": [
     "opener:default",
     "dialog:allow-open",
+    "dialog:allow-message",
     "dialog:allow-save",
     "shell:allow-open",
     "core:event:allow-listen",
