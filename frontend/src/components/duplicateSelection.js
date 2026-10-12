@@ -16,24 +16,26 @@ export const defaultView = (groupCount, strictness) =>
 export const initialKeepers = (groups) => groups.map((g) => g[0]);
 
 // A group trashes nothing unless its keeper is a real member: a missing or stale
-// keeper must never turn into "delete every copy".
-export const pathsToTrash = (groups, keeper) =>
+// keeper must never turn into "delete every copy". Protected paths (the library,
+// in compare mode) are never returned, whoever the keeper is.
+export const pathsToTrash = (groups, keeper, protectedPaths = new Set()) =>
     groups.flatMap((g, i) => {
         const k = keeper[i];
         if (k === KEEP_ALL || !g.includes(k)) return [];
-        return g.filter((p) => p !== k);
+        return g.filter((p) => p !== k && !protectedPaths.has(p));
     });
 
 export const reclaimBytes = (paths, files) =>
     paths.reduce((sum, p) => sum + (files[p]?.bytes ?? 0), 0);
 
-// Drop deleted files, drop groups with nothing left to compare, keep choices.
-export const afterDelete = (groups, keeper, deletedPaths) => {
+// Drop deleted files, drop groups with nothing left to compare (or only protected
+// library copies left), keep choices.
+export const afterDelete = (groups, keeper, deletedPaths, protectedPaths = new Set()) => {
     const gone = new Set(deletedPaths);
     const next = { groups: [], keeper: [] };
     groups.forEach((g, i) => {
         const left = g.filter((p) => !gone.has(p));
-        if (left.length < 2) return;
+        if (left.length < 2 || left.every((p) => protectedPaths.has(p))) return;
         next.groups.push(left);
         next.keeper.push(keeper[i] === KEEP_ALL || left.includes(keeper[i]) ? keeper[i] : left[0]);
     });

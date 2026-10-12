@@ -60,6 +60,16 @@ assert.equal(scanStillCurrent({ job_type: 'duplicates', duplicate_groups: [['/x/
     'a newer scan of another folder must not pass for ours');
 assert.equal(scanStillCurrent(undefined, { groups }), false);
 
+// Compare mode: library files are protected and never trashed, whatever the keeper.
+const lib = new Set(['/a/1.jpg', '/a/2.jpg']);
+assert.deepEqual(pathsToTrash(groups, ['/b/1.jpg', '/c/2.jpg'], lib), ['/a/1 copy.jpg']);
+assert.deepEqual(pathsToTrash(groups, keeper, new Set(groups.flat())), []);
+// A group left holding only library files has nothing to review and goes.
+const lg = [['/lib/a.jpg', '/lib/a2.jpg', '/card/a.jpg']];
+const libSet = new Set(['/lib/a.jpg', '/lib/a2.jpg']);
+assert.deepEqual(afterDelete(lg, ['/lib/a.jpg'], ['/card/a.jpg'], libSet).groups, []);
+assert.deepEqual(afterDelete(lg, ['/lib/a.jpg'], [], libSet).groups, lg);
+
 assert.equal(formatBytes(0), '0 B');
 assert.equal(formatBytes(310 * 1024), '310 KB');
 assert.equal(formatBytes(4.1 * 1024 * 1024), '4.1 MB');
