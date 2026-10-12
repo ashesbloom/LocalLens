@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Duplicates tab.** Finds copies of the same photo, including resized, re-exported and rotated ones, and burst shots if you want. Local Lens picks the best copy; you check it and send the rest to the Trash. Free for everyone.
 - **Compare with another folder.** Check a memory card against your library. Clear off the card what you already have, and import only the new photos, sorted or as they are.
+- **Skip duplicates when sorting.** Turn it on for a sort to leave out photos already in the destination, and extra copies in the source. After a Move, you choose whether the skipped photos stay, go to the Trash, or get reviewed.
 - **Replies to your community posts.** A reply shows up as a notification, a count on the bell and the app icon, and a system alert when Local Lens is in the background. New posts appear quietly in the bell. No account needed.
 - **A tour of what's new.** After an update, Local Lens shows the new features once. They stay in the tutorial menu, marked New.
 

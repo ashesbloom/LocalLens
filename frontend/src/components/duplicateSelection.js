@@ -72,3 +72,12 @@ export const formatBytes = (bytes) => {
     const v = bytes / 1024 ** i;
     return `${i >= 2 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
 };
+
+// Same folder, or one inside the other: Compare refuses those, so the UI hides it.
+// The backend's check (realpath, case) is the authority; this only spares a 400.
+export const foldersOverlap = (a, b) => {
+    if (!a || !b) return false;
+    const norm = (p) => p.replace(/\\/g, '/').replace(/\/+$/, '') + '/';
+    const [x, y] = [norm(a), norm(b)];
+    return x.startsWith(y) || y.startsWith(x);
+};

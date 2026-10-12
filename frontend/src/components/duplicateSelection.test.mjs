@@ -5,6 +5,7 @@ import { strict as assert } from 'node:assert';
 import {
     KEEP_ALL, STRICTNESS, defaultView, initialKeepers, pathsToTrash,
     reclaimBytes, afterDelete, formatBytes, scanStillCurrent, unprotectedCount, importHandoff,
+    foldersOverlap,
 } from './duplicateSelection.js';
 
 const groups = [['/a/1.jpg', '/a/1 copy.jpg', '/b/1.jpg'], ['/a/2.jpg', '/c/2.jpg']];
@@ -84,5 +85,10 @@ assert.equal(formatBytes(0), '0 B');
 assert.equal(formatBytes(310 * 1024), '310 KB');
 assert.equal(formatBytes(4.1 * 1024 * 1024), '4.1 MB');
 assert.equal(formatBytes(1.2 * 1024 ** 3), '1.2 GB');
+
+assert.equal(foldersOverlap('/a/lib', '/a/lib/Inbox'), true);
+assert.equal(foldersOverlap('/a/lib/', '/a/lib'), true);
+assert.equal(foldersOverlap('/a/lib', '/a/library'), false);
+assert.equal(foldersOverlap('C:\\Pics', 'C:\\Pics\\Card'), true);
 
 console.log('duplicateSelection: all assertions passed');

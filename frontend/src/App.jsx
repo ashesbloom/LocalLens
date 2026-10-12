@@ -13,12 +13,13 @@ import ProgressTracker from './components/ProgressTracker';
 import LogConsole from './components/LogConsole';
 import SubfolderSelector from './components/SubfolderSelector';
 import HierarchyToggle from './components/HierarchyToggle';
+import SkipDuplicatesToggle from './components/SkipDuplicatesToggle';
 import SortingModeSelector from './components/SortingModeSelector';
 import HybridSortConfig from './components/HybridSortConfig'; 
 import FindGroupConfig from './components/FindGroupConfig'; 
 import DuplicateConfig from './components/DuplicateConfig';
 import DuplicateReview from './components/DuplicateReview';
-import { STRICTNESS, scanStillCurrent } from './components/duplicateSelection';
+import { STRICTNESS, scanStillCurrent, foldersOverlap } from './components/duplicateSelection';
 import EnrolledFacesModal from './components/EnrolledFacesModal';
 import FaceEnrollmentModal from './components/FaceEnrollmentModal';
 import FindGroupResultModal from './components/FindGroupResultModal';
@@ -600,6 +601,12 @@ function App() {
 
     // --- NEW State for Move Complete Modal ---
     const [showMoveCompleteModal, setShowMoveCompleteModal] = useState(false);
+    // Skip duplicates: per sort, off by default, deliberately not remembered.
+    const [skipDuplicates, setSkipDuplicates] = useState(false);
+    // Photos a Move left behind as duplicates: {files, source, dest}; the modal asks what to do.
+    const [moveSkipped, setMoveSkipped] = useState(null);
+    // "Review them" switches to Duplicates; the comparison starts once that has rendered.
+    const [pendingCompare, setPendingCompare] = useState(false);
 
     // NEW: State to manage the animation lifecycle of the FaceEnrollment component
     const [faceEnrollmentDisplay, setFaceEnrollmentDisplay] = useState(operationMode === 'standard' ? 'visible' : 'hidden');
@@ -1177,7 +1184,14 @@ function App() {
 
                     // NEW: Handle UI reset after a successful move operation
                     if (data.status === 'complete' && fileOperationMode === 'move' && (operationMode === 'standard' || operationMode === 'hybrid')) {
-                        setShowMoveCompleteModal(true);
+                        // Skipped duplicates are still in the source: the modal asks about them.
+                        apiCall('/api/job-status')
+                            .then((s) => {
+                                const files = s.skipped_duplicates || [];
+                                setMoveSkipped(files.length ? { files, source: s.source_folder, dest: s.destination_folder } : null);
+                            })
+                            .catch(() => setMoveSkipped(null))
+                            .finally(() => setShowMoveCompleteModal(true));
                     }
 
                     // Handle Find & Group completion modal
@@ -1472,6 +1486,7 @@ function App() {
                 face_mode: faceMode,
                 maintain_hierarchy: maintainHierarchy,
                 ...(importOnly ? { specific_files: importOnly.files } : {}),
+                ...(skipDuplicates ? { skip_duplicates: true } : {}),
             };
             payload = {
                 source_folder: sourceFolder,
@@ -1496,7 +1511,8 @@ function App() {
                 custom_filter: {
                     filter_type: hybridConfig.filterType,
                     ...hybridConfig.filterValues,
-                }
+                },
+                ...(skipDuplicates ? { skip_duplicates: true } : {}),
             };
             payload = {
                 source_folder: sourceFolder,
@@ -1557,6 +1573,15 @@ function App() {
                 showProblem('Could not start', error.message);
             });
     };
+
+    // "Review them" after a Move: run the comparison once the Duplicates tab has the
+    // source and the destination (as Compare with) in state.
+    useEffect(() => {
+        if (pendingCompare && operationMode === 'duplicates' && libraryFolder && !isProcessing) {
+            setPendingCompare(false);
+            handleStartSorting();
+        }
+    }, [pendingCompare, operationMode, libraryFolder, isProcessing]);
 
     // Reopening a held result: the scheduler or the Claude agent may have run a job
     // since, which resets the backend's scan and would leave every thumbnail blank.
@@ -2136,6 +2161,14 @@ function App() {
                     />
                 )}
 
+                {(operationMode === 'standard' || operationMode === 'hybrid') && (
+                    <SkipDuplicatesToggle
+                        skipDuplicates={skipDuplicates}
+                        setSkipDuplicates={setSkipDuplicates}
+                        isProcessing={isProcessing || isEnrolling}
+                    />
+                )}
+
                 <hr className="divider" />
 
                 {/* Content changes based on selected mode */}
@@ -2296,16 +2329,48 @@ function App() {
 
             <MoveCompleteModal
                 isOpen={showMoveCompleteModal}
+                skipped={moveSkipped}
+                canReview={!!moveSkipped && !foldersOverlap(moveSkipped.source, moveSkipped.dest)}
                 onClose={() => {
                     setShowMoveCompleteModal(false);
+                    // Skipped duplicates are still in the source, so keep it selected.
+                    if (moveSkipped) { setMoveSkipped(null); return; }
                     setSourceFolder(''); // Reset source folder when modal is closed
                     saveLastConfig({ source_folder: '' }); // Save the cleared source folder
                 }}
                 onGoToDestination={() => {
                     setShowMoveCompleteModal(false);
-                    setSourceFolder(''); // Also reset here before opening
-                    saveLastConfig({ source_folder: '' }); // Save the cleared source folder
+                    if (!moveSkipped) {
+                        setSourceFolder(''); // Also reset here before opening
+                        saveLastConfig({ source_folder: '' }); // Save the cleared source folder
+                    }
+                    setMoveSkipped(null);
                     handleOpenDestination();
+                }}
+                onTrash={async () => {
+                    try {
+                        const r = await apiCall('/api/delete-files', {
+                            method: 'POST',
+                            body: JSON.stringify({ file_paths: moveSkipped.files, dry_run: false }),
+                        });
+                        logToConsole(`Moved ${r.deleted.length} skipped duplicate(s) to the Trash.`, 'success');
+                        if (r.failed.length) {
+                            showProblem('Some duplicates were not moved to the Trash',
+                                `${r.failed.length} could not be removed: ${r.failed[0].error}`, r.failed[0].hint, 'warning');
+                        }
+                    } catch (e) {
+                        showProblem('Could not move duplicates to the Trash', e.message);
+                    }
+                    setShowMoveCompleteModal(false);
+                    setMoveSkipped(null);
+                }}
+                onReview={() => {
+                    setShowMoveCompleteModal(false);
+                    setSourceFolder(moveSkipped.source);
+                    setLibraryFolder(moveSkipped.dest);
+                    setMoveSkipped(null);
+                    setOperationMode('duplicates');
+                    setPendingCompare(true);
                 }}
             />
             <TutorialOverlay />
