@@ -4,7 +4,7 @@
 // This is the first real caller of setNetActivity(). That mechanism was wired when the status
 // bar was built and had never had a consumer, so the `net:` readout always said "idle".
 import { LIMITS, validatePost, validateReply } from './postRules.js'
-import { rememberPost, forgetPost, tokenFor, adminKey } from './mine.js'
+import { rememberPost, forgetPost, tokenFor, adminKey, appKey } from './mine.js'
 import { setNetActivity } from './net.js'
 
 const TIMEOUT_MS = 12000
@@ -114,7 +114,8 @@ export async function createPost({ author, tag, tagLabel, body, turnstileToken }
   const data = await call(API, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...value, turnstileToken }),
+    // appKey links the write to the LocalLens app that opened this browser, if one did.
+    body: JSON.stringify({ ...value, turnstileToken, appKey: appKey() ?? undefined }),
   })
 
   // The token comes back exactly once and no endpoint will hand it over again, so this write
@@ -167,7 +168,8 @@ export async function createReply(postId, { author, body, turnstileToken }) {
   const data = await call(`${API}/${encodeURIComponent(postId)}/replies`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...value, turnstileToken }),
+    // appKey links the write to the LocalLens app that opened this browser, if one did.
+    body: JSON.stringify({ ...value, turnstileToken, appKey: appKey() ?? undefined }),
   })
 
   const kept = rememberPost(replyStorageKey(postId, data.reply.id), data.token)

@@ -2,7 +2,7 @@
 // The point of this file is the hostile-storage cases: localStorage throws outright in some
 // privacy modes and embedded views, and none of that may reach a component.
 import assert from 'node:assert/strict'
-import { rememberPost, forgetPost, tokenFor, ownsPost, setAdminKey, adminKey, clearAdminKey, isAdmin } from './mine.js'
+import { rememberPost, forgetPost, tokenFor, ownsPost, setAdminKey, adminKey, clearAdminKey, isAdmin, takeAppKeyFromHash, appKey } from './mine.js'
 
 let checks = 0
 function check(cond, msg) {
@@ -93,5 +93,21 @@ check(tokenFor('abc', fakeStore({ 'locallens.board.tokens': '{"abc":42}' })) ===
 check(tokenFor('abc', null) === null, 'a null store reads as empty')
 check(rememberPost('abc', 'tok', null) === false, 'and writes fail quietly')
 check(isAdmin(null) === false, 'and nobody is admin')
+
+// --- the LocalLens app key ------------------------------------------------------------------
+{
+  const key = '0123456789abcdef0123456789abcdef'
+  const s = fakeStore()
+  check(appKey(s) === null, 'no app key to start with')
+  check(takeAppKeyFromHash(`#app=${key}`, s) === '', 'the key is taken out of the hash')
+  check(appKey(s) === key, 'and kept')
+  check(takeAppKeyFromHash(`#app=${'f'.repeat(32)}&x=1`, s) === '#x=1', 'other fragment parts survive')
+  check(appKey(s) === 'f'.repeat(32), 'and a newer key replaces the old one')
+  check(takeAppKeyFromHash('#app=not-a-key', s) === '' && appKey(s) === 'f'.repeat(32), 'a malformed key is dropped, not stored')
+  check(takeAppKeyFromHash('#section', s) === '#section', 'a hash without a key is left alone')
+  check(takeAppKeyFromHash('', s) === '', 'as is no hash at all')
+  check(appKey(fakeStore({ 'locallens.board.appKey': 'junk' })) === null, 'junk in storage is no key')
+  check(takeAppKeyFromHash(`#app=${key}`, hostile) === '' && appKey(hostile) === null, 'blocked storage still cleans the URL')
+}
 
 console.log(`ok - mine.test.mjs (${checks} checks)`)

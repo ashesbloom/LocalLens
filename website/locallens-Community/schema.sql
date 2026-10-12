@@ -25,7 +25,12 @@ CREATE TABLE IF NOT EXISTS posts (
   score      INTEGER NOT NULL DEFAULT 0,
   ups        INTEGER NOT NULL DEFAULT 0,
   downs      INTEGER NOT NULL DEFAULT 0,
-  replies    INTEGER NOT NULL DEFAULT 0  -- kept beside the post, same reasoning as score below
+  replies    INTEGER NOT NULL DEFAULT 0, -- kept beside the post, same reasoning as score below
+
+  -- Hash of the LocalLens app key the posting browser was linked to, if any. It is how the
+  -- desktop app asks "replies on my posts" without an account. Hashed for the same reason
+  -- token_hash is: a copy of this table must not let anyone read another install's inbox.
+  app_key_hash TEXT
 );
 
 -- The feed, and the feed filtered by tag. Ordering by id is why id is time-sortable:
@@ -38,6 +43,9 @@ CREATE INDEX IF NOT EXISTS posts_top ON posts (hidden, score DESC, id DESC);
 
 -- Rate limiting reads this one and nothing else.
 CREATE INDEX IF NOT EXISTS posts_rate ON posts (ip_hash, created DESC);
+
+-- The app inbox. Partial, because most posts will never carry a key.
+CREATE INDEX IF NOT EXISTS posts_appkey ON posts (app_key_hash) WHERE app_key_hash IS NOT NULL;
 
 -- One vote per address per post, enforced by the primary key rather than by a read-then-write
 -- the application could get wrong. Changing your mind and voting twice become the same
@@ -76,7 +84,8 @@ CREATE TABLE IF NOT EXISTS replies (
   created    INTEGER NOT NULL,
   hidden     INTEGER NOT NULL DEFAULT 0,
   ip_hash    TEXT NOT NULL,
-  token_hash TEXT
+  token_hash TEXT,
+  app_key_hash TEXT  -- same as on posts; lets the inbox skip your own replies to your own post
 );
 
 -- Oldest first, per post -- a reply thread reads top to bottom like a conversation, not

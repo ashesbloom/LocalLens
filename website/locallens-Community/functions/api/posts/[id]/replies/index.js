@@ -8,7 +8,7 @@ import { LIMITS, validateReply, makePostId, makePostToken } from '../../../../..
 import { json, fail, sameOrigin, clientIp, readJson } from '../../../../_lib/http.js'
 import { verifyTurnstile } from '../../../../_lib/turnstile.js'
 import { hashIp, checkReplyRate } from '../../../../_lib/limits.js'
-import { hashToken } from '../../../../_lib/tokens.js'
+import { hashToken, hashAppKey } from '../../../../_lib/tokens.js'
 
 // token_hash and ip_hash stay off the wire for the same reason they do on a post: one would
 // hand out delete power over someone else's reply, the other a stable per-visitor id.
@@ -57,8 +57,8 @@ export async function onRequestPost({ env, params, request }) {
   // that landed and a first one that did not.
   await env.DB.batch([
     env.DB.prepare(
-      'INSERT INTO replies (id, post_id, author, body, created, hidden, ip_hash, token_hash) VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?7)',
-    ).bind(id, params.id, value.author, value.body, created, ipHash, await hashToken(token)),
+      'INSERT INTO replies (id, post_id, author, body, created, hidden, ip_hash, token_hash, app_key_hash) VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?7, ?8)',
+    ).bind(id, params.id, value.author, value.body, created, ipHash, await hashToken(token), await hashAppKey(body.value?.appKey)),
     env.DB.prepare('UPDATE posts SET replies = replies + 1 WHERE id = ?1').bind(params.id),
   ])
 

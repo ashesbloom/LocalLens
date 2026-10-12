@@ -63,9 +63,18 @@ function Votes({ post, onVote, busy }) {
 // One post's replies: a toggle showing the count, a lazily-loaded flat list, and a small
 // form to add one. Loaded only once opened -- fetching every post's replies while the feed
 // itself is loading would turn one page load into N+1 requests.
-function Reply({ postId, reply, onRemove }) {
+function Reply({ postId, reply, onRemove, focused = false }) {
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState(null)
+  const rowRef = useRef(null)
+
+  // The LocalLens app links straight to a reply (?reply=<id>). Scroll it to the middle of the
+  // screen once it exists; the highlight itself is CSS, and stands still under reduced motion.
+  useEffect(() => {
+    if (!focused) return
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    rowRef.current?.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' })
+  }, [focused])
   const mine = ownsPost(replyStorageKey(postId, reply.id))
   const admin = isAdmin()
 
@@ -82,7 +91,7 @@ function Reply({ postId, reply, onRemove }) {
   }
 
   return (
-    <div className="rp-item">
+    <div className={`rp-item${focused ? ' is-focus' : ''}`} id={`reply-${reply.id}`} ref={rowRef}>
       <header className="rp-meta">
         <span className="rp-who">{reply.author}</span>
         <time className="rp-when" dateTime={new Date(reply.created).toISOString()}>
@@ -190,7 +199,7 @@ function useReplyThread(postId, open) {
   return { items, setItems, problem }
 }
 
-function ReplyPanel({ postId, items, setItems, problem, onCountChange }) {
+function ReplyPanel({ postId, items, setItems, problem, onCountChange, focusReply }) {
   return (
     <div className="rp-panel">
       {items === null && !problem ? <p className="fd-note">reading replies…</p> : null}
@@ -200,6 +209,7 @@ function ReplyPanel({ postId, items, setItems, problem, onCountChange }) {
           key={r.id}
           postId={postId}
           reply={r}
+          focused={r.id === focusReply}
           onRemove={(id) => {
             setItems((cur) => cur.filter((x) => x.id !== id))
             onCountChange(-1)
@@ -217,10 +227,12 @@ function ReplyPanel({ postId, items, setItems, problem, onCountChange }) {
   )
 }
 
-export function Entry({ post, onVote, onReplace, onRemove, standalone = false }) {
+// `focusReply` is a reply id to open the thread on and bring into view -- how a link from the
+// LocalLens app lands on the reply it was about rather than on a closed thread.
+export function Entry({ post, onVote, onReplace, onRemove, standalone = false, focusReply = null }) {
   const tag = tagFor(post.tag, post.tagLabel)
   const [editing, setEditing] = useState(false)
-  const [repliesOpen, setRepliesOpen] = useState(false)
+  const [repliesOpen, setRepliesOpen] = useState(Boolean(focusReply))
   const [draft, setDraft] = useState(post.body)
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState(null)
@@ -363,6 +375,7 @@ export function Entry({ post, onVote, onReplace, onRemove, standalone = false })
             setItems={thread.setItems}
             problem={thread.problem}
             onCountChange={bumpReplies}
+            focusReply={focusReply}
           />
         ) : null}
       </div>

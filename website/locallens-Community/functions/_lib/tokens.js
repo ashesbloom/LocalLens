@@ -24,3 +24,13 @@ export async function tokenMatches(token, storedHash) {
   for (let i = 0; i < given.length; i++) diff |= given.charCodeAt(i) ^ storedHash.charCodeAt(i)
   return diff === 0
 }
+
+// The LocalLens app key: a 128-bit hex value the desktop app generates and hands to the
+// browser it opens. Same shape as our own tokens, so the same digest, and anything that is
+// not that shape is treated as absent rather than stored -- a garbage key would otherwise
+// become an inbox nobody can ever read.
+const APP_KEY = /^[0-9a-f]{32}$/
+
+export async function hashAppKey(key) {
+  return typeof key === 'string' && APP_KEY.test(key) ? hashToken(key) : null
+}

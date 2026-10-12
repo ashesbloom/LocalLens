@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
 import Frame from './shell/Frame.jsx'
+import { takeAppKeyFromHash } from './data/mine.js'
 import Home from './routes/Home.jsx'
 import Post from './routes/Post.jsx'
 import PostPage from './routes/PostPage.jsx'
@@ -33,6 +34,13 @@ function NotFound() {
       </p>
     </>
   )
+}
+
+// Before the router reads the URL: keep the LocalLens app key if the app sent one, and put the
+// address back without it (see takeAppKeyFromHash).
+const cleanHash = takeAppKeyFromHash(window.location.hash)
+if (cleanHash !== window.location.hash) {
+  window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search + cleanHash)
 }
 
 createRoot(document.getElementById('root')).render(

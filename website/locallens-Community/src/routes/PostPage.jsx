@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { fetchPost, votePost } from '../data/posts.js'
 import { Entry } from './PostFeed.jsx'
 
@@ -7,6 +7,9 @@ import { Entry } from './PostFeed.jsx'
 // chat and still be readable by someone who has never seen the board.
 export default function PostPage() {
   const { id } = useParams()
+  // ?reply=<id> -- set by links from the LocalLens app's notifications.
+  const [search] = useSearchParams()
+  const focusReply = search.get('reply')
   const [post, setPost] = useState(null)
   const [state, setState] = useState('loading')
   const [problem, setProblem] = useState(null)
@@ -64,6 +67,7 @@ export default function PostPage() {
         <Entry
           post={post}
           standalone
+          focusReply={focusReply}
           onVote={onVote}
           onReplace={onReplace}
           onRemove={() => setPost(null)}

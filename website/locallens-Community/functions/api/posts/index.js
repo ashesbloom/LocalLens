@@ -8,7 +8,7 @@ import { slugifyTag } from '../../../src/data/tags.js'
 import { json, fail, sameOrigin, clientIp, readJson } from '../../_lib/http.js'
 import { verifyTurnstile } from '../../_lib/turnstile.js'
 import { hashIp, checkPostRate, sweepOrphanUploads } from '../../_lib/limits.js'
-import { hashToken } from '../../_lib/tokens.js'
+import { hashToken, hashAppKey } from '../../_lib/tokens.js'
 
 // Every column the client may see. token_hash and ip_hash are deliberately absent and must
 // stay that way: one would hand a visitor the power to delete other people's posts, the other
@@ -112,10 +112,11 @@ export async function onRequestPost({ env, request, waitUntil }) {
   const created = Date.now()
 
   await env.DB.prepare(
-    `INSERT INTO posts (id, author, tag, tag_label, body, created, edited, hidden, ip_hash, token_hash, score, ups, downs)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0, ?7, ?8, 0, 0, 0)`,
+    `INSERT INTO posts (id, author, tag, tag_label, body, created, edited, hidden, ip_hash, token_hash, score, ups, downs, app_key_hash)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0, ?7, ?8, 0, 0, 0, ?9)`,
   )
-    .bind(id, value.author, value.tag, value.tagLabel, value.body, created, ipHash, await hashToken(token))
+    // The app key is optional and only ever stored hashed; see functions/api/inbox.js.
+    .bind(id, value.author, value.tag, value.tagLabel, value.body, created, ipHash, await hashToken(token), await hashAppKey(body.value?.appKey))
     .run()
 
   if (waitUntil) waitUntil(sweepOrphanUploads(env.DB, env.IMG).catch(() => {}))

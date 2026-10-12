@@ -4,6 +4,7 @@ import { LIMITS } from '../data/postRules.js'
 import { TOOLS, applyTool } from '../data/mdEdit.js'
 import { parseMarkdown } from '../data/markdown.js'
 import { createPost } from '../data/posts.js'
+import { appKey } from '../data/mine.js'
 import { useTurnstileWidget } from '../shell/useTurnstile.js'
 import { SafeNodes } from '../shell/SafeNode.jsx'
 
@@ -260,6 +261,10 @@ export default function PostComposer({ onPosted }) {
             {fieldErrors.body ? ` ${fieldErrors.body}` : ''}
             {fieldErrors.author ? ` ${fieldErrors.author}` : ''}
           </p>
+        ) : null}
+        {/* Says out loud that this browser is linked, so nobody wonders why the app knew. */}
+        {expanded && appKey() ? (
+          <p className="cmp-linked">Replies to this post will show up in your LocalLens app.</p>
         ) : null}
         {storageWarning ? (
           <p className="cmp-note" role="status">

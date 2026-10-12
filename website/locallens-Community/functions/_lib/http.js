@@ -73,3 +73,25 @@ export async function readJson(request, maxBytes) {
     return { malformed: true }
   }
 }
+
+// The desktop app's webview is the one cross-origin caller we serve, and only for the inbox.
+// Echoing a fixed list rather than `*` keeps every other site's scripts from reading it with
+// a key they lifted. Tauri's origin differs by platform; :1420 is the app under `npm run dev`.
+const APP_ORIGINS = new Set([
+  'tauri://localhost',
+  'http://tauri.localhost',
+  'https://tauri.localhost',
+  'http://localhost:1420',
+])
+
+export function appCors(request) {
+  const origin = request.headers.get('Origin')
+  const headers = { vary: 'Origin' }
+  if (origin && APP_ORIGINS.has(origin)) {
+    headers['access-control-allow-origin'] = origin
+    headers['access-control-allow-methods'] = 'GET, OPTIONS'
+    headers['access-control-allow-headers'] = 'x-app-key'
+    headers['access-control-max-age'] = '86400'
+  }
+  return headers
+}

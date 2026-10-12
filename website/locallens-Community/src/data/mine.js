@@ -11,6 +11,7 @@
 
 const TOKENS_KEY = 'locallens.board.tokens'
 const ADMIN_KEY = 'locallens.board.admin'
+const APP_KEY = 'locallens.board.appKey'
 
 // A browser only needs the tokens for posts recent enough to still be on screen. Capping the
 // map stops it growing without bound for someone who posts a lot over a year.
@@ -107,4 +108,28 @@ export function clearAdminKey(store = browserStore()) {
 
 export function isAdmin(store = browserStore()) {
   return adminKey(store) !== null
+}
+
+// The LocalLens desktop app opens this site with `#app=<key>`. Keeping that key here and
+// sending it with every post and reply is what lets the app show replies to your posts. A
+// fragment rather than a query parameter because a fragment never reaches a server, a log or
+// a Referer header.
+//
+// Returns the hash with the key taken out, so the caller can put a clean URL back -- a link
+// copied from the address bar must not carry someone's key to whoever it is pasted to.
+const APP_KEY_SHAPE = /^[0-9a-f]{32}$/
+
+export function takeAppKeyFromHash(hash, store = browserStore()) {
+  const params = new URLSearchParams(String(hash ?? '').replace(/^#/, ''))
+  const key = params.get('app')
+  if (key === null) return hash
+  if (APP_KEY_SHAPE.test(key)) write(store, APP_KEY, key)
+  params.delete('app')
+  const rest = params.toString()
+  return rest ? `#${rest}` : ''
+}
+
+export function appKey(store = browserStore()) {
+  const value = read(store, APP_KEY)
+  return value && APP_KEY_SHAPE.test(value) ? value : null
 }
