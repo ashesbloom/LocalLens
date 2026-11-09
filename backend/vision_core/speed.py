@@ -64,7 +64,15 @@ def _peak_mb():
                         "PagefileUsage", "PeakPagefileUsage")]
         pmc = PMC()
         pmc.cb = ctypes.sizeof(pmc)
-        ctypes.windll.psapi.GetProcessMemoryInfo(ctypes.windll.kernel32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb)
+        # Declared types: the process handle is a 64-bit pointer; passed as a plain int the call fails and the
+        # struct stays zero (seen on GitHub's Windows runner, 2026-11-09).
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.GetCurrentProcess.restype = wintypes.HANDLE
+        get = k32.K32GetProcessMemoryInfo
+        get.argtypes = [wintypes.HANDLE, ctypes.POINTER(PMC), wintypes.DWORD]
+        get.restype = wintypes.BOOL
+        if not get(k32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb):
+            return {"main": None, "largest_worker": None}
         # ponytail: workers' peak is not read on Windows; add a per-worker report if the main number looks low
         return {"main": round(pmc.PeakWorkingSetSize / 2**20), "largest_worker": None}
 
@@ -82,10 +90,18 @@ def machine():
                         "ullAvailPageFile", "ullTotalVirtual", "ullAvailVirtual", "ullAvailExtendedVirtual")]
         ms = MS()
         ms.dwLength = ctypes.sizeof(ms)
-        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(ms))
-        ram = ms.ullTotalPhys
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.GlobalMemoryStatusEx.argtypes = [ctypes.POINTER(MS)]
+        k32.GlobalMemoryStatusEx.restype = ctypes.c_int
+        ram = ms.ullTotalPhys if k32.GlobalMemoryStatusEx(ctypes.byref(ms)) else 0
+    try:
+        import onnxruntime
+        ort = onnxruntime.__version__
+    except ImportError:
+        ort = None
     return {"os": platform.platform(), "machine": platform.machine(), "cpu": platform.processor() or platform.machine(),
-            "cores": os.cpu_count(), "ram_gb": round(ram / 2**30, 1), "python": platform.python_version()}
+            "cores": os.cpu_count(), "ram_gb": round(ram / 2**30, 1), "python": platform.python_version(),
+            "onnxruntime": ort}
 
 
 def run(paths, encoders, batch=8, workers=None, queries=("a dog on the beach",) * 10, gallery=10_000, progress=None):

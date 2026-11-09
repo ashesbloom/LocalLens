@@ -69,6 +69,13 @@ def test_parity_cosines():
         assert r["images"] == 8 and abs(r["min"] - 1.0) < 1e-6 and abs(r["median"] - 1.0) < 1e-6, r
 
 
+def test_machine_facts_are_read_on_every_os():
+    """The memory and RAM readers differ per OS (Windows uses the Win32 API); CI runs this on Windows too."""
+    m = speed.machine()
+    assert m["ram_gb"] > 0 and m["cores"] and m["onnxruntime"], m
+    assert speed._peak_mb()["main"] > 0
+
+
 def test_views():
     img = Image.new("RGB", (60, 40))
     v = speed.views(img, 4)
