@@ -48,8 +48,18 @@ jobs:
         working-directory: backend
         run: python -m PyInstaller vision_bench.spec --noconfirm
 
+      # One zip per platform made on the runner: an artifact upload drops Unix permissions, and the Mac app must
+      # stay executable for testers.
+      - name: Package
+        shell: bash
+        working-directory: backend/dist
+        run: |
+          out="../../LocalLensBench-$RUNNER_OS-$RUNNER_ARCH.zip"
+          if [ "$RUNNER_OS" = "Windows" ]; then 7z a -tzip "$out" LocalLensBench > /dev/null; else ditto -c -k --keepParent LocalLensBench "$out"; fi
+          ls -la "$out"
+
       - uses: actions/upload-artifact@v4
         with:
           name: LocalLensBench-${{ runner.os }}-${{ runner.arch }}
-          path: backend/dist/LocalLensBench
+          path: LocalLensBench-*.zip
           retention-days: 30
