@@ -1,0 +1,47 @@
+name: Vision Core test app
+
+# Builds the LocalLens Vision Core test app (backend/vision_core/bench.py) for the machines that close gate G6:
+# Windows x64, Intel Mac and Apple Silicon. Run by hand only; it publishes nothing, the apps are workflow artifacts.
+# Testers put the int8 `models` folder next to the app (not bundled: 1.2 GB) and send back the JSON report.
+# A push to a bench/* branch builds it without touching main (workflow_dispatch needs the file on the default branch).
+on:
+  workflow_dispatch:
+  push:
+    branches: ['bench/**']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-15-intel, macos-15]   # macos-13 retired 2025-12-04; macos-15-intel is the Intel image
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install the test app's packages (versions the lab measured with)
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy==1.26.4 pillow==12.2.0 pillow-heif==1.3.0 onnxruntime==1.31.0 tokenizers==0.23.3 pyinstaller==6.19.0
+
+      - name: Tests
+        working-directory: backend
+        run: python -m vision_core.test_speed
+
+      - name: Build
+        working-directory: backend
+        run: python -m PyInstaller vision_bench.spec --noconfirm
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalLensBench-${{ runner.os }}-${{ runner.arch }}
+          path: backend/dist/LocalLensBench
+          retention-days: 30
