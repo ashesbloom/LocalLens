@@ -19,7 +19,7 @@ import sys
 import time
 from pathlib import Path
 
-VERSION = "0.2 (2026-11-09)"
+VERSION = "0.3 (2026-11-09)"
 MODELS = {"siglip2-b16-224-int8": 4, "pe-core-b16-224-int8": 1}   # name: views (D19, D62)
 EXTS = (".jpg", ".jpeg", ".heic", ".heif", ".png")
 
@@ -30,6 +30,46 @@ def here():
         return Path(sys.executable).resolve().parent
     from . import MODELS_DIR
     return MODELS_DIR.parent
+
+
+def find_models(app_dir, depth=3, budget=5000):
+    """The folder holding both models, wherever a tester unzipped them: inside the app's folder, beside it, or beside
+    the folder the app's zip made (Windows "Extract All" puts both zips' folders side by side in Downloads), up to
+    `depth` levels down (e.g. LocalLens-VisionCore-models-int8-…/models). None when not found."""
+    def ok(d):
+        return all((d / n / "model.json").is_file() for n in MODELS)
+    seen = 0
+    app_dir = Path(app_dir)
+    for base in (app_dir, app_dir.parent, app_dir.parent.parent):
+        level = [base]
+        for _ in range(depth + 1):
+            for d in level:
+                if ok(d):
+                    return d
+            nxt = []
+            for d in level:
+                try:
+                    kids = sorted(k for k in d.iterdir() if k.is_dir() and not k.name.startswith("."))
+                except OSError:
+                    continue
+                seen += len(kids)
+                nxt += kids
+            if seen > budget:   # ponytail: a huge Downloads folder stops the search; --models <folder> still works
+                break
+            level = nxt
+    return None
+
+
+def dropped_path(text):
+    """A folder dragged into the window: Mac Terminal escapes spaces ("My\\ Photos"), Windows adds quotes."""
+    import shlex
+    t = text.strip()
+    if t.startswith(("/", "'/", '"/', "~")):
+        try:
+            return os.path.expanduser(shlex.split(t)[0])
+        except ValueError:
+            pass
+    return t.strip("'\"")
 
 
 def find_photos(folder, limit):
@@ -69,21 +109,28 @@ def main(argv=None):
     ap.add_argument("--search-only", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--low", action="store_true", help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
-    models = Path(a.models) if a.models else here() / "models"
+    interactive = not a.photos and sys.stdin.isatty()
+
+    def done(code):   # a double-clicked window would close before anyone reads the result
+        if interactive:
+            input("\nPress Enter to close this window.")
+        return code
+    models = Path(a.models) if a.models else (find_models(here()) or here() / "models")
     if a.search_only:
         print(json.dumps(search_only(models, list(MODELS)[:1] if a.low else tuple(MODELS))))
         return 0
     missing = [n for n in MODELS if not (models / n / "model.json").exists()]
     if missing:
-        print(f"The models folder is missing {', '.join(missing)}.\nPut the 'models' folder next to this app: {models}")
-        return 2
+        print("The models were not found. Unzip the models zip and put its 'models' folder inside this app's folder:\n"
+              f"  {here()}\n(or start the app with --models <the folder that holds {' and '.join(MODELS)}>)")
+        return done(2)
     from .encoder import Encoder
     from .speed import machine, model_mb, run
-    folder = a.photos or input("Drag a folder of your photos into this window, then press Enter: ").strip().strip("'\"")
+    folder = a.photos or dropped_path(input("Drag a folder of your photos into this window, then press Enter: "))
     paths = find_photos(folder, a.limit)
     if len(paths) < 20:
         print(f"Found {len(paths)} photos in that folder; please choose one with at least 20.")
-        return 2
+        return done(2)
     print(f"LocalLens test app {VERSION}: {len(paths)} photos. Nothing leaves this computer.", flush=True)
 
     def bar(label):
@@ -107,7 +154,7 @@ def main(argv=None):
     f = report["full"]
     print(f"\nDone: {f['photos_per_s']} photos/s, peak memory {f['peak_rss_mb']['main']} MB.\n"
           f"Please send this file back: {out}")
-    return 0
+    return done(0)
 
 
 if __name__ == "__main__":

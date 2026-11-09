@@ -41,8 +41,12 @@ jobs:
           pip install numpy==1.26.4 pillow==12.2.0 pillow-heif==1.3.0 onnxruntime==${{ matrix.ort }} tokenizers==0.23.3 pyinstaller==6.19.0
 
       - name: Tests
+        shell: bash   # PowerShell would carry on after a failing first test
         working-directory: backend
-        run: python -m vision_core.test_speed
+        run: |
+          set -e
+          python -m vision_core.test_speed
+          python -m vision_core.test_bench
 
       - name: Build
         working-directory: backend
