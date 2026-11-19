@@ -42,6 +42,16 @@ def test_a_dragged_folder_path_is_read_on_mac_and_windows():
     assert bench.dropped_path("C:\\Users\\me\\Pictures") == "C:\\Users\\me\\Pictures"
 
 
+def test_selfcheck_loads_the_native_parts_and_runs_a_model():
+    """D111: CI starts each built app with --selfcheck (the Intel Mac build had never been run)."""
+    from vision_core import MODELS_DIR
+    m = MODELS_DIR / "yunet" / "face_detection_yunet_2023mar-dynamic.onnx"
+    if not m.exists():
+        print("  (no small model here: selfcheck not run)")
+        return
+    assert bench.main(["--selfcheck", str(m)]) == 0
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

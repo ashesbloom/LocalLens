@@ -52,6 +52,28 @@ jobs:
         working-directory: backend
         run: python -m PyInstaller vision_bench.spec --noconfirm
 
+      # The built app must start on each machine (D111): the Intel Mac build had never been run. A tiny model made here
+      # (onnx is a CI-only tool, not in the app) stands in for the 1.2 GB models; no photos are used.
+      - name: Self-check the built app
+        shell: bash
+        working-directory: backend
+        run: |
+          set -e
+          pip install onnx==1.17.0
+          python - <<'PY'
+          import onnx
+          from onnx import TensorProto, helper
+          x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 4])
+          y = helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 2])
+          w = helper.make_tensor("w", TensorProto.FLOAT, [4, 2], [0.5] * 8)
+          g = helper.make_graph([helper.make_node("MatMul", ["x", "w"], ["y"])], "tiny", [x], [y], [w])
+          m = helper.make_model(g, opset_imports=[helper.make_opsetid("", 13)])
+          m.ir_version = 8
+          onnx.save(m, "tiny.onnx")
+          PY
+          if [ "$RUNNER_OS" = "Windows" ]; then app=dist/LocalLensBench/LocalLensBench.exe; else app=dist/LocalLensBench/LocalLensBench; fi
+          "$app" --selfcheck tiny.onnx
+
       # One zip per platform made on the runner: an artifact upload drops Unix permissions, and the Mac app must
       # stay executable for testers.
       - name: Package

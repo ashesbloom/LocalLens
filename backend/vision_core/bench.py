@@ -100,6 +100,28 @@ def search_only(models, names=tuple(MODELS)):
     return {"first_ms": round(1000 * first), "ms_per_search": round(1000 * sorted(times)[1]), "peak_rss_mb": _peak_mb()["main"]}
 
 
+def selfcheck(model):
+    """CI's smoke test of a built app (D111): every native part loads, an image decodes and an ONNX model runs (open
+    dimensions filled with 32). No models or photos needed; prints one line and returns 0."""
+    import io
+    import numpy as np
+    import onnxruntime as ort
+    import tokenizers
+    from PIL import Image, __version__ as pil
+    from pillow_heif import register_heif_opener
+    from . import encoder, speed  # noqa: F401  (bundled and importable)
+    register_heif_opener()
+    b = io.BytesIO()
+    Image.new("RGB", (64, 48), (200, 10, 10)).save(b, "JPEG")
+    Image.open(io.BytesIO(b.getvalue())).load()
+    s = ort.InferenceSession(str(model), providers=["CPUExecutionProvider"])
+    feed = {i.name: np.ones([d if isinstance(d, int) else 32 for d in i.shape], np.float32) for i in s.get_inputs()}
+    outs = s.run(None, feed)
+    print(f"selfcheck ok: onnxruntime {ort.__version__}, numpy {np.__version__}, Pillow {pil}, tokenizers "
+          f"{tokenizers.__version__}; {len(outs)} model output(s), {sum(np.asarray(o).size for o in outs)} values", flush=True)
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="LocalLensBench")
     ap.add_argument("--photos")
@@ -108,7 +130,10 @@ def main(argv=None):
     ap.add_argument("--out")
     ap.add_argument("--search-only", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--low", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--selfcheck", metavar="MODEL.onnx", help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
+    if a.selfcheck:
+        return selfcheck(a.selfcheck)
     interactive = not a.photos and sys.stdin.isatty()
 
     def done(code):   # a double-clicked window would close before anyone reads the result
